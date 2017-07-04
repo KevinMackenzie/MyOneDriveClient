@@ -158,5 +158,25 @@ namespace MyOneDriveClient
                 MetadataText.Text = e.ToString();
             }
         }
+
+        private async void ListDirButton_Click(object sender, RoutedEventArgs e)
+        {
+            await App.OneDriveConnection.PromptUserLogin();
+            
+            //try
+            //{
+                var files = await App.OneDriveConnection.EnumerateFilePaths(RemoteFilePath.Text);
+
+                ContentsText.Text = "";
+                foreach (var file in files)
+                {
+                    ContentsText.Text += $"{file}{Environment.NewLine}";
+                }
+            //}
+            //catch(Exception ex)
+            //{
+            //    MetadataText.Text = ex.ToString();
+            //}
+        }
     }
 }

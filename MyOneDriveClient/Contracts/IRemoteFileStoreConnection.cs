@@ -14,6 +14,8 @@ namespace MyOneDriveClient
         Task PromptUserLogin();
         void LogUserOut();
 
+        Task<IEnumerable<string>> EnumerateFilePaths(string remotePath);
+
         Task<string> GetFileMetadata(string remotePath);
 
         Task<FileData> DownloadFile(string remotePath);

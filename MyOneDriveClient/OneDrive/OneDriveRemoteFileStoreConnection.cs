@@ -36,6 +36,51 @@ namespace MyOneDriveClient.OneDrive
         }
 
         #region IRemoteFileStoreConnection
+        private async Task<List<string>> RecurseFoldersAsync(string remotePath)
+        {
+            List<string> files = new List<string>();
+
+            //query the elements in the folder
+            string json = await XHttpContentAsStringWithToken(AssembleUrl($"{remotePath}:/children"), _authResult.AccessToken, HttpMethod.Get);
+            var obj = (JObject)JsonConvert.DeserializeObject(json);
+
+            //get files
+            files.AddRange((from value in obj["value"]
+                                                where (value.Value<object>("folder") == null)
+                                                select $"{remotePath}{(string)value["name"]}").ToList());
+
+            //get folders
+            IEnumerable<string> folders = (from value in obj["value"]
+                                           where (value.Value<object>("folder") != null)
+                                           select (string)value["name"]).ToList();
+
+            //recurse the folders...
+            List<Task<List<string>>> recurseTasks = new List<Task<List<string>>>();
+            foreach(var folder in folders)
+            {
+                recurseTasks.Add(RecurseFoldersAsync($"{remotePath}{folder}/"));
+            }
+
+            //... and wait for them to finish
+            foreach(var task in recurseTasks)
+            {
+                await task;
+            }
+
+            //then add the files to our files list
+            //var taskResults = (from task in recurseTasks select (from str in task.Result select $"{remotePath}/{str}").ToList()).ToList();
+            foreach(var task in recurseTasks)
+            {
+                files.AddRange(task.Result);
+            }
+
+            return files;
+        }
+        public async Task<IEnumerable<string>> EnumerateFilePaths(string remotePath)
+        {
+            return await RecurseFoldersAsync(remotePath);
+        }
+
         public async Task<string> GetFileMetadata(string remotePath)
         {
             return await XHttpContentAsStringWithToken(AssembleUrl(remotePath), _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
