@@ -38,10 +38,22 @@ namespace MyOneDriveClient.OneDrive
         #region IRemoteFileStoreConnection
         private async Task<List<string>> RecurseFoldersAsync(string remotePath)
         {
+            string url = "";
+
+            //check if it's the root
+            if(remotePath == "/" || remotePath == "")
+            {
+                url = $"{_onedriveEndpoint}/root/children";
+            }
+            else
+            {
+                url = $"{_onedriveEndpoint}/root:/{remotePath}:/children";
+            }
+
             List<string> files = new List<string>();
 
             //query the elements in the folder
-            string json = await XHttpContentAsStringWithToken(AssembleUrl($"{remotePath}:/children"), _authResult.AccessToken, HttpMethod.Get);
+            string json = await XHttpContentAsStringWithToken(url, _authResult.AccessToken, HttpMethod.Get);
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
             //get files
