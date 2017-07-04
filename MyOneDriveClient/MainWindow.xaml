@@ -13,11 +13,13 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="1*" />
                         <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="85" />
                         <ColumnDefinition Width="75" />
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="RemoteFilePath" Text="/School/Technology/Computer Science/ComputerScience-Grade-9/HTML/2.1.4/index.html" HorizontalAlignment="Stretch" Padding="5" Margin="5" FontFamily="SegoeUi" Grid.Column="0"/>
-                    <Button x:Name="DownloadFileButton" Content="Download File" HorizontalAlignment="Right" Padding="5" Click="DownloadFileButton_Click" Margin="5" FontFamily="Segoe Ui" Grid.Column="1"/>
-                    <Button x:Name="SignOutButton" Content="Sign-Out" HorizontalAlignment="Right" Padding="5" Click="SignOutButton_Click" Margin="5" Visibility="Collapsed" FontFamily="Segoe Ui" Grid.Column="2"/>
+                    <TextBox x:Name="RemoteFilePath" Text="/DevTest/" HorizontalAlignment="Stretch" Padding="5" Margin="5" FontFamily="SegoeUi" Grid.Column="0"/>
+                    <Button x:Name="DownloadFileButton" Content="Download File" HorizontalAlignment="Stretch" Padding="5" Click="DownloadFileButton_Click" Margin="5" FontFamily="Segoe Ui" Grid.Column="1"/>
+                    <Button x:Name="UploadFileButton" Content="Upload File" HorizontalAlignment="Stretch" Padding="5" Click="UploadFileButton_Click" Margin="5" FontFamily="Segoe Ui" Grid.Column="2"/>
+                    <Button x:Name="SignOutButton" Content="Sign-Out" HorizontalAlignment="Right" Padding="5" Click="SignOutButton_Click" Margin="5" Visibility="Collapsed" FontFamily="Segoe Ui" Grid.Column="3"/>
                 </Grid>
                 <Label Content="File Metadata" Margin="0,0,0,-5" FontFamily="Segoe Ui" />
                 <TextBox x:Name="MetadataText" TextWrapping="Wrap" MinHeight="120" Margin="5" FontFamily="Segoe Ui"/>

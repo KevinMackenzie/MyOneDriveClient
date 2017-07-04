@@ -142,5 +142,21 @@ namespace MyOneDriveClient
 
             SignOutButton.Visibility = Visibility.Visible;
         }
+
+        private async void UploadFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            await App.OneDriveConnection.PromptUserLogin();
+
+            byte[] data = Encoding.UTF8.GetBytes(ContentsText.Text);
+
+            try
+            {
+                await App.OneDriveConnection.UploadFile(RemoteFilePath.Text, data);
+            }
+            catch(Exception ex)
+            {
+                MetadataText.Text = e.ToString();
+            }
+        }
     }
 }

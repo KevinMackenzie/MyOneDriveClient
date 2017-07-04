@@ -14,6 +14,8 @@ namespace MyOneDriveClient
         Task PromptUserLogin();
         void LogUserOut();
 
+        Task<string> GetFileMetadata(string remotePath);
+
         Task<FileData> DownloadFile(string remotePath);
         Task UploadFile(string remotePath, byte[] data);
     }

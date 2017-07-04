@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -35,23 +36,28 @@ namespace MyOneDriveClient.OneDrive
         }
 
         #region IRemoteFileStoreConnection
+        public async Task<string> GetFileMetadata(string remotePath)
+        {
+            return await XHttpContentAsStringWithToken(AssembleUrl(remotePath), _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
+        }
+
         public async Task<FileData> DownloadFile(string remotePath)
         {
             FileData ret = new FileData();
+            string downloadUrl = "";
 
             //get the download URL
             try
             {
-                ret.Metadata = await XHttpContentAsStringWithToken(AssembleUrl(remotePath), _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
+                ret.Metadata = await GetFileMetadata(remotePath);
+                var data = (JObject)JsonConvert.DeserializeObject(ret.Metadata);
+                downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
             }
-            catch(Exception e)
+            catch(Exception ex)
             {
-                ret.Metadata = e.ToString();
+                ret.Metadata = ex.ToString();
                 return ret;
             }
-
-            var data = (JObject)JsonConvert.DeserializeObject(ret.Metadata);
-            string downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
 
             //now download the text
             try
@@ -114,19 +120,31 @@ namespace MyOneDriveClient.OneDrive
             }
         }
 
+        public async Task UploadFile(string remotePath, byte[] data)
+        {
+            //TODO: add support for resumable item uploads: https://dev.onedrive.com/items/upload_large_files.htm
+            await XHttpContentWithToken($"{AssembleUrl(remotePath)}:/content", _authResult.AccessToken, HttpMethod.Put, data);
+        }
+        #endregion
+
         /// <summary>
         /// A test method for making HTTP GET requests
         /// </summary>
         /// <param name="url"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        public async Task<byte[]> XHttpContentWithToken(string url, string token, System.Net.Http.HttpMethod verb)
+        public async Task<byte[]> XHttpContentWithToken(string url, string token, System.Net.Http.HttpMethod verb, byte[] body = null)
         {
             var httpClient = new System.Net.Http.HttpClient();
             System.Net.Http.HttpResponseMessage response;
             try
             {
                 var request = new System.Net.Http.HttpRequestMessage(verb, url);
+                if(body != null)
+                {
+                    request.Content = new ByteArrayContent(body);
+                }
+
                 //Add the token in Authorization header
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
                 response = await httpClient.SendAsync(request);
@@ -138,15 +156,9 @@ namespace MyOneDriveClient.OneDrive
                 throw ex;
             }
         }
-        public async Task<string> XHttpContentAsStringWithToken(string url, string token, System.Net.Http.HttpMethod verb)
+        public async Task<string> XHttpContentAsStringWithToken(string url, string token, System.Net.Http.HttpMethod verb, byte[] body = null)
         {
-            return Encoding.UTF8.GetString(await XHttpContentWithToken(url, token, verb));
+            return Encoding.UTF8.GetString(await XHttpContentWithToken(url, token, verb, body));
         }
-
-        public async Task UploadFile(string remotePath, byte[] data)
-        {
-            throw new NotImplementedException();
-        }
-        #endregion
     }
 }
