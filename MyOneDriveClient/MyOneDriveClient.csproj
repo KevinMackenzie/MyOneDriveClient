@@ -79,6 +79,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="ActiveSyncFileStore.cs" />
     <Compile Include="FileData.cs" />
     <Compile Include="GraphConnection.cs" />
     <Compile Include="Contracts\ILocalFileStore.cs" />

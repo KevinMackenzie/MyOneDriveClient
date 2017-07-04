@@ -8,6 +8,7 @@ namespace MyOneDriveClient
 {
     public interface ILocalFileStore
     {
-
+        Task SaveFileAsync(string localPath, byte[] data);
+        Task<byte[]> LoadFileAsync(string localPath);
     }
 }
