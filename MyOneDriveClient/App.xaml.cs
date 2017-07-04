@@ -16,14 +16,10 @@ namespace MyOneDriveClient
     {
         static App()
         {
-            _clientApp = new PublicClientApplication(ClientId, "https://login.microsoftonline.com/common", TokenCacheHelper.GetUserCache());
+            
+            OneDriveConnection = new OneDrive.OneDriveRemoteFileStoreConnection();
         }
-        //Below is the clientId of your app registration. 
-        //You have to replace the below with the Application Id for your app registration
-        private static string ClientId = "f9dc0bbd-fc1b-4cf4-ac6c-e2a41a05d583";//"0b8b0665-bc13-4fdc-bd72-e0227b9fc011";
 
-        private static PublicClientApplication _clientApp ;
-
-        public static PublicClientApplication PublicClientApp { get { return _clientApp; } }
+        public static OneDrive.OneDriveRemoteFileStoreConnection OneDriveConnection;
     }
 }

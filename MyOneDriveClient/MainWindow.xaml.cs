@@ -36,9 +36,9 @@ namespace MyOneDriveClient
         /// <summary>
         /// Call AcquireTokenAsync - to acquire a token requiring user to sign-in
         /// </summary>
-        private async void CallGraphButton_Click(object sender, RoutedEventArgs e)
+        /*private async void CallGraphButton_Click(object sender, RoutedEventArgs e)
         {
-            AuthenticationResult authResult = null;
+            /*AuthenticationResult authResult = null;
             ResultText.Text = string.Empty;
             TokenInfoText.Text = string.Empty;
 
@@ -72,7 +72,7 @@ namespace MyOneDriveClient
                 DisplayBasicTokenInfo(authResult);
                 this.SignOutButton.Visibility = Visibility.Visible;
             }
-        }
+        }*/
 
         /// <summary>
         /// Perform an HTTP GET request to a URL using an HTTP Authorization header
@@ -80,7 +80,7 @@ namespace MyOneDriveClient
         /// <param name="url">The URL</param>
         /// <param name="token">The token</param>
         /// <returns>String containing the results of the GET operation</returns>
-        public async Task<string> GetHttpContentWithToken(string url, string token)
+        /*public async Task<string> GetHttpContentWithToken(string url, string token)
         {
             var httpClient = new System.Net.Http.HttpClient();
             System.Net.Http.HttpResponseMessage response;
@@ -97,42 +97,50 @@ namespace MyOneDriveClient
             {
                 return ex.ToString();
             }
-        }
+        }*/
 
         /// <summary>
         /// Sign out the current user
         /// </summary>
         private void SignOutButton_Click(object sender, RoutedEventArgs e)
         {
-            if (App.PublicClientApp.Users.Any())
+            try
             {
-                try
-                {
-                    App.PublicClientApp.Remove(App.PublicClientApp.Users.FirstOrDefault());
-                    this.ResultText.Text = "User has signed-out";
-                    this.CallGraphButton.Visibility = Visibility.Visible;
-                    this.SignOutButton.Visibility = Visibility.Collapsed;
-                }
-                catch (MsalException ex)
-                {
-                    ResultText.Text = $"Error signing-out user: {ex.Message}";
-                }
+                App.OneDriveConnection.LogUserOut();
+                this.DownloadFileButton.Visibility = Visibility.Visible;
+                this.SignOutButton.Visibility = Visibility.Collapsed;
+            }
+            catch (MsalException ex)
+            {
+                MetadataText.Text = ex.ToString();
             }
         }
 
         /// <summary>
-        /// Display basic information contained in the token
+        /// Display file metadata
         /// </summary>
-        private void DisplayBasicTokenInfo(AuthenticationResult authResult)
+        private void DisplayFileMetadata(string metadata)
         {
-            TokenInfoText.Text = "";
-            if (authResult != null)
-            {
-                TokenInfoText.Text += $"Name: {authResult.User.Name}" + Environment.NewLine;
-                TokenInfoText.Text += $"Username: {authResult.User.DisplayableId}" + Environment.NewLine;
-                TokenInfoText.Text += $"Token Expires: {authResult.ExpiresOn.ToLocalTime()}" + Environment.NewLine;
-                TokenInfoText.Text += $"Access Token: {authResult.AccessToken}" + Environment.NewLine;
-            }
+            //TODO: make this prettier
+            MetadataText.Text = metadata;
+            //if (authResult != null)
+            //{
+                //TokenInfoText.Text += $"Name: {authResult.User.Name}" + Environment.NewLine;
+                //TokenInfoText.Text += $"Username: {authResult.User.DisplayableId}" + Environment.NewLine;
+                //TokenInfoText.Text += $"Token Expires: {authResult.ExpiresOn.ToLocalTime()}" + Environment.NewLine;
+                //TokenInfoText.Text += $"Access Token: {authResult.AccessToken}" + Environment.NewLine;
+            //}
+        }
+
+        private async void DownloadFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            await App.OneDriveConnection.PromptUserLogin();
+            FileData data = await App.OneDriveConnection.DownloadFile(RemoteFilePath.Text);
+
+            DisplayFileMetadata(data.Metadata);
+            ContentsText.Text = Encoding.UTF8.GetString(data.Data);
+
+            SignOutButton.Visibility = Visibility.Visible;
         }
     }
 }

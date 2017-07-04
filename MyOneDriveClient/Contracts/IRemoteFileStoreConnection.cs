@@ -12,11 +12,9 @@ namespace MyOneDriveClient
     public interface IRemoteFileStoreConnection
     {
         Task PromptUserLogin();
+        void LogUserOut();
 
-        Task DownloadFile(string localPath, string remotePath);
-        Task DownloadFolder(string localPath, string remotePath);
-
-        Task UploadFile(string localPath, string remotePath);
-        Task UploadFolder(string localPath, string remotePath);
+        Task<FileData> DownloadFile(string remotePath);
+        Task UploadFile(string remotePath, byte[] data);
     }
 }
