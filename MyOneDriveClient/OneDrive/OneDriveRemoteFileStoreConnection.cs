@@ -1,13 +1,17 @@
-﻿using Microsoft.Identity.Client;
+﻿using Microsoft.Graph;
+using Microsoft.Identity.Client;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using System.Web;
 
 namespace MyOneDriveClient.OneDrive
 {
@@ -24,69 +28,69 @@ namespace MyOneDriveClient.OneDrive
         private PublicClientApplication _clientApp;
         public PublicClientApplication PublicClientApp { get { return _clientApp; } }
 
-
+        private GraphServiceClient _graphClient;
+        
         public OneDriveRemoteFileStoreConnection()
         {
             _clientApp = new PublicClientApplication(ClientId, "https://login.microsoftonline.com/common", TokenCacheHelper.GetUserCache());
+
+            try
+            {
+                _graphClient = new GraphServiceClient(
+                            "https://graph.microsoft.com/v1.0",
+                            new DelegateAuthenticationProvider(
+                                async (requestMessage) =>
+                                {
+                                    await PromptUserLogin();
+                                    requestMessage.Headers.Authorization = new AuthenticationHeaderValue("bearer", _authResult.AccessToken);
+                                }));
+            }
+            catch(Exception ex)
+            {
+                Debug.WriteLine("Could not create a graph client: " + ex.Message);
+            }
         }
 
         public static string AssembleUrl(string path)
         {
-            return $"{_onedriveEndpoint}/root:{path}";
+            return HttpEncode($"{_onedriveEndpoint}/root:{path}");
+        }
+
+        public static string HttpEncode(string url)
+        {
+            return Uri.EscapeUriString(url);
         }
 
         #region IRemoteFileStoreConnection
-        private async Task<List<string>> RecurseFoldersAsync(string remotePath)
+        public async Task<IEnumerable<string>> RecurseFoldersAsync(string remotePath)
         {
-            string url = "";
+            var children = await _graphClient.Me.Drive.Root.ItemWithPath(remotePath)?.Children?.Request()?.GetAsync();
 
-            //check if it's the root
-            if(remotePath == "/" || remotePath == "")
+            List<string> ret = new List<string>();
+
+            if (children == null)
+                return ret;
+
+            var tasks = new List<Task<IEnumerable<string>>>();
+            foreach(var child in children)
             {
-                url = $"{_onedriveEndpoint}/root/children";
-            }
-            else
-            {
-                url = $"{_onedriveEndpoint}/root:/{remotePath}:/children";
-            }
-
-            List<string> files = new List<string>();
-
-            //query the elements in the folder
-            string json = await XHttpContentAsStringWithToken(url, _authResult.AccessToken, HttpMethod.Get);
-            var obj = (JObject)JsonConvert.DeserializeObject(json);
-
-            //get files
-            files.AddRange((from value in obj["value"]
-                                                where (value.Value<object>("folder") == null)
-                                                select $"{remotePath}{(string)value["name"]}").ToList());
-
-            //get folders
-            IEnumerable<string> folders = (from value in obj["value"]
-                                           where (value.Value<object>("folder") != null)
-                                           select (string)value["name"]).ToList();
-
-            //recurse the folders...
-            List<Task<List<string>>> recurseTasks = new List<Task<List<string>>>();
-            foreach(var folder in folders)
-            {
-                recurseTasks.Add(RecurseFoldersAsync($"{remotePath}{folder}/"));
+                string itemName = $"{child.ParentReference.Path.Split(new char[]{':'}, 2).Last()}/{child.Name}";
+                if (child.Folder != null)
+                {
+                    tasks.Add(RecurseFoldersAsync(itemName));
+                }
+                else
+                {
+                    ret.Add(itemName);
+                }
             }
 
-            //... and wait for them to finish
-            foreach(var task in recurseTasks)
+            foreach(var task in tasks)
             {
-                await task;
+                ret.AddRange(await task);
             }
 
-            //then add the files to our files list
-            //var taskResults = (from task in recurseTasks select (from str in task.Result select $"{remotePath}/{str}").ToList()).ToList();
-            foreach(var task in recurseTasks)
-            {
-                files.AddRange(task.Result);
-            }
-
-            return files;
+            return ret;
         }
         public async Task<IEnumerable<string>> EnumerateFilePaths(string remotePath)
         {

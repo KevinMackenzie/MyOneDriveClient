@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MyOneDriveClient"
         mc:Ignorable="d"
-        Title="MainWindow" Height="350" Width="750">
+        Title="MainWindow" Height="450" Width="750">
     <Grid>
         <StackPanel>
             <StackPanel Background="Azure">
@@ -26,7 +26,7 @@
                 <Label Content="File Metadata" Margin="0,0,0,-5" FontFamily="Segoe Ui" />
                 <TextBox x:Name="MetadataText" TextWrapping="Wrap" MinHeight="120" Margin="5" FontFamily="Segoe Ui"/>
                 <Label Content="FileContents" Margin="0,0,0,-5" FontFamily="Segoe Ui" />
-                <TextBox x:Name="ContentsText" TextWrapping="Wrap" MinHeight="70" Margin="5" FontFamily="Segoe Ui"/>
+                <TextBox x:Name="ContentsText" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Height="150" Margin="5" FontFamily="Segoe Ui"/>
             </StackPanel>
         </StackPanel>
     </Grid>
