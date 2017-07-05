@@ -1,6 +1,7 @@
 ﻿using Microsoft.Identity.Client;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -138,7 +139,11 @@ namespace MyOneDriveClient
             FileData data = await App.OneDriveConnection.DownloadFile(RemoteFilePath.Text);
 
             DisplayFileMetadata(data.Metadata);
-            ContentsText.Text = Encoding.UTF8.GetString(data.Data);
+
+            byte[] buffer = new byte[data.Data.Length];
+            await data.Data.ReadAsync(buffer, 0, (int)data.Data.Length);
+
+            ContentsText.Text = Encoding.UTF8.GetString(buffer);
 
             SignOutButton.Visibility = Visibility.Visible;
         }
@@ -147,7 +152,7 @@ namespace MyOneDriveClient
         {
             await App.OneDriveConnection.PromptUserLogin();
 
-            byte[] data = Encoding.UTF8.GetBytes(ContentsText.Text);
+            Stream data = new MemoryStream(Encoding.UTF8.GetBytes(ContentsText.Text));
 
             try
             {
@@ -155,7 +160,7 @@ namespace MyOneDriveClient
             }
             catch(Exception ex)
             {
-                MetadataText.Text = e.ToString();
+                MetadataText.Text = ex.ToString();
             }
         }
 

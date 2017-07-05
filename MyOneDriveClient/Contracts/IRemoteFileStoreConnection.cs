@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,6 +20,6 @@ namespace MyOneDriveClient
         Task<string> GetFileMetadata(string remotePath);
 
         Task<FileData> DownloadFile(string remotePath);
-        Task UploadFile(string remotePath, byte[] data);
+        Task UploadFile(string remotePath, Stream data);
     }
 }
