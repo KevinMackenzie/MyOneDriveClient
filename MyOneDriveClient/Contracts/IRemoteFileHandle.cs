@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public interface ILocalFileStore
+    public interface IRemoteFileHandle
     {
-        Task SaveFileAsync(string localPath, Stream data);
-        Task<Stream> LoadFileAsync(string localPath);
+        string Metadata { get; }
+        Task<Stream> DownloadFile();
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -29,28 +30,43 @@ namespace MyOneDriveClient
         public ActiveSyncFileStore(string pathRoot, IEnumerable<string> blacklist, int syncPeriod = 300000)
         {
             _pathRoot = pathRoot;
+            _syncPeriod = syncPeriod;
+            _blacklist = blacklist;
         }
 
         #region ILocalFileStore
-        public Task<byte[]> LoadFileAsync(string localPath)
+        public Task<Stream> LoadFileAsync(string localPath)
         {
             throw new NotImplementedException();
         }
 
-        public Task SaveFileAsync(string localPath, byte[] data)
+        public Task SaveFileAsync(string localPath, Stream data)
         {
             throw new NotImplementedException();
         }
         #endregion
 
-
-        private void SyncTask()
+        private IEnumerable<string> GetStaleFiles()
         {
-            while(!_cts.IsCancellationRequested)
-            {
+            //
+            throw new NotImplementedException();
+        }
 
-                Thread.Sleep(_syncPeriod);
-            }
+        private Task SyncTask(CancellationToken ct)
+        {
+            return new Task(()=>
+            { 
+                //Load timestamp
+                //if no timestamp
+                //  then Run first time code
+
+                while (!ct.IsCancellationRequested)
+                {
+
+
+                    Thread.Sleep(_syncPeriod);
+                }
+            }, ct);
         }
 
         public void StartSyncTask()
@@ -66,7 +82,7 @@ namespace MyOneDriveClient
             }
 
             //start the task
-            _syncTask = new Task(SyncTask);
+            _syncTask = SyncTask(_cts.Token);
             _syncTask.Start();
         }
 
@@ -83,6 +99,16 @@ namespace MyOneDriveClient
 
             _syncTask.Dispose();
             _syncTask = null;
+        }
+
+        /// <summary>
+        /// does not use one drive "delta" feature and iterates
+        /// all files and compares last modified times of local
+        /// and remote files, keeping the most up-to-date ones
+        /// </summary>
+        public void HardForceUpdate()
+        {
+
         }
 
         #region IDisposable Support

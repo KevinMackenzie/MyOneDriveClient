@@ -86,11 +86,16 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="ActiveSyncFileStore.cs" />
+    <Compile Include="Contracts\IRemoteFileHandle.cs" />
+    <Compile Include="Contracts\IRemoteFileUpdate.cs" />
+    <Compile Include="Events\EventDelegates.cs" />
+    <Compile Include="Events\RemoteFileStoreDataChanged.cs" />
     <Compile Include="FileData.cs" />
     <Compile Include="GraphConnection.cs" />
     <Compile Include="Contracts\ILocalFileStore.cs" />
     <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
+    <Compile Include="RemoteFileUpdate.cs" />
     <Compile Include="TokenCacheHelper.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>

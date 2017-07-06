@@ -28,6 +28,8 @@ namespace MyOneDriveClient.OneDrive
         private PublicClientApplication _clientApp;
         public PublicClientApplication PublicClientApp { get { return _clientApp; } }
 
+        private string _deltaUrl = "";
+
         ///private GraphServiceClient _graphClient;
         
         public OneDriveRemoteFileStoreConnection()
@@ -52,6 +54,14 @@ namespace MyOneDriveClient.OneDrive
         }
 
         #region IRemoteFileStoreConnection
+        public void Initialize(string data)
+        {
+            //TODO: some checking that this is ACTUALLY a good link
+            _deltaUrl = data;
+        }
+
+        public event Events.EventDelegates.RemoteFileStoreConnectionUpdateHandler OnUpdate;
+
         public async Task<List<string>> RecurseFoldersAsync(string remotePath)
         {
             /*var children = await _graphClient.Me.Drive.Root.ItemWithPath(remotePath)?.Children?.Request()?.GetAsync();
@@ -151,40 +161,113 @@ namespace MyOneDriveClient.OneDrive
             return await RecurseFoldersAsync(remotePath);
         }
 
+        public async Task<IEnumerable<IRemoteFileHandle>> EnumerateFiles()
+        {
+            //this should be OK
+            return (from update in (await EnumerateUpdatesInternal($"{_onedriveEndpoint}/root/delta")) select update.FileHandle);
+        }
+
+        public async Task<IEnumerable<IRemoteFileUpdate>> EnumerateUpdates()
+        {
+            string downloadUrl = "";
+            if (_deltaUrl == "")
+            {
+                downloadUrl = $"{_onedriveEndpoint}/root/delta";
+            }
+            else
+            {
+                downloadUrl = _deltaUrl;
+            }
+            return await EnumerateUpdatesInternal(downloadUrl);
+        }
+        private async Task<IEnumerable<IRemoteFileUpdate>> EnumerateUpdatesInternal(string downloadUrl)
+        {
+
+            List<IRemoteFileUpdate> ret = new List<IRemoteFileUpdate>();
+
+            JObject obj = null;
+            do
+            {
+                string json = await AuthenticatedHttpRequestAsString(downloadUrl, _authResult.AccessToken, HttpMethod.Get);
+                obj = (JObject)JsonConvert.DeserializeObject(json);
+
+                //no values
+                if (obj["value"] == null)
+                    break;
+
+                //set the download Url to the next link
+                downloadUrl = (string)obj["@odata.nextLink"];
+
+                //get the file handles
+                foreach(var value in obj["value"])
+                {
+                    ret.Add(new RemoteFileUpdate(value["deleted"] != null, await GetFileHandleById((string)value["id"])));
+                }
+            }
+            while (obj["@odata.deltaLink"] == null && downloadUrl != null);
+
+            //once we get all the updates, set the delta link equal to the one given
+            _deltaUrl = (string)obj["@odata.deltaLink"] ?? "";
+
+            //call the event handler (TODO: do we want to await this?)
+            await OnUpdate.Invoke(this, new Events.RemoteFileStoreDataChanged(_deltaUrl));
+
+            return ret;
+        }
+
+        public async Task<string> GetFileMetadataById(string id)
+        {
+            return await AuthenticatedHttpRequestAsString($"{_onedriveEndpoint}/items/{id}", _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
+        }
         public async Task<string> GetFileMetadata(string remotePath)
         {
             return await AuthenticatedHttpRequestAsString($"{_onedriveEndpoint}/root:{remotePath}", _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
         }
 
-        public async Task<FileData> DownloadFile(string remotePath)
+
+        private async Task<Stream> DownloadFileWithLink(string downloadUrl)
         {
-            FileData ret = new FileData();
+            return await AuthenticatedHttpRequest(downloadUrl, _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
+        }
+        public async Task<IRemoteFileHandle> GetFileHandleById(string id)
+        {
             string downloadUrl = "";
+            string metadata = "";
 
             //get the download URL
             try
             {
-                ret.Metadata = await GetFileMetadata(remotePath);
-                var data = (JObject)JsonConvert.DeserializeObject(ret.Metadata);
+                metadata = await GetFileMetadataById(id);
+                var data = (JObject)JsonConvert.DeserializeObject(metadata);
+                downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to retrieve file handle: {ex.Message}");
+            }
+
+            //now download the text
+            return new OneDriveRemoteFileHandle(this, downloadUrl, metadata);
+        }
+        public async Task<IRemoteFileHandle> GetFileHandle(string remotePath)
+        {
+            string downloadUrl = "";
+            string metadata = "";
+
+            //get the download URL
+            try
+            {
+                metadata = await GetFileMetadata(remotePath);
+                var data = (JObject)JsonConvert.DeserializeObject(metadata);
                 downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
             }
             catch(Exception ex)
             {
-                ret.Metadata = ex.ToString();
-                return ret;
+                Debug.WriteLine($"Failed to retrieve file handle: {ex.Message}");
             }
 
             //now download the text
-            try
-            {
-                ret.Data = await AuthenticatedHttpRequest(downloadUrl, _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
-            }
-            catch(Exception e)
-            {
-                ret.Metadata = e.ToString();
-                ret.Data = null;
-            }
-            return ret;
+            return new OneDriveRemoteFileHandle(this, downloadUrl, metadata);
         }
 
         /// <summary>
@@ -248,6 +331,28 @@ namespace MyOneDriveClient.OneDrive
             }
         }
         #endregion
+
+
+        public class OneDriveRemoteFileHandle : IRemoteFileHandle
+        {
+            private string _downloadUrl;
+            private string _metadata;
+            private OneDriveRemoteFileStoreConnection _fileStore;
+
+            public string Metadata { get => _metadata; }
+
+            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, string metadata)
+            {
+                _fileStore = fileStore;
+                _downloadUrl = downloadUrl;
+                _metadata = metadata;
+            }
+
+            public async Task<Stream> DownloadFile()
+            {
+                return await _fileStore.DownloadFileWithLink(_downloadUrl);
+            }
+        }
 
         /// <summary>
         /// A test method for making HTTP GET requests
