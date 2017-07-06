@@ -1,4 +1,6 @@
 ﻿using Microsoft.Identity.Client;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -136,12 +138,14 @@ namespace MyOneDriveClient
         private async void DownloadFileButton_Click(object sender, RoutedEventArgs e)
         {
             await App.OneDriveConnection.PromptUserLogin();
-            FileData data = await App.OneDriveConnection.DownloadFile(RemoteFilePath.Text);
+            IRemoteFileHandle file = await App.OneDriveConnection.GetFileHandle(RemoteFilePath.Text);
 
-            DisplayFileMetadata(data.Metadata);
+            DisplayFileMetadata(file.Metadata);
 
-            byte[] buffer = new byte[data.Data.Length];
-            await data.Data.ReadAsync(buffer, 0, (int)data.Data.Length);
+            Stream data = await file.DownloadFile();
+
+            byte[] buffer = new byte[data.Length];
+            await data.ReadAsync(buffer, 0, (int)data.Length);
 
             ContentsText.Text = Encoding.UTF8.GetString(buffer);
 
@@ -182,6 +186,23 @@ namespace MyOneDriveClient
             //{
             //    MetadataText.Text = ex.ToString();
             //}
+        }
+
+        private async void GetDeltasButton_Click(object sender, RoutedEventArgs e)
+        {
+            await App.OneDriveConnection.PromptUserLogin();
+
+            var deltas = await App.OneDriveConnection.EnumerateUpdates();
+
+            IEnumerable<string> ids = (from delta in deltas
+                                where (delta.FileHandle != null)
+                                select (string)((JObject)JsonConvert.DeserializeObject(delta.FileHandle.Metadata))["id"]);
+
+            ContentsText.Text = "";
+            foreach(var id in ids)
+            {
+                ContentsText.Text += $"{id}{Environment.NewLine}";
+            }
         }
     }
 }

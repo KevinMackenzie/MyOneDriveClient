@@ -201,7 +201,11 @@ namespace MyOneDriveClient.OneDrive
                 //get the file handles
                 foreach(var value in obj["value"])
                 {
-                    ret.Add(new RemoteFileUpdate(value["deleted"] != null, await GetFileHandleById((string)value["id"])));
+                    //TODO: folders are important deltas, because when folders are renamed, their descendents DON"T get the delta update
+                    if (value["folder"] != null)
+                        continue;
+
+                    ret.Add(new RemoteFileUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value["@microsoft.graph.downloadUrl"].ToString(), value.ToString())));
                 }
             }
             while (obj["@odata.deltaLink"] == null && downloadUrl != null);
