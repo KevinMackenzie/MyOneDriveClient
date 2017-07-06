@@ -7,9 +7,10 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public interface IRemoteFileHandle
+    public interface IRemoteItemHandle
     {
         string Metadata { get; }
-        Task<Stream> DownloadFile();
+        bool IsFolder { get; }
+        Task<Stream> DownloadFileAsync();
     }
 }

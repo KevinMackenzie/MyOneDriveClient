@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public interface IRemoteFileUpdate
+    public interface IRemoteItemUpdate
     {
         /// <summary>
         /// Whether this the file was deleted from the server
@@ -14,8 +14,8 @@ namespace MyOneDriveClient
         bool Deleted { get; }
 
         /// <summary>
-        /// A handle to the updated file.  Null if <see cref="Deleted" is true/>
+        /// A handle to the updated item.  Null if <see cref="Deleted" is true/>
         /// </summary>
-        IRemoteFileHandle FileHandle { get; }
+        IRemoteItemHandle ItemHandle { get; }
     }
 }

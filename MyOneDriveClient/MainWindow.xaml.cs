@@ -137,12 +137,12 @@ namespace MyOneDriveClient
 
         private async void DownloadFileButton_Click(object sender, RoutedEventArgs e)
         {
-            await App.OneDriveConnection.PromptUserLogin();
-            IRemoteFileHandle file = await App.OneDriveConnection.GetFileHandle(RemoteFilePath.Text);
+            await App.OneDriveConnection.PromptUserLoginAsync();
+            IRemoteItemHandle file = await App.OneDriveConnection.GetFileHandleAsync(RemoteFilePath.Text);
 
             DisplayFileMetadata(file.Metadata);
 
-            Stream data = await file.DownloadFile();
+            Stream data = await file.DownloadFileAsync();
 
             byte[] buffer = new byte[data.Length];
             await data.ReadAsync(buffer, 0, (int)data.Length);
@@ -154,13 +154,13 @@ namespace MyOneDriveClient
 
         private async void UploadFileButton_Click(object sender, RoutedEventArgs e)
         {
-            await App.OneDriveConnection.PromptUserLogin();
+            await App.OneDriveConnection.PromptUserLoginAsync();
 
             Stream data = new MemoryStream(Encoding.UTF8.GetBytes(ContentsText.Text));
 
             try
             {
-                await App.OneDriveConnection.UploadFile(RemoteFilePath.Text, data);
+                await App.OneDriveConnection.UploadFileAsync(RemoteFilePath.Text, data);
             }
             catch(Exception ex)
             {
@@ -170,17 +170,17 @@ namespace MyOneDriveClient
 
         private async void ListDirButton_Click(object sender, RoutedEventArgs e)
         {
-            await App.OneDriveConnection.PromptUserLogin();
+            await App.OneDriveConnection.PromptUserLoginAsync();
             
             //try
             //{
-                var files = await App.OneDriveConnection.EnumerateFilePaths(RemoteFilePath.Text);
+                /*var files = await App.OneDriveConnection.EnumerateFilePathsAsync(RemoteFilePath.Text);
 
                 ContentsText.Text = "";
                 foreach (var file in files)
                 {
                     ContentsText.Text += $"{file}{Environment.NewLine}";
-                }
+                }*/
             //}
             //catch(Exception ex)
             //{
@@ -190,13 +190,13 @@ namespace MyOneDriveClient
 
         private async void GetDeltasButton_Click(object sender, RoutedEventArgs e)
         {
-            await App.OneDriveConnection.PromptUserLogin();
+            await App.OneDriveConnection.PromptUserLoginAsync();
 
-            var deltas = await App.OneDriveConnection.EnumerateUpdates();
+            var deltas = await App.OneDriveConnection.EnumerateUpdatesAsync();
 
             IEnumerable<string> ids = (from delta in deltas
-                                where (delta.FileHandle != null)
-                                select (string)((JObject)JsonConvert.DeserializeObject(delta.FileHandle.Metadata))["id"]);
+                                where (delta.ItemHandle != null)
+                                select (string)((JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata))["id"]);
 
             ContentsText.Text = "";
             foreach(var id in ids)

@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public class RemoteFileUpdate : IRemoteFileUpdate
+    public class RemoteItemUpdate : IRemoteItemUpdate
     {
         bool _deleted;
-        IRemoteFileHandle _fileHandle;
+        IRemoteItemHandle _fileHandle;
 
-        public RemoteFileUpdate(bool deleted, IRemoteFileHandle fileHandle)
+        public RemoteItemUpdate(bool deleted, IRemoteItemHandle fileHandle)
         {
             _deleted = deleted;
             _fileHandle = fileHandle;
@@ -19,6 +19,6 @@ namespace MyOneDriveClient
 
         public bool Deleted { get => _deleted; }
 
-        public IRemoteFileHandle FileHandle { get => _fileHandle; }
+        public IRemoteItemHandle ItemHandle { get => _fileHandle; }
     }
 }
