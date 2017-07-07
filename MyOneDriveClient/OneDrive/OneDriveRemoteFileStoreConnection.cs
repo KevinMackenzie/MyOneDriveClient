@@ -28,7 +28,7 @@ namespace MyOneDriveClient.OneDrive
         private PublicClientApplication _clientApp;
         public PublicClientApplication PublicClientApp { get { return _clientApp; } }
 
-        private string _deltaUrl = "";
+        //private string _deltaUrl = "";
 
         ///private GraphServiceClient _graphClient;
         
@@ -54,69 +54,65 @@ namespace MyOneDriveClient.OneDrive
         }
 
         #region IRemoteFileStoreConnection
-        public void Initialize(string data)
-        {
+        //public void Initialize(string data)
+        //{
             //TODO: some checking that this is ACTUALLY a good link
-            _deltaUrl = data;
-        }
-        public event Events.EventDelegates.RemoteFileStoreConnectionUpdateHandler OnUpdate;
-
-        [Obsolete]
-        public async Task<IEnumerable<IRemoteItemHandle>> EnumerateFilesAsync()
-        {
-            //this should be OK
-            return (from update in (await EnumerateUpdatesInternalAsync($"{_onedriveEndpoint}/root/delta")) select update.ItemHandle);
-        }
-
-        public async Task<IEnumerable<IRemoteItemUpdate>> EnumerateUpdatesAsync()
+        //    _deltaUrl = data;
+        //}
+        //public event Events.EventDelegates.RemoteFileStoreConnectionUpdateHandler OnUpdate;
+        
+        public async Task<DeltaPage> GetDeltasPageAsync(string deltaLink)
         {
             string downloadUrl = "";
-            if (_deltaUrl == "")
+            if (deltaLink == "" || deltaLink == null)
             {
                 downloadUrl = $"{_onedriveEndpoint}/root/delta";
             }
             else
             {
-                downloadUrl = _deltaUrl;
+                downloadUrl = deltaLink;
             }
-            return await EnumerateUpdatesInternalAsync(downloadUrl);
+            return await GetDeltasPageInternalAsync(downloadUrl);
         }
-        private async Task<IEnumerable<IRemoteItemUpdate>> EnumerateUpdatesInternalAsync(string downloadUrl)
+        public async Task<DeltaPage> GetDeltasPageAsync(DeltaPage prevPage)
         {
+            if (prevPage == null)
+                return await GetDeltasPageAsync("");
 
-            List<IRemoteItemUpdate> ret = new List<IRemoteItemUpdate>();
+            return await GetDeltasPageInternalAsync(prevPage.NextPage ?? prevPage.DeltaLink);
+        }
+        private async Task<DeltaPage> GetDeltasPageInternalAsync(string downloadUrl)
+        {
+            string nextPage = null;
+            string deltaLink = null;
 
-            JObject obj = null;
-            do
+
+            var httpResponse = await AuthenticatedHttpRequestAsync(downloadUrl, _authResult.AccessToken, HttpMethod.Get);
+            string json = await ReadResponseAsStringAsync(httpResponse);
+            var obj = (JObject)JsonConvert.DeserializeObject(json);
+
+            //get the delta link and next page link
+            deltaLink = (string)obj["@odata.deltaLink"];
+            nextPage = (string)obj["@odata.nextLink"];
+
+            DeltaPage ret = new DeltaPage(nextPage, deltaLink);
+
+            //no values
+            if (obj["value"] == null)
+                return ret;
+
+            //get the file handles
+            foreach(var value in obj["value"])
             {
-                var httpResponse = await AuthenticatedHttpRequestAsync(downloadUrl, _authResult.AccessToken, HttpMethod.Get);
-                string json = await ReadResponseAsStringAsync(httpResponse);
-                obj = (JObject)JsonConvert.DeserializeObject(json);
+                //TODO: folders are important deltas, because when folders are renamed, their descendents DON"T get the delta update
+                //if (value["folder"] != null)
+                //    continue;
 
-                //no values
-                if (obj["value"] == null)
-                    break;
-
-                //set the download Url to the next link
-                downloadUrl = (string)obj["@odata.nextLink"];
-
-                //get the file handles
-                foreach(var value in obj["value"])
-                {
-                    //TODO: folders are important deltas, because when folders are renamed, their descendents DON"T get the delta update
-                    if (value["folder"] != null)
-                        continue;
-
-                    ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value["@microsoft.graph.downloadUrl"].ToString(), value.ToString())));
-                }
+                ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value["@microsoft.graph.downloadUrl"].ToString(), value["folder"] != null, value.ToString())));
             }
-            while (obj["@odata.deltaLink"] == null && downloadUrl != null);
-
-            //once we get all the updates, set the delta link equal to the one given
-            _deltaUrl = (string)obj["@odata.deltaLink"] ?? "";
 
             //call the event handler (TODO: do we want to await this?)
-            await OnUpdate.Invoke(this, new Events.RemoteFileStoreDataChanged(_deltaUrl));
+            //await OnUpdate.Invoke(this, new Events.RemoteFileStoreDataChanged(_deltaUrl));
 
             return ret;
         }
@@ -127,9 +123,9 @@ namespace MyOneDriveClient.OneDrive
             //TODO: return null if the item cannot be found.  This code is kinda bad.
             return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
         }
-        public async Task<IRemoteItemHandle> GetFileHandleAsync(string remotePath)
+        public async Task<IRemoteItemHandle> GetItemHandleAsync(string remotePath)
         {
-            return await GetFileHandleByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
+            return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
         }
         private static int _4MB = 4 * 1024 * 1024;
         public async Task<string> UploadFileAsync(string remotePath, Stream data)
@@ -173,9 +169,9 @@ namespace MyOneDriveClient.OneDrive
             //TODO: return null if the item cannot be found.  This code is kinda bad.
             return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
-        public async Task<IRemoteItemHandle> GetFileHandleByIdAsync(string id)
+        public async Task<IRemoteItemHandle> GetItemHandleByIdAsync(string id)
         {
-            return await GetFileHandleByUrlAsync($"{_onedriveEndpoint}/items/{id}");
+            return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
         public async Task<string> UploadFileByIdAsync(string parentId, string name, Stream data)
         {
@@ -200,10 +196,11 @@ namespace MyOneDriveClient.OneDrive
             //TODO: return null if the item cannot be found.  This code is kinda bad.
             return await ReadResponseAsStringAsync(await AuthenticatedHttpRequestAsync(url, _authResult.AccessToken, System.Net.Http.HttpMethod.Get));
         }
-        private async Task<IRemoteItemHandle> GetFileHandleByUrlAsync(string url)
+        private async Task<IRemoteItemHandle> GetItemHandleByUrlAsync(string url)
         {
             string downloadUrl = "";
             string metadata = "";
+            bool isFolder = false;
 
             //get the download URL
             try
@@ -211,6 +208,7 @@ namespace MyOneDriveClient.OneDrive
                 metadata = await GetItemMetadataByUrlAsync(url);
                 var data = (JObject)JsonConvert.DeserializeObject(metadata);
                 downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
+                isFolder = data["folder"] != null;
             }
             catch (Exception ex)
             {
@@ -218,7 +216,7 @@ namespace MyOneDriveClient.OneDrive
             }
 
             //now download the text
-            return new OneDriveRemoteFileHandle(this, downloadUrl, metadata);
+            return new OneDriveRemoteFileHandle(this, downloadUrl, isFolder, metadata);
         }
         private async Task<string> UploadFileByUrlAsync(string url, Stream data)
         {
@@ -299,12 +297,12 @@ namespace MyOneDriveClient.OneDrive
 
             public string Metadata { get => _metadata; }
 
-            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, string metadata)
+            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, bool isFolder, string metadata)
             {
                 _fileStore = fileStore;
                 _downloadUrl = downloadUrl;
                 _metadata = metadata;
-                IsFolder = ((JObject)JsonConvert.DeserializeObject(metadata))["folder"] != null;
+                IsFolder = isFolder;
             }
 
             public bool IsFolder { get; }

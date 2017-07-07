@@ -16,7 +16,7 @@ namespace MyOneDriveClient
         /// Called before anything else to prepare the file store with any data saved to the disk
         /// </summary>
         /// <param name="data">the data needed for initialization.  Typically comes from a previous <see cref="OnUpdate"/> event</param>
-        void Initialize(string data);
+        //void Initialize(string data);
 
         /// <summary>
         /// Prompts the user to authenticate
@@ -33,10 +33,12 @@ namespace MyOneDriveClient
         void LogUserOut();
 
         /// <summary>
-        /// Pulls the latests deltas from the remote store.  If first time, then all files are pulled
+        /// Pulls a page of the latest deltas.  If <paramref name="deltaLink"/> is blank or null, it pulls all files
         /// </summary>
-        /// <returns>A list of deltas since the last check</returns>
-        Task<IEnumerable<IRemoteItemUpdate>> EnumerateUpdatesAsync();
+        /// <param name="deltaLink">the delta link from the previous page</param>
+        /// <returns>The next page of deltas since the last check for deltas</returns>
+        Task<DeltaPage> GetDeltasPageAsync(string deltaLink);
+        Task<DeltaPage> GetDeltasPageAsync(DeltaPage prevPage);
         
         /// <summary>
         /// Gets item metadata with a given path.  Can be used to check if an item exists
@@ -52,7 +54,7 @@ namespace MyOneDriveClient
         /// <remarks>
         /// This should seldom be used
         /// </remarks>
-        Task<IRemoteItemHandle> GetFileHandleAsync(string remotePath);
+        Task<IRemoteItemHandle> GetItemHandleAsync(string remotePath);
         /// <summary>
         /// Uploads a given file with a remote file path
         /// </summary>
@@ -78,7 +80,7 @@ namespace MyOneDriveClient
         /// </summary>
         /// <param name="id"></param>
         /// <returns>the remote item handle with the given id</returns>
-        Task<IRemoteItemHandle> GetFileHandleByIdAsync(string id);
+        Task<IRemoteItemHandle> GetItemHandleByIdAsync(string id);
         /// <summary>
         /// Uploads a given file with a given parent id
         /// </summary>
@@ -104,6 +106,6 @@ namespace MyOneDriveClient
         /// <summary>
         /// When important settings change that need to be cached to the disk to be used on startup
         /// </summary>
-        event Events.EventDelegates.RemoteFileStoreConnectionUpdateHandler OnUpdate;
+        //event Events.EventDelegates.RemoteFileStoreConnectionUpdateHandler OnUpdate;
     }
 }

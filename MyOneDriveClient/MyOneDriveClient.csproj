@@ -88,6 +88,7 @@
     <Compile Include="ActiveSyncFileStore.cs" />
     <Compile Include="Contracts\IRemoteItemHandle.cs" />
     <Compile Include="Contracts\IRemoteItemUpdate.cs" />
+    <Compile Include="DeltaPage.cs" />
     <Compile Include="Events\EventDelegates.cs" />
     <Compile Include="Events\RemoteFileStoreDataChanged.cs" />
     <Compile Include="FileData.cs" />
