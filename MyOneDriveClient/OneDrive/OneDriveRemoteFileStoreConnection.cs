@@ -61,7 +61,7 @@ namespace MyOneDriveClient.OneDrive
         }
         public event Events.EventDelegates.RemoteFileStoreConnectionUpdateHandler OnUpdate;
 
-        
+        [Obsolete]
         public async Task<IEnumerable<IRemoteItemHandle>> EnumerateFilesAsync()
         {
             //this should be OK
@@ -89,7 +89,8 @@ namespace MyOneDriveClient.OneDrive
             JObject obj = null;
             do
             {
-                string json = await AuthenticatedHttpRequestAsStringAsync(downloadUrl, _authResult.AccessToken, HttpMethod.Get);
+                var httpResponse = await AuthenticatedHttpRequestAsync(downloadUrl, _authResult.AccessToken, HttpMethod.Get);
+                string json = await ReadResponseAsStringAsync(httpResponse);
                 obj = (JObject)JsonConvert.DeserializeObject(json);
 
                 //no values
@@ -124,7 +125,7 @@ namespace MyOneDriveClient.OneDrive
         public async Task<string> GetItemMetadataAsync(string remotePath)
         {
             //TODO: return null if the item cannot be found.  This code is kinda bad.
-            return await AuthenticatedHttpRequestAsStringAsync($"{_onedriveEndpoint}/root:{remotePath}", _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
+            return await ReadResponseAsStringAsync(await AuthenticatedHttpRequestAsync($"{_onedriveEndpoint}/root:{remotePath}", _authResult.AccessToken, System.Net.Http.HttpMethod.Get));
         }
         public async Task<IRemoteItemHandle> GetFileHandleAsync(string remotePath)
         {
@@ -155,21 +156,48 @@ namespace MyOneDriveClient.OneDrive
             }
             else //use regular upload
             {
-                string json = await AuthenticatedHttpRequestAsStringAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", _authResult.AccessToken, HttpMethod.Put, data);
+                var httpResponse = await AuthenticatedHttpRequestAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", _authResult.AccessToken, HttpMethod.Put, data);
+                string json = await ReadResponseAsStringAsync(httpResponse);
                 var obj = (JObject)JsonConvert.DeserializeObject(json);
                 return (string)obj["id"];
             }
         }
         public async Task<string> CreateFolderAsync(string remotePath)
         {
-            throw new NotImplementedException();
+            var pathParts = remotePath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            string folderName = pathParts.Last();
+
+            //first, get the id of the parent folder
+            string parentUrl = "";
+            if(pathParts.Length == 1)//creating folder in root
+            {
+                parentUrl = $"{_onedriveEndpoint}/root";
+            }
+            else
+            {
+                parentUrl = $"{_onedriveEndpoint}/root:/";
+                for(int i = 0; i < pathParts.Length - 1; ++i)
+                {
+                    parentUrl = $"{parentUrl}/{pathParts[i]}";
+                }
+            }
+
+            var httpResponse = await AuthenticatedHttpRequestAsync(parentUrl, _authResult.AccessToken, HttpMethod.Get);
+            string json = await ReadResponseAsStringAsync(httpResponse);
+            var obj = (JObject)JsonConvert.DeserializeObject(json);
+
+            string parentId = (string)obj["id"];
+            if (parentId == null)
+                return null;
+
+            return await CreateFolderByIdAsync(parentId, folderName);
         }
 
 
         public async Task<string> GetItemMetadataByIdAsync(string id)
         {
             //TODO: return null if the item cannot be found.  This code is kinda bad.
-            return await AuthenticatedHttpRequestAsStringAsync($"{_onedriveEndpoint}/items/{id}", _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
+            return await ReadResponseAsStringAsync(await AuthenticatedHttpRequestAsync($"{_onedriveEndpoint}/items/{id}", _authResult.AccessToken, System.Net.Http.HttpMethod.Get));
         }
         public async Task<IRemoteItemHandle> GetFileHandleByIdAsync(string id)
         {
@@ -193,11 +221,28 @@ namespace MyOneDriveClient.OneDrive
         }
         public async Task<string> UploadFileByIdAsync(string parentId, string name, Stream data)
         {
-            throw new NotImplementedException();
+            if (data.Length > _4MB) //if data > 4MB, then use chunked upload
+            {
+                return null;
+            }
+            else //use regular upload
+            {
+                var httpResponse = await AuthenticatedHttpRequestAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", _authResult.AccessToken, HttpMethod.Put, data);
+                string json = await ReadResponseAsStringAsync(httpResponse);
+                var obj = (JObject)JsonConvert.DeserializeObject(json);
+                return (string)obj["id"];
+            }
         }
         public async Task<string> CreateFolderByIdAsync(string parentId, string name)
         {
-            throw new NotImplementedException();
+            string requestUrl = $"{_onedriveEndpoint}/items/{parentId}/children";
+            string requestJson = $"{{\"name\": \"{name}\", \"folder\": {{}} }}";
+
+            var httpResponse = await AuthenticatedHttpRequestAsync(requestUrl, _authResult.AccessToken, HttpMethod.Post, requestJson);
+            string json = await ReadResponseAsStringAsync(httpResponse);
+            var obj = (JObject)JsonConvert.DeserializeObject(json);
+
+            return (string)obj["id"];
         }
 
         /// <summary>
@@ -252,7 +297,7 @@ namespace MyOneDriveClient.OneDrive
 
         private async Task<Stream> DownloadFileWithLinkAsync(string downloadUrl)
         {
-            return await AuthenticatedHttpRequestAsync(downloadUrl, _authResult.AccessToken, System.Net.Http.HttpMethod.Get);
+            return await (await AuthenticatedHttpRequestAsync(downloadUrl, _authResult.AccessToken, System.Net.Http.HttpMethod.Get))?.Content.ReadAsStreamAsync();
         }
 
         public class OneDriveRemoteFileHandle : IRemoteItemHandle
@@ -280,36 +325,59 @@ namespace MyOneDriveClient.OneDrive
         }
 
         /// <summary>
-        /// A test method for making HTTP GET requests
+        /// A test method for making HTTP requests
         /// </summary>
         /// <param name="url"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        public async Task<Stream> AuthenticatedHttpRequestAsync(string url, string token, System.Net.Http.HttpMethod verb, Stream body = null)
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, string token, System.Net.Http.HttpMethod verb, Stream body)
+        {
+            if (body != null)
+            {
+                return await AuthenticatedHttpRequestAsync(url, token, verb, new StreamContent(body));
+            }
+            else
+            {
+                return await AuthenticatedHttpRequestAsync(url, token, verb, (HttpContent)null);
+            }
+        }
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, string token, System.Net.Http.HttpMethod verb, string body)
+        {
+            if (body != null)
+            {
+                return await AuthenticatedHttpRequestAsync(url, token, verb, new StringContent(body));
+            }
+            else
+            {
+                return await AuthenticatedHttpRequestAsync(url, token, verb, (HttpContent)null);
+            }
+        }
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, string token, System.Net.Http.HttpMethod verb, byte[] body)
+        {
+            if (body != null)
+            {
+                return await AuthenticatedHttpRequestAsync(url, token, verb, new MemoryStream(body));
+            }
+            else
+            {
+                return await AuthenticatedHttpRequestAsync(url, token, verb, (HttpContent)null);
+            }
+        }
+        private async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, string token, HttpMethod verb, HttpContent content = null)
         {
             var httpClient = new System.Net.Http.HttpClient();
             System.Net.Http.HttpResponseMessage response;
-            try
-            {
-                var request = new System.Net.Http.HttpRequestMessage(verb, url);
-                if(body != null)
-                {
-                    request.Content = new StreamContent(body);
-                }
+            var request = new System.Net.Http.HttpRequestMessage(verb, url);
+            request.Content = content;
 
-                //Add the token in Authorization header
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-                response = await httpClient.SendAsync(request);
-                return await response.Content.ReadAsStreamAsync();
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            //Add the token in Authorization header
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            response = await httpClient.SendAsync(request);
+            return response;
         }
-        public async Task<string> AuthenticatedHttpRequestAsStringAsync(string url, string token, System.Net.Http.HttpMethod verb, Stream body = null)
+        public async Task<string> ReadResponseAsStringAsync(HttpResponseMessage message)
         {
-            var stream = new StreamReader(await AuthenticatedHttpRequestAsync(url, token, verb, body));
+            var stream = new StreamReader(await message.Content.ReadAsStreamAsync());
             return await stream.ReadToEndAsync();
         }
     }
