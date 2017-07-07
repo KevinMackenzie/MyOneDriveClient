@@ -125,42 +125,16 @@ namespace MyOneDriveClient.OneDrive
         public async Task<string> GetItemMetadataAsync(string remotePath)
         {
             //TODO: return null if the item cannot be found.  This code is kinda bad.
-            return await ReadResponseAsStringAsync(await AuthenticatedHttpRequestAsync($"{_onedriveEndpoint}/root:{remotePath}", _authResult.AccessToken, System.Net.Http.HttpMethod.Get));
+            return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
         }
         public async Task<IRemoteItemHandle> GetFileHandleAsync(string remotePath)
         {
-            string downloadUrl = "";
-            string metadata = "";
-
-            //get the download URL
-            try
-            {
-                metadata = await GetItemMetadataAsync(remotePath);
-                var data = (JObject)JsonConvert.DeserializeObject(metadata);
-                downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
-            }
-            catch(Exception ex)
-            {
-                Debug.WriteLine($"Failed to retrieve file handle: {ex.Message}");
-            }
-
-            //now download the text
-            return new OneDriveRemoteFileHandle(this, downloadUrl, metadata);
+            return await GetFileHandleByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
         }
         private static int _4MB = 4 * 1024 * 1024;
         public async Task<string> UploadFileAsync(string remotePath, Stream data)
         {
-            if (data.Length > _4MB) //if data > 4MB, then use chunked upload
-            {
-                return null;
-            }
-            else //use regular upload
-            {
-                var httpResponse = await AuthenticatedHttpRequestAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", _authResult.AccessToken, HttpMethod.Put, data);
-                string json = await ReadResponseAsStringAsync(httpResponse);
-                var obj = (JObject)JsonConvert.DeserializeObject(json);
-                return (string)obj["id"];
-            }
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data);
         }
         public async Task<string> CreateFolderAsync(string remotePath)
         {
@@ -197,41 +171,15 @@ namespace MyOneDriveClient.OneDrive
         public async Task<string> GetItemMetadataByIdAsync(string id)
         {
             //TODO: return null if the item cannot be found.  This code is kinda bad.
-            return await ReadResponseAsStringAsync(await AuthenticatedHttpRequestAsync($"{_onedriveEndpoint}/items/{id}", _authResult.AccessToken, System.Net.Http.HttpMethod.Get));
+            return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
         public async Task<IRemoteItemHandle> GetFileHandleByIdAsync(string id)
         {
-            string downloadUrl = "";
-            string metadata = "";
-
-            //get the download URL
-            try
-            {
-                metadata = await GetItemMetadataByIdAsync(id);
-                var data = (JObject)JsonConvert.DeserializeObject(metadata);
-                downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to retrieve file handle: {ex.Message}");
-            }
-
-            //now download the text
-            return new OneDriveRemoteFileHandle(this, downloadUrl, metadata);
+            return await GetFileHandleByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
         public async Task<string> UploadFileByIdAsync(string parentId, string name, Stream data)
         {
-            if (data.Length > _4MB) //if data > 4MB, then use chunked upload
-            {
-                return null;
-            }
-            else //use regular upload
-            {
-                var httpResponse = await AuthenticatedHttpRequestAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", _authResult.AccessToken, HttpMethod.Put, data);
-                string json = await ReadResponseAsStringAsync(httpResponse);
-                var obj = (JObject)JsonConvert.DeserializeObject(json);
-                return (string)obj["id"];
-            }
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data);
         }
         public async Task<string> CreateFolderByIdAsync(string parentId, string name)
         {
@@ -244,6 +192,49 @@ namespace MyOneDriveClient.OneDrive
 
             return (string)obj["id"];
         }
+
+
+        #region Helper Methods
+        private async Task<string> GetItemMetadataByUrlAsync(string url)
+        {
+            //TODO: return null if the item cannot be found.  This code is kinda bad.
+            return await ReadResponseAsStringAsync(await AuthenticatedHttpRequestAsync(url, _authResult.AccessToken, System.Net.Http.HttpMethod.Get));
+        }
+        private async Task<IRemoteItemHandle> GetFileHandleByUrlAsync(string url)
+        {
+            string downloadUrl = "";
+            string metadata = "";
+
+            //get the download URL
+            try
+            {
+                metadata = await GetItemMetadataByUrlAsync(url);
+                var data = (JObject)JsonConvert.DeserializeObject(metadata);
+                downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to retrieve file handle: {ex.Message}");
+            }
+
+            //now download the text
+            return new OneDriveRemoteFileHandle(this, downloadUrl, metadata);
+        }
+        private async Task<string> UploadFileByUrlAsync(string url, Stream data)
+        {
+            if (data.Length > _4MB) //if data > 4MB, then use chunked upload
+            {
+                return null;
+            }
+            else //use regular upload
+            {
+                var httpResponse = await AuthenticatedHttpRequestAsync(url, _authResult.AccessToken, HttpMethod.Put, data);
+                string json = await ReadResponseAsStringAsync(httpResponse);
+                var obj = (JObject)JsonConvert.DeserializeObject(json);
+                return (string)obj["id"];
+            }
+        }
+        #endregion
 
         /// <summary>
         /// Gets the file store connection authenticated
