@@ -138,7 +138,7 @@ namespace MyOneDriveClient
         private async void DownloadFileButton_Click(object sender, RoutedEventArgs e)
         {
             await App.OneDriveConnection.PromptUserLoginAsync();
-            IRemoteItemHandle file = await App.OneDriveConnection.GetFileHandleAsync(RemoteFilePath.Text);
+            IRemoteItemHandle file = await App.OneDriveConnection.GetItemHandleAsync(RemoteFilePath.Text);
 
             DisplayFileMetadata(file.Metadata);
 
@@ -188,21 +188,23 @@ namespace MyOneDriveClient
             //}
         }
 
+        DeltaPage _deltaPage = null;
         private async void GetDeltasButton_Click(object sender, RoutedEventArgs e)
         {
             await App.OneDriveConnection.PromptUserLoginAsync();
 
-            var deltas = await App.OneDriveConnection.EnumerateUpdatesAsync();
+            _deltaPage = await App.OneDriveConnection.GetDeltasPageAsync(_deltaPage);
 
-            IEnumerable<string> ids = (from delta in deltas
-                                where (delta.ItemHandle != null)
-                                select (string)((JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata))["id"]);
+            IEnumerable<string> ids = (from delta in _deltaPage
+                                       where (delta.ItemHandle != null)
+                                       select (string)((JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata))["id"]);
 
             ContentsText.Text = "";
-            foreach(var id in ids)
+            foreach (var id in ids)
             {
                 ContentsText.Text += $"{id}{Environment.NewLine}";
             }
+            MetadataText.Text = _deltaPage[50].ItemHandle.Metadata;
         }
     }
 }

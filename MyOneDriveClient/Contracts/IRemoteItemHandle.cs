@@ -10,6 +10,7 @@ namespace MyOneDriveClient
     public interface IRemoteItemHandle
     {
         string Metadata { get; }
+        string Id { get; }
         bool IsFolder { get; }
         Task<Stream> DownloadFileAsync();
     }

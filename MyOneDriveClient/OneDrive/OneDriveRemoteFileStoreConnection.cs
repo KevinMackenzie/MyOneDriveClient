@@ -108,7 +108,7 @@ namespace MyOneDriveClient.OneDrive
                 //if (value["folder"] != null)
                 //    continue;
 
-                ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value["@microsoft.graph.downloadUrl"].ToString(), value["folder"] != null, value.ToString())));
+                ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value["@microsoft.graph.downloadUrl"]?.ToString() ?? null, value["folder"] != null, (string)value["id"], value.ToString())));
             }
 
             //call the event handler (TODO: do we want to await this?)
@@ -201,6 +201,7 @@ namespace MyOneDriveClient.OneDrive
             string downloadUrl = "";
             string metadata = "";
             bool isFolder = false;
+            string id = "";
 
             //get the download URL
             try
@@ -209,6 +210,7 @@ namespace MyOneDriveClient.OneDrive
                 var data = (JObject)JsonConvert.DeserializeObject(metadata);
                 downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
                 isFolder = data["folder"] != null;
+                id = (string)data["id"];
             }
             catch (Exception ex)
             {
@@ -216,7 +218,7 @@ namespace MyOneDriveClient.OneDrive
             }
 
             //now download the text
-            return new OneDriveRemoteFileHandle(this, downloadUrl, isFolder, metadata);
+            return new OneDriveRemoteFileHandle(this, downloadUrl, isFolder, id, metadata);
         }
         private async Task<string> UploadFileByUrlAsync(string url, Stream data)
         {
@@ -297,15 +299,18 @@ namespace MyOneDriveClient.OneDrive
 
             public string Metadata { get => _metadata; }
 
-            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, bool isFolder, string metadata)
+            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, bool isFolder, string id, string metadata)
             {
                 _fileStore = fileStore;
                 _downloadUrl = downloadUrl;
                 _metadata = metadata;
                 IsFolder = isFolder;
+                Id = id;
             }
 
             public bool IsFolder { get; }
+
+            public string Id { get; }
 
             public async Task<Stream> DownloadFileAsync()
             {
