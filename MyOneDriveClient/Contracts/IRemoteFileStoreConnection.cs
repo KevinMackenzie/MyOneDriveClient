@@ -68,6 +68,8 @@ namespace MyOneDriveClient
         /// <param name="remotePath">the remote path of the folder</param>
         /// <returns>the id of the created folder.  if the folder already exists, returns id of existing folder</returns>
         Task<string> CreateFolderAsync(string remotePath);
+        Task<bool> DeleteItemAsync(string remotePath);
+        Task<bool> UpdateItemAsync(string remotePath, string json);
 
         /// <summary>
         /// Gets item metadata with a given id
@@ -102,6 +104,8 @@ namespace MyOneDriveClient
         /// This will return the id of the existing folder if one already exists with the given name and parent id
         /// </remarks>
         Task<string> CreateFolderByIdAsync(string parentId, string name);
+        Task<bool> DeleteItemByIdAsync(string id);
+        Task<bool> UpdateItemByIdAsync(string id, string json);
 
         /// <summary>
         /// When important settings change that need to be cached to the disk to be used on startup

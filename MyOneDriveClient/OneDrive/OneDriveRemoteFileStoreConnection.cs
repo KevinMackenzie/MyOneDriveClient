@@ -162,6 +162,14 @@ namespace MyOneDriveClient.OneDrive
 
             return await CreateFolderByIdAsync(parentId, folderName);
         }
+        public async Task<bool> DeleteItemAsync(string remotePath)
+        {
+            return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
+        }
+        public async Task<bool> UpdateItemAsync(string remotePath, string json)
+        {
+            return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}", json);
+        }
 
 
         public async Task<string> GetItemMetadataByIdAsync(string id)
@@ -187,6 +195,14 @@ namespace MyOneDriveClient.OneDrive
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
             return (string)obj["id"];
+        }
+        public async Task<bool> DeleteItemByIdAsync(string id)
+        {
+            return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/items/{id}");
+        }
+        public async Task<bool> UpdateItemByIdAsync(string id, string json)
+        {
+            return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/items/{id}", json);
         }
 
 
@@ -234,6 +250,15 @@ namespace MyOneDriveClient.OneDrive
                 var obj = (JObject)JsonConvert.DeserializeObject(json);
                 return (string)obj["id"];
             }
+        }
+        private async Task<bool> DeleteFileByUrlAsync(string url)
+        {
+            return (await AuthenticatedHttpRequestAsync(url, _authResult.AccessToken, HttpMethod.Delete)).StatusCode == System.Net.HttpStatusCode.NoContent;
+        }
+        private HttpMethod _patch = new HttpMethod("PATCH");
+        private async Task<bool> UpdateItemByUrlAsync(string url, string json)
+        {
+            return (await AuthenticatedHttpRequestAsync(url, _authResult.AccessToken, _patch, json)).StatusCode == System.Net.HttpStatusCode.OK;
         }
         #endregion
 
