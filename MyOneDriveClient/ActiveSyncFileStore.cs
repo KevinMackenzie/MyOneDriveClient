@@ -67,12 +67,12 @@ namespace MyOneDriveClient
             throw new NotImplementedException();
         }
 
-        private void DeleteLocalFile(string localPath)
+        private void DeleteLocalItem(string localPath)
         {
             throw new NotImplementedException();
         }
 
-        private void MoveLocalFile(string localPath, string newLocalPath)
+        private void MoveLocalItem(string localPath, string newLocalPath)
         {
             throw new NotImplementedException();
         }
@@ -184,17 +184,25 @@ namespace MyOneDriveClient
                         string remoteName = delta.ItemHandle.Path;
                         if(localName != remoteName)
                         {
-                            //different paths/names, so check sha1sum to see if we need to just move it, or actually download the new version
-                            string localSHA1 = GetLocalSHA1(delta.ItemHandle.Id);
-                            if(localSHA1 != delta.ItemHandle.SHA1Hash)
+                            if (delta.ItemHandle.IsFolder)
                             {
-                                //different hashes, so delete the old file and download the new
-                                DeleteLocalFile(localName);
+                                MoveLocalItem(localName, remoteName);
                             }
                             else
                             {
-                                //same file, different location, so move it
-                                MoveLocalFile(localName, remoteName);
+                                //different paths/names, so check sha1sum to see if we need to just move it, or actually download the new version
+                                string localSHA1 = GetLocalSHA1(delta.ItemHandle.Id);
+                                if (localSHA1 != delta.ItemHandle.SHA1Hash)
+                                {
+                                    //different hashes, so delete the old file and download the new
+                                    DeleteLocalItem(localName);
+                                    DownloadFileToLocal(delta.ItemHandle);
+                                }
+                                else
+                                {
+                                    //same file, different location, so move it
+                                    MoveLocalItem(localName, remoteName);
+                                }
                             }
 
                             //different location regardless, so update the dictionary
