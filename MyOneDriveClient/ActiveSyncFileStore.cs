@@ -135,6 +135,9 @@ namespace MyOneDriveClient
                                 //same file, different location, so move it
                                 MoveLocalFile(localName, remoteName);
                             }
+
+                            //different location regardless, so update the dictionary
+                            _itemIdPathMap[delta.ItemHandle.Id] = remoteName;
                         }
                         else
                         {
