@@ -77,18 +77,79 @@ namespace MyOneDriveClient
             throw new NotImplementedException();
         }
 
+        private string ConvertLocalPath(string localPath)
+        {
+            //remote the path root
+            string ret = localPath.Substring(0,_pathRoot.Length);
+
+            //replace back slashes with forward slashes
+            return ret.Replace('\\', '/');
+        }
+
+        private string IdFromLocalPath(string path)
+        {
+            return _itemIdPathMap.FirstOrDefault(x => x.Value == path).Key;
+        }
+
+        private string GetParentItemPath(string path)
+        {
+            var parts = path.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+            string ret = "";
+            for(int i = 0; i < parts.Length - 1; ++i)
+            {
+                ret = $"/{ret}{parts[i]}";
+            }
+            return ret;
+        }
+
+        private string GetItemName(string path)
+        {
+            return path.Split(new char[] { '/' }, 2).Last();
+        }
+
         FileSystemWatcher watcher = new FileSystemWatcher();
         private void SubscribeToLocalChanges()
         {
             watcher.Path = _pathRoot;
             watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
             watcher.Filter = "*";
-            watcher.Changed += new FileSystemEventHandler(
-                (object sender, FileSystemEventArgs e) => 
-                {
-
-                });
+            watcher.Changed += new FileSystemEventHandler(LocalChangeEventHandler);
             watcher.EnableRaisingEvents = true;//do we want this?
+        }
+        private async void LocalChangeEventHandler(object sender, FileSystemEventArgs e)
+        {
+            string path = ConvertLocalPath(e.FullPath);
+            if ((e.ChangeType & WatcherChangeTypes.Created) != 0)
+            {
+                //new item
+                string id = await _remote.UploadFileAsync(path, await LoadFileAsync(e.FullPath));
+                _itemIdPathMap.Add(id, path);
+            }
+            else if ((e.ChangeType & WatcherChangeTypes.Deleted) != 0)
+            {
+                //deleted item
+                string id = IdFromLocalPath(path);
+                await _remote.DeleteItemByIdAsync(id);
+                _itemIdPathMap.Remove(id);
+            }
+            else if ((e.ChangeType & WatcherChangeTypes.Renamed) != 0)
+            {
+                //renamed item
+                string json = $"{{  \"name\": \"{e.Name}\"  }}";
+                string id = IdFromLocalPath(path);
+                //TODO: how do we know what the OLD name/path was BEFORE the rename?
+                await _remote.UpdateItemByIdAsync(id, json);
+                _itemIdPathMap[id] = "";//????
+            }
+            else if ((e.ChangeType & WatcherChangeTypes.Changed) != 0)
+            {
+                //changes to conents of a file
+                string parentId = _itemIdPathMap[GetParentItemPath(path)];
+                string name = GetItemName(path);
+
+                await _remote.UploadFileByIdAsync(parentId, name, await LoadFileAsync(path));
+            }
         }
 
         private DeltaPage _lastDeltaPage = null;
