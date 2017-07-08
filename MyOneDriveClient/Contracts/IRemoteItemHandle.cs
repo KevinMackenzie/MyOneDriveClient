@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,9 +10,12 @@ namespace MyOneDriveClient
 {
     public interface IRemoteItemHandle
     {
-        string Metadata { get; }
+        JObject Metadata { get; }
         string Id { get; }
         bool IsFolder { get; }
+        string Path { get; }
+        string Name { get; }
+        string SHA1Hash { get; }
         Task<Stream> DownloadFileAsync();
     }
 }

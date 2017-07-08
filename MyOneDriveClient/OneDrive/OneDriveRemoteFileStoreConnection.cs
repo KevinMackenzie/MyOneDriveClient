@@ -102,13 +102,13 @@ namespace MyOneDriveClient.OneDrive
                 return ret;
 
             //get the file handles
-            foreach(var value in obj["value"])
+            foreach(JObject value in obj["value"])
             {
                 //TODO: folders are important deltas, because when folders are renamed, their descendents DON"T get the delta update
                 //if (value["folder"] != null)
                 //    continue;
 
-                ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value["@microsoft.graph.downloadUrl"]?.ToString() ?? null, value["folder"] != null, (string)value["id"], value.ToString())));
+                ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value["@microsoft.graph.downloadUrl"]?.ToString() ?? null, value["folder"] != null, (string)value["id"], value)));
             }
 
             //call the event handler (TODO: do we want to await this?)
@@ -200,6 +200,7 @@ namespace MyOneDriveClient.OneDrive
         {
             string downloadUrl = "";
             string metadata = "";
+            JObject metadataObj = null;
             bool isFolder = false;
             string id = "";
 
@@ -207,10 +208,10 @@ namespace MyOneDriveClient.OneDrive
             try
             {
                 metadata = await GetItemMetadataByUrlAsync(url);
-                var data = (JObject)JsonConvert.DeserializeObject(metadata);
-                downloadUrl = data["@microsoft.graph.downloadUrl"].Value<string>();
-                isFolder = data["folder"] != null;
-                id = (string)data["id"];
+                metadataObj = (JObject)JsonConvert.DeserializeObject(metadata);
+                downloadUrl = metadataObj["@microsoft.graph.downloadUrl"].Value<string>();
+                isFolder = metadataObj["folder"] != null;
+                id = (string)metadataObj["id"];
             }
             catch (Exception ex)
             {
@@ -218,7 +219,7 @@ namespace MyOneDriveClient.OneDrive
             }
 
             //now download the text
-            return new OneDriveRemoteFileHandle(this, downloadUrl, isFolder, id, metadata);
+            return new OneDriveRemoteFileHandle(this, downloadUrl, isFolder, id, metadataObj);
         }
         private async Task<string> UploadFileByUrlAsync(string url, Stream data)
         {
@@ -294,12 +295,12 @@ namespace MyOneDriveClient.OneDrive
         public class OneDriveRemoteFileHandle : IRemoteItemHandle
         {
             private string _downloadUrl;
-            private string _metadata;
+            private JObject _metadata;
             private OneDriveRemoteFileStoreConnection _fileStore;
 
-            public string Metadata { get => _metadata; }
+            public JObject Metadata { get => _metadata; }
 
-            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, bool isFolder, string id, string metadata)
+            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, bool isFolder, string id, JObject metadata)
             {
                 _fileStore = fileStore;
                 _downloadUrl = downloadUrl;
@@ -311,6 +312,56 @@ namespace MyOneDriveClient.OneDrive
             public bool IsFolder { get; }
 
             public string Id { get; }
+
+            private string _name = null;
+            public string Name
+            {
+                get
+                {
+                    if(_name == null)
+                    {
+                        _name = (string)_metadata["name"];
+                    }
+                    return Name;
+                }
+            }
+
+            private string _path = null;
+            public string Path
+            {
+                get
+                {
+                    if(_path == null)
+                    {
+                        var parentReference = _metadata["parentReference"];
+                        _path = $"{(string)parentReference["path"]}/{Name}";
+                    }
+                    return _path;
+                }
+            }
+
+            private string _sha1Hash = null;
+            public string SHA1Hash
+            {
+                get
+                {
+                    if(_sha1Hash == null)
+                    {
+                        var file = _metadata["file"];
+                        if (file == null)
+                            _sha1Hash = "";
+                        else
+                        {
+                            var hashes = file["hashes"];
+                            if (hashes == null)
+                                _sha1Hash = "";
+                            else
+                                _sha1Hash = (string)hashes["sha1Hash"];
+                        }
+                    }
+                    return _sha1Hash;
+                }
+            }
 
             public async Task<Stream> DownloadFileAsync()
             {

@@ -195,16 +195,21 @@ namespace MyOneDriveClient
 
             _deltaPage = await App.OneDriveConnection.GetDeltasPageAsync(_deltaPage);
 
-            IEnumerable<string> ids = (from delta in _deltaPage
-                                       where (delta.ItemHandle != null)
-                                       select (string)((JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata))["id"]);
+            //IEnumerable<string> ids = (from delta in _deltaPage
+            //                           where (delta.ItemHandle != null)
+            //                           select (string)((JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata))["id"]);
 
             ContentsText.Text = "";
-            foreach (var id in ids)
+            foreach (var delta in _deltaPage)
             {
-                ContentsText.Text += $"{id}{Environment.NewLine}";
+                var obj = (JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata);
+                string id = (string)obj["id"];
+                string path = "";
+                var parentReference = obj["parentReference"];
+                if (parentReference != null)
+                    path = ((string)parentReference["path"])?.Split(new char[] { ':' }, 2).Last() ?? "No Path";
+                ContentsText.Text += $"{id} : {path}{Environment.NewLine}";
             }
-            MetadataText.Text = _deltaPage[50].ItemHandle.Metadata;
         }
     }
 }
