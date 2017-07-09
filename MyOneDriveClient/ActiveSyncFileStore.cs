@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,6 +19,7 @@ namespace MyOneDriveClient
         private string _pathRoot = "";
         private int _syncPeriod;
         private IRemoteFileStoreConnection _remote;
+        private IRemoteFileStoreDownload _local;
         private Dictionary<string, string> _itemIdPathMap = null;
 
         public string PathRoot { get => _pathRoot; }
@@ -30,49 +32,17 @@ namespace MyOneDriveClient
         /// <param name="pathRoot">the root path to store files</param>
         /// <param name="blacklist">the list of files that should not be synchronized</param>
         /// <param name="syncPeriod">the time duration in ms between sync attempts</param>
-        public ActiveSyncFileStore(string pathRoot, IEnumerable<string> blacklist, IRemoteFileStoreConnection remote, string itemIdMapJson, int syncPeriod = 300000)
+        public ActiveSyncFileStore(string pathRoot, IEnumerable<string> blacklist, IRemoteFileStoreDownload local, IRemoteFileStoreConnection remote, string itemIdMapJson, int syncPeriod = 300000)
         {
             _itemIdPathMap = JsonConvert.DeserializeObject<Dictionary<string, string>>(itemIdMapJson);
             _pathRoot = pathRoot;
             _syncPeriod = syncPeriod;
             _blacklist = blacklist;
             _remote = remote;
-        }
-
-        #region ILocalFileStore
-        public Task<Stream> LoadFileAsync(string localPath)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task SaveFileAsync(string localPath, Stream data)
-        {
-            throw new NotImplementedException();
-        }
-        #endregion
-        
-
-        private void CreateLocalFolder(string folderPath)
-        {
-            throw new NotImplementedException();
+            _local = local;
         }
 
         private void DownloadFileToLocal(IRemoteItemHandle itemHandle)
-        {
-            throw new NotImplementedException();
-        }
-
-        private string GetLocalSHA1(string id)
-        {
-            throw new NotImplementedException();
-        }
-
-        private void DeleteLocalItem(string localPath)
-        {
-            throw new NotImplementedException();
-        }
-
-        private void MoveLocalItem(string localPath, string newLocalPath)
         {
             throw new NotImplementedException();
         }
@@ -114,23 +84,24 @@ namespace MyOneDriveClient
             watcher.Path = _pathRoot;
             watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
             watcher.Filter = "*";
-            watcher.Changed += new FileSystemEventHandler(LocalChangeEventHandler);
+            watcher.Changed += new FileSystemEventHandler((object sender, FileSystemEventArgs e) => { _localChangeQueue.Enqueue(e); } );
             watcher.EnableRaisingEvents = true;//do we want this?
         }
-        private async void LocalChangeEventHandler(object sender, FileSystemEventArgs e)
+        private ConcurrentQueue<FileSystemEventArgs> _localChangeQueue = new ConcurrentQueue<FileSystemEventArgs>();
+        private void LocalChangeEventHandler(FileSystemEventArgs e)
         {
             string path = ConvertLocalPath(e.FullPath);
             if ((e.ChangeType & WatcherChangeTypes.Created) != 0)
             {
                 //new item
-                string id = await _remote.UploadFileAsync(path, await LoadFileAsync(e.FullPath));
+                string id = _remote.UploadFileAsync(path, LoadFileAsync(e.FullPath).Result).Result;
                 _itemIdPathMap.Add(id, path);
             }
             else if ((e.ChangeType & WatcherChangeTypes.Deleted) != 0)
             {
                 //deleted item
                 string id = IdFromLocalPath(path);
-                await _remote.DeleteItemByIdAsync(id);
+                _remote.DeleteItemByIdAsync(id).Wait();
                 _itemIdPathMap.Remove(id);
             }
             else if ((e.ChangeType & WatcherChangeTypes.Renamed) != 0)
@@ -139,7 +110,7 @@ namespace MyOneDriveClient
                 string json = $"{{  \"name\": \"{e.Name}\"  }}";
                 string id = IdFromLocalPath(path);
                 //TODO: how do we know what the OLD name/path was BEFORE the rename?
-                await _remote.UpdateItemByIdAsync(id, json);
+                _remote.UpdateItemByIdAsync(id, json).Wait();
                 _itemIdPathMap[id] = "";//????
             }
             else if ((e.ChangeType & WatcherChangeTypes.Changed) != 0)
@@ -148,7 +119,15 @@ namespace MyOneDriveClient
                 string parentId = _itemIdPathMap[GetParentItemPath(path)];
                 string name = GetItemName(path);
 
-                await _remote.UploadFileByIdAsync(parentId, name, await LoadFileAsync(path));
+                _remote.UploadFileByIdAsync(parentId, name, LoadFileAsync(path).Result).Wait();
+            }
+        }
+        private void ApplyLocalChanges()
+        {
+            FileSystemEventArgs e;
+            while(_localChangeQueue.TryDequeue(out e))
+            {
+                LocalChangeEventHandler(e);
             }
         }
 
@@ -239,7 +218,9 @@ namespace MyOneDriveClient
 
                 while (!ct.IsCancellationRequested)
                 {
+                    FindNewLocalItems();
                     ApplyAllDeltas();
+                    ApplyLocalChanges();
 
                     Thread.Sleep(_syncPeriod);
                 }
@@ -283,7 +264,7 @@ namespace MyOneDriveClient
         /// all files and compares last modified times of local
         /// and remote files, keeping the most up-to-date ones
         /// </summary>
-        public void HardForceUpdate()
+        public void HardForceUpdate(string folder)
         {
 
         }

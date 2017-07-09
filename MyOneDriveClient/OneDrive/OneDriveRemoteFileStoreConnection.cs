@@ -388,7 +388,7 @@ namespace MyOneDriveClient.OneDrive
                 }
             }
 
-            public async Task<Stream> DownloadFileAsync()
+            public async Task<Stream> GetFileDataAsync()
             {
                 return await _fileStore.DownloadFileWithLinkAsync(_downloadUrl);
             }

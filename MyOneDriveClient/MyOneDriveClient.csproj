@@ -86,9 +86,12 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="ActiveSyncFileStore.cs" />
+    <Compile Include="Contracts\IItemHandle.cs" />
+    <Compile Include="Contracts\IRemoteFileStoreDownload.cs" />
     <Compile Include="Contracts\IRemoteItemHandle.cs" />
     <Compile Include="Contracts\IRemoteItemUpdate.cs" />
     <Compile Include="DeltaPage.cs" />
+    <Compile Include="DownloadedFileStore.cs" />
     <Compile Include="Events\EventDelegates.cs" />
     <Compile Include="Events\RemoteFileStoreDataChanged.cs" />
     <Compile Include="FileData.cs" />

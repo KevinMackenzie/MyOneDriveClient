@@ -142,7 +142,7 @@ namespace MyOneDriveClient
 
             DisplayFileMetadata(file.Metadata);
 
-            Stream data = await file.DownloadFileAsync();
+            Stream data = await file.GetFileDataAsync();
 
             byte[] buffer = new byte[data.Length];
             await data.ReadAsync(buffer, 0, (int)data.Length);

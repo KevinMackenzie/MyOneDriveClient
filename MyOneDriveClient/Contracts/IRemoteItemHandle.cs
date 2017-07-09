@@ -8,14 +8,10 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public interface IRemoteItemHandle
+    public interface IRemoteItemHandle : IItemHandle
     {
+        //there should be NO guarantee of what this is, so it should probably not even exist....
         JObject Metadata { get; }
         string Id { get; }
-        bool IsFolder { get; }
-        string Path { get; }
-        string Name { get; }
-        string SHA1Hash { get; }
-        Task<Stream> DownloadFileAsync();
     }
 }
