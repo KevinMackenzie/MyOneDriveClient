@@ -11,7 +11,7 @@ namespace MyOneDriveClient
     public interface IRemoteItemHandle : IItemHandle
     {
         //there should be NO guarantee of what this is, so it should probably not even exist....
-        JObject Metadata { get; }
+        //JObject Metadata { get; }
         string Id { get; }
     }
 }

@@ -93,6 +93,7 @@
     <Compile Include="DeltaPage.cs" />
     <Compile Include="DownloadedFileStore.cs" />
     <Compile Include="Events\EventDelegates.cs" />
+    <Compile Include="Events\LocalFileStoreEventArgs.cs" />
     <Compile Include="Events\RemoteFileStoreDataChanged.cs" />
     <Compile Include="FileData.cs" />
     <Compile Include="GraphConnection.cs" />

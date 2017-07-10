@@ -323,7 +323,12 @@ namespace MyOneDriveClient.OneDrive
             private JObject _metadata;
             private OneDriveRemoteFileStoreConnection _fileStore;
 
-            public JObject Metadata { get => _metadata; }
+
+            private bool _dtInitialized = false;
+            private DateTime _lastModified;
+            private string _sha1Hash = null;
+            private string _path = null;
+            private string _name = null;
 
             public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, bool isFolder, string id, JObject metadata)
             {
@@ -334,11 +339,9 @@ namespace MyOneDriveClient.OneDrive
                 Id = id;
             }
 
+            #region IRemoteItemHandle
             public bool IsFolder { get; }
-
             public string Id { get; }
-
-            private string _name = null;
             public string Name
             {
                 get
@@ -350,8 +353,6 @@ namespace MyOneDriveClient.OneDrive
                     return Name;
                 }
             }
-
-            private string _path = null;
             public string Path
             {
                 get
@@ -364,8 +365,6 @@ namespace MyOneDriveClient.OneDrive
                     return _path;
                 }
             }
-
-            private string _sha1Hash = null;
             public string SHA1Hash
             {
                 get
@@ -387,11 +386,32 @@ namespace MyOneDriveClient.OneDrive
                     return _sha1Hash;
                 }
             }
-
+            public DateTime LastModified
+            {
+                get
+                {
+                    if(!_dtInitialized)
+                    {
+                        var lastModifiedText = _metadata["lastModifiedDateTime"];
+                        if (lastModifiedText == null)
+                            _lastModified = new DateTime();
+                        else
+                        {
+                            if(!DateTime.TryParse((string)lastModifiedText, out _lastModified))
+                            {
+                                _lastModified = new DateTime();//is this what we want?
+                            }
+                        }
+                        _dtInitialized = true;
+                    }
+                    return _lastModified;
+                }
+            }
             public async Task<Stream> GetFileDataAsync()
             {
                 return await _fileStore.DownloadFileWithLinkAsync(_downloadUrl);
             }
+            #endregion
         }
 
         /// <summary>

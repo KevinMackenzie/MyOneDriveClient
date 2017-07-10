@@ -9,5 +9,6 @@ namespace MyOneDriveClient.Events
     public static class EventDelegates
     {
         public delegate Task RemoteFileStoreConnectionUpdateHandler(object sender, RemoteFileStoreDataChanged e);
+        public delegate Task LocalFileStoreUpdateHandler(object sender, LocalFileStoreEventArgs e);
     }
 }

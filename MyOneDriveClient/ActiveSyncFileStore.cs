@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using MyOneDriveClient.Events;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,19 +11,16 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public class ActiveSyncFileStore : ILocalFileStore, IDisposable
+    public class ActiveSyncFileStore : IDisposable
     {
         private Task _syncTask = null;
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
         private IEnumerable<string> _blacklist;
-        private string _pathRoot = "";
         private int _syncPeriod;
         private IRemoteFileStoreConnection _remote;
         private IRemoteFileStoreDownload _local;
-        private Dictionary<string, string> _itemIdPathMap = null;
-
-        public string PathRoot { get => _pathRoot; }
+        
         public IEnumerable<string> Blacklist { get => _blacklist; }
         public int SyncPeriod { get => _syncPeriod; }
 
@@ -32,35 +30,15 @@ namespace MyOneDriveClient
         /// <param name="pathRoot">the root path to store files</param>
         /// <param name="blacklist">the list of files that should not be synchronized</param>
         /// <param name="syncPeriod">the time duration in ms between sync attempts</param>
-        public ActiveSyncFileStore(string pathRoot, IEnumerable<string> blacklist, IRemoteFileStoreDownload local, IRemoteFileStoreConnection remote, string itemIdMapJson, int syncPeriod = 300000)
+        public ActiveSyncFileStore(string pathRoot, IEnumerable<string> blacklist, IRemoteFileStoreDownload local, IRemoteFileStoreConnection remote, int syncPeriod = 300000)
         {
-            _itemIdPathMap = JsonConvert.DeserializeObject<Dictionary<string, string>>(itemIdMapJson);
-            _pathRoot = pathRoot;
+            //_itemIdPathMap = JsonConvert.DeserializeObject<Dictionary<string, string>>(itemIdMapJson);
             _syncPeriod = syncPeriod;
             _blacklist = blacklist;
             _remote = remote;
             _local = local;
         }
-
-        private void DownloadFileToLocal(IRemoteItemHandle itemHandle)
-        {
-            throw new NotImplementedException();
-        }
-
-        private string ConvertLocalPath(string localPath)
-        {
-            //remote the path root
-            string ret = localPath.Substring(0,_pathRoot.Length);
-
-            //replace back slashes with forward slashes
-            return ret.Replace('\\', '/');
-        }
-
-        private string IdFromLocalPath(string path)
-        {
-            return _itemIdPathMap.FirstOrDefault(x => x.Value == path).Key;
-        }
-
+        
         private string GetParentItemPath(string path)
         {
             var parts = path.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
@@ -75,23 +53,13 @@ namespace MyOneDriveClient
 
         private string GetItemName(string path)
         {
-            return path.Split(new char[] { '/' }, 2).Last();
+            return path.Split(new char[] { '/' }).Last();
         }
-
-        FileSystemWatcher watcher = new FileSystemWatcher();
-        private void SubscribeToLocalChanges()
+        
+        private ConcurrentQueue<LocalFileStoreEventArgs> _localChangeQueue = new ConcurrentQueue<LocalFileStoreEventArgs>();
+        private void LocalChangeEventHandler(LocalFileStoreEventArgs e)
         {
-            watcher.Path = _pathRoot;
-            watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
-            watcher.Filter = "*";
-            watcher.Changed += new FileSystemEventHandler((object sender, FileSystemEventArgs e) => { _localChangeQueue.Enqueue(e); } );
-            watcher.EnableRaisingEvents = true;//do we want this?
-        }
-        private ConcurrentQueue<FileSystemEventArgs> _localChangeQueue = new ConcurrentQueue<FileSystemEventArgs>();
-        private void LocalChangeEventHandler(FileSystemEventArgs e)
-        {
-            string path = ConvertLocalPath(e.FullPath);
-            if ((e.ChangeType & WatcherChangeTypes.Created) != 0)
+            if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Created) != 0)
             {
                 //new item
                 string id = _remote.UploadFileAsync(path, LoadFileAsync(e.FullPath).Result).Result;
@@ -125,7 +93,7 @@ namespace MyOneDriveClient
         private void ApplyLocalChanges()
         {
             FileSystemEventArgs e;
-            while(_localChangeQueue.TryDequeue(out e))
+            while (_localChangeQueue.TryDequeue(out e))
             {
                 LocalChangeEventHandler(e);
             }
@@ -141,56 +109,58 @@ namespace MyOneDriveClient
                 foreach(var delta in _lastDeltaPage)
                 {
                     //update file/folder renames in BOTH the file system AND the itemIdMap
-                    string localName;
-                    bool result = _itemIdPathMap.TryGetValue(delta.ItemHandle.Id, out localName);
+                    
+                    bool result = _local.ItemExists(delta.ItemHandle);
                     if(!result)
                     {
                         //if the item doesn't exist, create it/download it
                         if(delta.ItemHandle.IsFolder)
                         {
                             //create folder
-                            CreateLocalFolder(delta.ItemHandle.Path);
+                            _local.CreateLocalFolder(delta.ItemHandle.Path);
                         }
                         else
                         {
                             //download the file
-                            DownloadFileToLocal(delta.ItemHandle);
+                            _local.SaveFileAsync(delta.ItemHandle).Wait();
                         }
                     }
                     else
                     {
                         //the item does exist, but what do we do with it?
                         string remoteName = delta.ItemHandle.Path;
+                        var localItem = _local.GetFileHandleAsync(delta.ItemHandle).Result;
+                        string localName = localItem.Path;
                         if(localName != remoteName)
                         {
                             if (delta.ItemHandle.IsFolder)
                             {
-                                MoveLocalItem(localName, remoteName);
+                                _local.MoveLocalItemAsync(delta.ItemHandle).Wait();
                             }
                             else
                             {
                                 //different paths/names, so check sha1sum to see if we need to just move it, or actually download the new version
-                                string localSHA1 = GetLocalSHA1(delta.ItemHandle.Id);
+                                string localSHA1 = _local.GetLocalSHA1Async(delta.ItemHandle.Id).Result;
                                 if (localSHA1 != delta.ItemHandle.SHA1Hash)
                                 {
                                     //different hashes, so delete the old file and download the new
-                                    DeleteLocalItem(localName);
-                                    DownloadFileToLocal(delta.ItemHandle);
+                                    _local.DeleteLocalItemAsync(delta.ItemHandle).Wait();
+                                    _local.SaveFileAsync(delta.ItemHandle).Wait();
                                 }
                                 else
                                 {
                                     //same file, different location, so move it
-                                    MoveLocalItem(localName, remoteName);
+                                    _local.MoveLocalItemAsync(delta.ItemHandle).Wait();
                                 }
                             }
 
                             //different location regardless, so update the dictionary
-                            _itemIdPathMap[delta.ItemHandle.Id] = remoteName;
+                            //_itemIdPathMap[delta.ItemHandle.Id] = remoteName;
                         }
                         else
                         {
                             //same path/names, so just download the new version
-                            DownloadFileToLocal(delta.ItemHandle);
+                            _local.SaveFileAsync(delta.ItemHandle).Wait();
                         }
                     }
                 }
@@ -214,11 +184,17 @@ namespace MyOneDriveClient
                 UploadLocalChanges();
 
                 //register for file/folder changes
-                SubscribeToLocalChanges();
+                _local.OnUpdate += (object sender, LocalFileStoreEventArgs e) =>
+                {
+                    return new Task(() =>
+                    {
+                        _localChangeQueue.Enqueue(e);
+                    });
+                };
 
                 while (!ct.IsCancellationRequested)
                 {
-                    FindNewLocalItems();
+                    //FindNewLocalItems();
                     ApplyAllDeltas();
                     ApplyLocalChanges();
 
@@ -281,7 +257,6 @@ namespace MyOneDriveClient
                     _cts?.Cancel();
                     _syncTask?.Wait();
                     _cts?.Dispose();
-                    watcher?.Dispose();
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
