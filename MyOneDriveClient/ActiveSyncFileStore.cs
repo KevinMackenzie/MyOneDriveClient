@@ -57,13 +57,12 @@ namespace MyOneDriveClient
         }
         
         private ConcurrentQueue<LocalFileStoreEventArgs> _localChangeQueue = new ConcurrentQueue<LocalFileStoreEventArgs>();
-        private void LocalChangeEventHandler(LocalFileStoreEventArgs e)
+        private async Task LocalChangeEventHandler(LocalFileStoreEventArgs e)
         {
             if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Created) != 0)
             {
                 //new item
-                string id = _remote.UploadFileAsync(path, LoadFileAsync(e.FullPath).Result).Result;
-                _itemIdPathMap.Add(id, path);
+                string id = await _remote.UploadFileAsync(e.Item.Path, await e.Item.GetFileDataAsync());
             }
             else if ((e.ChangeType & WatcherChangeTypes.Deleted) != 0)
             {
@@ -92,7 +91,7 @@ namespace MyOneDriveClient
         }
         private void ApplyLocalChanges()
         {
-            FileSystemEventArgs e;
+            LocalFileStoreEventArgs e;
             while (_localChangeQueue.TryDequeue(out e))
             {
                 LocalChangeEventHandler(e);

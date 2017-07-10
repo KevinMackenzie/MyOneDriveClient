@@ -321,11 +321,21 @@ namespace MyOneDriveClient
             watcher.Path = PathRoot;
             watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
             watcher.Filter = "*";
-            watcher.Changed += new FileSystemEventHandler(FSWatcherEventHandler);
+            watcher.Changed += Watcher_Changed;
+            watcher.Renamed += Watcher_Renamed;
+            watcher.Deleted += Watcher_Changed;
+            watcher.Created += Watcher_Changed;
             watcher.EnableRaisingEvents = true;//do we want this?
         }
-        public async void FSWatcherEventHandler(object sender, FileSystemEventArgs e)
+
+        public void Watcher_Renamed(object sender, RenamedEventArgs e)
         {
+            Watcher_Changed(sender, e);
+        }
+        public async void Watcher_Changed(object sender, FileSystemEventArgs e)
+        {
+            //TODO: how do we effectively GET the ID of a created file back when the owner of this uploads it?
+            //Will we get this when we check for deltas?
             LocalFileStoreEventArgs newE = new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath));
             await OnUpdate.Invoke(this, newE);
         }
@@ -346,8 +356,7 @@ namespace MyOneDriveClient
 
             public DownloadedFileHandle(DownloadedFileStore fs, string id, string path)
             {
-                if (fs == null)
-                    throw new ArgumentNullException("fs");
+                _fs = fs ?? throw new ArgumentNullException("fs");
                 _id = id;
                 _path = path;
             }
