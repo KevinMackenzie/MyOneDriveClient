@@ -140,7 +140,7 @@ namespace MyOneDriveClient
             await App.OneDriveConnection.PromptUserLoginAsync();
             IRemoteItemHandle file = await App.OneDriveConnection.GetItemHandleAsync(RemoteFilePath.Text);
 
-            DisplayFileMetadata(file.Metadata);
+            //DisplayFileMetadata(file.Metadata);
 
             Stream data = await file.GetFileDataAsync();
 
@@ -160,7 +160,7 @@ namespace MyOneDriveClient
 
             try
             {
-                await App.OneDriveConnection.UploadFileAsync(RemoteFilePath.Text, data);
+                await App.OneDriveConnection.UploadFileAsync(RemoteFilePath.Text, DateTime.UtcNow, data);
             }
             catch(Exception ex)
             {
@@ -192,15 +192,15 @@ namespace MyOneDriveClient
         private async void GetDeltasButton_Click(object sender, RoutedEventArgs e)
         {
             await App.OneDriveConnection.PromptUserLoginAsync();
-
-            _deltaPage = await App.OneDriveConnection.GetDeltasPageAsync(_deltaPage);
+            await App.FileStore.ApplyAllDeltas();
+            //_deltaPage = await App.OneDriveConnection.GetDeltasPageAsync(_deltaPage);
 
             //IEnumerable<string> ids = (from delta in _deltaPage
             //                           where (delta.ItemHandle != null)
             //                           select (string)((JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata))["id"]);
 
             ContentsText.Text = "";
-            foreach (var delta in _deltaPage)
+            /*foreach (var delta in _deltaPage)
             {
                 var obj = (JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata);
                 string id = (string)obj["id"];
@@ -209,7 +209,7 @@ namespace MyOneDriveClient
                 if (parentReference != null)
                     path = ((string)parentReference["path"])?.Split(new char[] { ':' }, 2).Last() ?? "No Path";
                 ContentsText.Text += $"{id} : {path}{Environment.NewLine}";
-            }
+            }*/
         }
     }
 }

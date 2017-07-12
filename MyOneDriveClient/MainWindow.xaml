@@ -33,7 +33,7 @@
                 <ColumnDefinition Width="50"/>
             </Grid.ColumnDefinitions>
             <Button x:Name="GetDeltasButton" Content="Get Deltas" HorizontalAlignment="Left" Padding="5" Margin="5" Click="GetDeltasButton_Click" FontFamily="Segoe Ui" Grid.Column="0"/>
-            <Button x:Name="SignOutButton" Content="Sign-Out" HorizontalAlignment="Right" Padding="5" Click="SignOutButton_Click" Margin="5" Visibility="Collapsed" FontFamily="Segoe Ui" Grid.Column="1"/>
+            <Button x:Name="SignOutButton" Content="Sign-Out" HorizontalAlignment="Right" Padding="5" Click="SignOutButton_Click" Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="1"/>
         </Grid>
 
         <Label Content="File Metadata" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="2" />

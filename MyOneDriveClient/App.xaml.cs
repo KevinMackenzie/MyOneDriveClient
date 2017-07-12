@@ -15,11 +15,15 @@ namespace MyOneDriveClient
     public partial class App : Application
     {
         static App()
-        {
-            
+        {            
             OneDriveConnection = new OneDrive.OneDriveRemoteFileStoreConnection();
+            FileStore = new ActiveSyncFileStore(
+            new string[]
+            {
+            }, new DownloadedFileStore("C:/Users/kjmac/OneDriveTest"), OneDriveConnection);
         }
 
         public static OneDrive.OneDriveRemoteFileStoreConnection OneDriveConnection;
+        public static ActiveSyncFileStore FileStore;
     }
 }

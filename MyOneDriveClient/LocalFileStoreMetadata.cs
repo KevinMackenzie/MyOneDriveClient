@@ -11,6 +11,10 @@ namespace MyOneDriveClient
     {
         private Dictionary<string, RemoteItemMetadata> _localItems = null;
 
+        public void Clear()
+        {
+            _localItems = new Dictionary<string, RemoteItemMetadata>();
+        }
         public void Deserialize(string json)
         {
             _localItems.Clear();
