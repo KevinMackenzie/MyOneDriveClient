@@ -370,7 +370,7 @@ namespace MyOneDriveClient.OneDrive
                     {
                         _name = (string)_metadata["name"];
                     }
-                    return Name;
+                    return _name;
                 }
             }
             public string Path
@@ -380,7 +380,7 @@ namespace MyOneDriveClient.OneDrive
                     if(_path == null)
                     {
                         var parentReference = _metadata["parentReference"];
-                        _path = $"{(string)parentReference["path"]}/{Name}";
+                        _path = $"{(string)parentReference["path"]}/{Name}".Split(new char[] { ':' }, 2, StringSplitOptions.RemoveEmptyEntries).Last();
                     }
                     return _path;
                 }
