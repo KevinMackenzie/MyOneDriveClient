@@ -61,11 +61,11 @@ namespace MyOneDriveClient
         {
             return "";
         }
-        private Stream GetLocalFileStream(string id)
+        private Stream GetLocalFileStream(string localPath)
         {
-            var localItem = GetItemMetadataById(id);
-            return new FileStream(BuildPath(localItem.Path), FileMode.Open, FileAccess.Read, FileShare.None);
+            return new FileStream(BuildPath(localPath), FileMode.Open, FileAccess.Read, FileShare.None);
         }
+        [Obsolete]
         private bool CopyLocalItem(string localPath, string newLocalPath)
         {
             try
@@ -93,7 +93,60 @@ namespace MyOneDriveClient
                 return false;
             }
         }
-        private bool MoveLocalItem(string localPath, string newLocalPath)
+        #endregion
+
+        #region IRemoteFileStoreDownload
+        public bool CreateLocalFolder(string localPath, DateTime lastModified)
+        {
+            try
+            {
+                var fqp = BuildPath(localPath);
+                Directory.CreateDirectory(fqp);
+                Directory.SetLastWriteTimeUtc(fqp, lastModified);
+                return true;
+            }
+            catch(Exception)
+            {
+                return false;
+            }
+        }
+        public async Task<bool> DeleteLocalItemAsync(string localPath)
+        {
+            try
+            {
+                //delete the file
+                File.Delete(BuildPath(localPath));
+                return true;
+            }
+            catch(Exception)
+            {
+                return false;
+            }
+        }
+        public async Task<string> GetLocalSHA1Async(string localPath)
+        {
+            using (var fs = GetLocalFileStream(localPath))
+            {
+                using (var cryptoProvider = new SHA1CryptoServiceProvider())
+                {
+                    return BitConverter.ToString(cryptoProvider.ComputeHash(fs));
+                }
+            }
+        }
+        public async Task<IItemHandle> GetFileHandleAsync(string localPath)
+        {
+            return new DownloadedFileHandle(this, localPath);
+        }
+        public async Task SaveFileAsync(string localPath, DateTime lastModified, Stream data)
+        {
+            string fqp = BuildPath(localPath);
+            using (var localStream = new FileStream(fqp, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
+            {
+                //TODO: this is VERY complicated to do asynchronously... https://psycodedeveloper.wordpress.com/2013/04/04/reliably-asynchronously-reading-and-writing-binary-streams-in-c-always-check-method-call-return-values/
+            }
+            File.SetLastWriteTimeUtc(fqp, lastModified);
+        }
+        public async Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath)
         {
             try
             {
@@ -117,127 +170,10 @@ namespace MyOneDriveClient
                 return false;
             }
         }
-        #endregion
-
-        #region IRemoteFileStoreDownload
-        public bool CreateLocalFolder(string localPath, DateTime lastModified)
-        {
-            try
-            {
-                System.IO.Directory.CreateDirectory(BuildPath(localPath));
-                //TODO: send message
-                return true;
-            }
-            catch(Exception)
-            {
-                return false;
-            }
-        }
-        public async Task<bool> DeleteLocalItemAsync(string localPath)
-        {
-            var localItem = GetItemMetadata(remoteHandle.Path);
-            if (localItem == null)
-                return false;
-            var localItemInfo = GetItemInfo(localItem.Path);
-
-            if (localItemInfo.LastWriteTime > localItem.RemoteLastModified && remoteHandle.LastModified > localItem.RemoteLastModified)
-            {
-                //if local item has changed since last sync AND remote has too
-
-                //rename local file instead
-                return MoveLocalItem(localItem.Path, RenameFile(localItem.Path));
-                //TODO: also send a file-moved message
-            }
-            else
-            {
-                try
-                {
-                    //delete the file
-                    File.Delete(BuildPath(localItem.Path));
-                    _localItems.Remove(localItem.Id);
-                    return true;
-                }
-                catch(Exception)
-                {
-                    return false;
-                }
-            }
-        }
-        public async Task<string> GetLocalSHA1Async(string localPath)
-        {
-            using (var fs = GetLocalFileStream(id))
-            {
-                using (var cryptoProvider = new SHA1CryptoServiceProvider())
-                {
-                    return BitConverter.ToString(cryptoProvider.ComputeHash(fs));
-                }
-            }
-        }
-        public async Task<IItemHandle> GetFileHandleAsync(string localPath)
-        {
-            var localItem = GetItemMetadata(localPath);
-            if (localItem == null)
-                return null;
-
-            return new DownloadedFileHandle(this, localItem.Id, localItem.Path);
-        }
-        public async Task SaveFileAsync(string localPath, DateTime lastModified, Stream data)
-        {
-            var localItem = GetItemMetadataById(file.Id);
-            if(localItem == null)
-            {
-                localItem = _localItems[file.Id] = new RemoteItemMetadata() { Id = file.Id, IsFolder = file.IsFolder, Path = file.Path, RemoteLastModified = file.LastModified };
-            }
-
-            using (var localStream = new FileStream(BuildPath(localItem.Path), FileMode.OpenOrCreate, FileAccess.Write))
-            {
-                using (var remoteStream = await file.GetFileDataAsync())
-                {
-                    //TODO: this is VERY complicated to do asynchronously... https://psycodedeveloper.wordpress.com/2013/04/04/reliably-asynchronously-reading-and-writing-binary-streams-in-c-always-check-method-call-return-values/
-                }
-            }
-        }
-        public async Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath)
-        {
-            var localItem = GetItemMetadataById(remoteHandle.Id);
-            if (localItem == null)
-                return false;
-            var localItemInfo = GetItemInfo(localItem.Path);
-
-            if(localItemInfo.LastWriteTime > localItem.RemoteLastModified && remoteHandle.LastModified > localItem.RemoteLastModified)
-            {
-                //if local item has changed since last sync AND remote has too
-                if (MoveLocalItem(localItem.Path, remoteHandle.Path))//do the same thing? ...
-                { 
-                    localItem.Path = remoteHandle.Path;
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                //move the item
-                if(MoveLocalItem(localItem.Path, remoteHandle.Path))
-                {
-                    localItem.Path = remoteHandle.Path;
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-        }
         public bool ItemExists(string localPath)
         {
-            var localItem = GetItemMetadataById(remoteHandle.Id);
-            if (localItem == null)
-                return false;
-            else
-                return true;
+            string fqp = BuildPath(localPath);
+            return Directory.Exists(fqp) || File.Exists(fqp);
         }
         public event EventDelegates.LocalFileStoreUpdateHandler OnUpdate;
         #endregion
@@ -273,9 +209,8 @@ namespace MyOneDriveClient
         }
         #endregion
 
-        private class DownloadedFileHandle : IRemoteItemHandle
+        private class DownloadedFileHandle : IItemHandle
         {
-            private string _id;
             private string _path;
             private DownloadedFileStore _fs;
 
@@ -286,15 +221,13 @@ namespace MyOneDriveClient
             private DateTime _lastModified;
 
 
-            public DownloadedFileHandle(DownloadedFileStore fs, string id, string path)
+            public DownloadedFileHandle(DownloadedFileStore fs, string path)
             {
                 _fs = fs ?? throw new ArgumentNullException("fs");
-                _id = id;
                 _path = path;
             }
 
             #region IRemoteItemHandle
-            public string Id => _id;
             public string Path => _path;
 
             public bool IsFolder
@@ -325,7 +258,7 @@ namespace MyOneDriveClient
                 {
                     if(_sha1Hash == null)
                     {
-                        _sha1Hash = _fs.GetLocalSHA1Async(_id).Result;
+                        _sha1Hash = _fs.GetLocalSHA1Async(_path).Result;
                     }
                     return _sha1Hash;
                 }
@@ -344,7 +277,7 @@ namespace MyOneDriveClient
             }
             public async Task<Stream> GetFileDataAsync()
             {
-                return _fs.GetLocalFileStream(_id);
+                return _fs.GetLocalFileStream(_path);
             }
             #endregion
         }
