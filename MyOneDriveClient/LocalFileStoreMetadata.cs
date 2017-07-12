@@ -21,7 +21,7 @@ namespace MyOneDriveClient
             return JsonConvert.SerializeObject(_localItems);
         }
 
-        /*public RemoteItemMetadata GetItemMetadata(string localPath)
+        public RemoteItemMetadata GetItemMetadata(string localPath)
         {
             var items = (from localItem in _localItems
                          where localItem.Value.Path == localPath
@@ -31,7 +31,7 @@ namespace MyOneDriveClient
                 return null;
             //if (items.Count > 1) ;//???
             return items.First().Value;
-        }*/
+        }
         public RemoteItemMetadata GetItemMetadataById(string id)
         {
             RemoteItemMetadata ret;
@@ -51,6 +51,14 @@ namespace MyOneDriveClient
         public void AddItemMetadata(RemoteItemMetadata metadata)
         {
             _localItems[metadata.Id] = metadata;
+        }
+        public void RemoveItemMetadata(string localPath)
+        {
+            var metadata = GetItemMetadata(localPath);
+            if(metadata != null)
+            {
+                _localItems.Remove(metadata.Id);
+            }
         }
         public void RemoveItemMetadataById(string id)
         {

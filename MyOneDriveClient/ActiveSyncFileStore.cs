@@ -107,31 +107,54 @@ namespace MyOneDriveClient
             if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Created) != 0)
             {
                 //new item
-                string id = await _remote.UploadFileAsync(e.Item.Path, await e.Item.GetFileDataAsync());
+                var handle = await _local.GetFileHandleAsync(e.LocalPath);
+                await _remote.UploadFileAsync(e.LocalPath, handle.LastModified, await handle.GetFileDataAsync());
             }
-            else if ((e.ChangeType & WatcherChangeTypes.Deleted) != 0)
+            else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Deleted) != 0)
             {
                 //deleted item
-                string id = IdFromLocalPath(path);
-                _remote.DeleteItemByIdAsync(id).Wait();
-                _itemIdPathMap.Remove(id);
+                var metadata = _metadata.GetItemMetadata(e.LocalPath);
+                if (metadata != null)
+                {
+                    await _remote.DeleteItemByIdAsync(metadata.Id);
+                }
+                else
+                {
+                    await _remote.DeleteItemAsync(e.LocalPath);
+                }
+                _metadata.RemoveItemMetadata(e.LocalPath);
             }
-            else if ((e.ChangeType & WatcherChangeTypes.Renamed) != 0)
+            else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Renamed) != 0)
             {
                 //renamed item
-                string json = $"{{  \"name\": \"{e.Name}\"  }}";
-                string id = IdFromLocalPath(path);
-                //TODO: how do we know what the OLD name/path was BEFORE the rename?
-                _remote.UpdateItemByIdAsync(id, json).Wait();
-                _itemIdPathMap[id] = "";//????
+                var metadata = _metadata.GetItemMetadata(e.OldLocalPath);
+
+                if (metadata != null)
+                {
+                    string json = $"{{  \"name\": \"{e.InnerEventArgs.Name}\"  }}";
+
+                    //update the item
+                    _remote.UpdateItemByIdAsync(metadata.Id, json).Wait();
+
+                    //and update the metadata
+                    metadata.Path = e.LocalPath;
+                    _metadata.AddItemMetadata(metadata);
+                }
             }
-            else if ((e.ChangeType & WatcherChangeTypes.Changed) != 0)
+            else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Changed) != 0)
             {
                 //changes to conents of a file
-                string parentId = _itemIdPathMap[GetParentItemPath(path)];
-                string name = GetItemName(path);
+                var metadata = _metadata.GetItemMetadata(e.LocalPath);
+                var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
+                var itemHandle = await _local.GetFileHandleAsync(e.LocalPath);
 
-                _remote.UploadFileByIdAsync(parentId, name, LoadFileAsync(path).Result).Wait();
+                if (metadata != null && parentMetadata != null && itemHandle != null)
+                {
+                    _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, itemHandle.LastModified, await itemHandle.GetFileDataAsync()).Wait();
+
+                    metadata.RemoteLastModified = itemHandle.LastModified;
+                    _metadata.AddItemMetadata(metadata);//is this line necessary?
+                }
             }
         }
         private void ApplyLocalChanges()
