@@ -34,8 +34,7 @@ namespace MyOneDriveClient
         }
         public RemoteItemMetadata GetItemMetadataById(string id)
         {
-            RemoteItemMetadata ret;
-            if(_localItems.TryGetValue(id, out ret))
+            if (_localItems.TryGetValue(id, out RemoteItemMetadata ret))
             {
                 return ret;
             }

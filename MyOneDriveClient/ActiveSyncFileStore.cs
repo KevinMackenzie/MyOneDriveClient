@@ -159,8 +159,7 @@ namespace MyOneDriveClient
         }
         private void ApplyLocalChanges()
         {
-            LocalFileStoreEventArgs e;
-            while (_localChangeQueue.TryDequeue(out e))
+            while (_localChangeQueue.TryDequeue(out LocalFileStoreEventArgs e))
             {
                 LocalChangeEventHandler(e).Wait();
             }

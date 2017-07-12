@@ -477,8 +477,10 @@ namespace MyOneDriveClient.OneDrive
         {
             var httpClient = new System.Net.Http.HttpClient();
             System.Net.Http.HttpResponseMessage response;
-            var request = new System.Net.Http.HttpRequestMessage(verb, url);
-            request.Content = content;
+            var request = new System.Net.Http.HttpRequestMessage(verb, url)
+            {
+                Content = content
+            };
 
             //Add the token in Authorization header
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
