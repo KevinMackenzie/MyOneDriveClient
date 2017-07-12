@@ -102,8 +102,8 @@
     <Compile Include="LocalFileStoreMetadata.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
     <Compile Include="RemoteItemUpdate.cs" />
-    <Compile Include="StringUtils.cs" />
     <Compile Include="TokenCacheHelper.cs" />
+    <Compile Include="Utils.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

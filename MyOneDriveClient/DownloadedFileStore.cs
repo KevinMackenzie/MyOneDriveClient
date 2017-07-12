@@ -142,7 +142,7 @@ namespace MyOneDriveClient
             string fqp = BuildPath(localPath);
             using (var localStream = new FileStream(fqp, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
             {
-                //TODO: this is VERY complicated to do asynchronously... https://psycodedeveloper.wordpress.com/2013/04/04/reliably-asynchronously-reading-and-writing-binary-streams-in-c-always-check-method-call-return-values/
+                await data.CopyToStreamAsync(localStream);                
             }
             File.SetLastWriteTimeUtc(fqp, lastModified);
         }
