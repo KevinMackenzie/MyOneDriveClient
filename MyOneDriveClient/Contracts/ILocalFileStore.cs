@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MyOneDriveClient.Events;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,10 +18,11 @@ namespace MyOneDriveClient
         string PathRoot { get; }
         Task SaveFileAsync(string localPath, Stream data);
         Task<IItemHandle> GetFileHandleAsync(string localPath);
-        bool CreateLocalFolder(string folderPath);
-        Task<string> GetLocalSHA1Async(string id);
+        bool CreateLocalFolder(string localPath);
+        Task<string> GetLocalSHA1Async(string localPath);
         Task<bool> DeleteLocalItemAsync(string localPath);
-        Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath);
-        //TODO: Deltas
+        Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath);        
+        bool ItemExists(string localPath);
+        event EventDelegates.LocalFileStoreUpdateHandler OnUpdate;
     }
 }

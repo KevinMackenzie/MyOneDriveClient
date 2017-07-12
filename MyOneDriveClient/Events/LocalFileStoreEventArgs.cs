@@ -16,16 +16,14 @@ namespace MyOneDriveClient.Events
     /// </remarks>
     public class LocalFileStoreEventArgs
     {
-        public LocalFileStoreEventArgs(FileSystemEventArgs e, IRemoteItemHandle item)
+        public LocalFileStoreEventArgs(FileSystemEventArgs e, string path)
         {
             InnerEventArgs = e;
-            Item = item;
+            LocalPath = path;
         }
 
-        public LocalFileStoreEventArgs(RenamedEventArgs e, IRemoteItemHandle item, string oldLocalPath)
+        public LocalFileStoreEventArgs(RenamedEventArgs e, string path, string oldLocalPath) : this(e, path)
         {
-            InnerEventArgs = e;
-            Item = item;
             OldLocalPath = oldLocalPath;
         }
 
@@ -33,7 +31,7 @@ namespace MyOneDriveClient.Events
         /// can be casted to <see cref="RenamedEventArgs"/> if <see cref="FileSystemEventArgs.ChangeType"/> is <see cref="WatcherChangeTypes.Renamed"/>
         /// </summary>
         public FileSystemEventArgs InnerEventArgs { get; }
-        public IRemoteItemHandle Item { get; }
+        public string LocalPath { get; }
         public string OldLocalPath { get; }
     }
 }

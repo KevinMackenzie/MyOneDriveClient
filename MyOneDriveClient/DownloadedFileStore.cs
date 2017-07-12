@@ -12,7 +12,7 @@ using MyOneDriveClient.Events;
 
 namespace MyOneDriveClient
 {
-    public class DownloadedFileStore : IRemoteFileStoreDownload, IDisposable
+    public class DownloadedFileStore : ILocalFileStore, IDisposable
     {
         public DownloadedFileStore(string pathRoot)
         {
@@ -20,51 +20,9 @@ namespace MyOneDriveClient
                 PathRoot = pathRoot;
             else
                 PathRoot = $"{pathRoot}/";
-            LoadLocalItemDataAsync().Wait();
         }
 
         public string PathRoot { get; }
-
-        #region Metadata
-        private static string _localItemDataDB = "ItemMetadata";
-        private Dictionary<string, RemoteItemMetadata> _localItems = null;
-        private async Task LoadLocalItemDataAsync()
-        {
-            if (File.Exists(BuildPath(_localItemDataDB)))
-            {
-                using (var itemMetadataFile = new FileStream(BuildPath(_localItemDataDB), FileMode.Open, FileAccess.Read, FileShare.None))
-                {
-                    StreamReader strReader = new StreamReader(itemMetadataFile, Encoding.UTF8);
-                    try
-                    {
-                        _localItems = JsonConvert.DeserializeObject<Dictionary<string, RemoteItemMetadata>>(await strReader.ReadToEndAsync());
-                    }
-                    catch (Exception)
-                    {
-                        //this failed, so we want to build this database
-                        await BuildLocalItemDataAsync();
-                    }
-                }
-            }
-            else
-            {
-                await BuildLocalItemDataAsync();
-            }
-        }
-        private async Task BuildLocalItemDataAsync()
-        {
-            //goes through all of the local files and creates the RemoteItemMetadata's
-            throw new NotImplementedException();
-        }
-        private async Task SaveLocalItemDataAsync()
-        {
-            using (var itemMetadataFile = new FileStream(BuildPath(_localItemDataDB), FileMode.Open, FileAccess.Write, FileShare.None))
-            {
-                StreamWriter strWriter = new StreamWriter(itemMetadataFile, Encoding.UTF8);
-                await strWriter.WriteLineAsync(JsonConvert.SerializeObject(_localItemDataDB));
-            }
-        }
-        #endregion
 
         #region Private Helper Methods
         private string BuildPath(string path)
@@ -97,28 +55,6 @@ namespace MyOneDriveClient
             {
                 return null;
             }
-        }
-        private RemoteItemMetadata GetItemMetadata(string localPath)
-        {
-            var items = (from localItem in _localItems
-                         where localItem.Value.Path == localPath
-                         select localItem).ToList();
-
-            if (items.Count == 0)
-                return null;
-            //if (items.Count > 1) ;//???
-            return items.First().Value;
-        }
-        private RemoteItemMetadata GetItemMetadataById(string id)
-        {
-            var items = (from localItem in _localItems
-                         where localItem.Value.Id == id
-                         select localItem).ToList();
-
-            if (items.Count == 0)
-                return null;
-            //if (items.Count > 1) ;//???
-            return items.First().Value;
         }
         //Takes the file name and renames it so it is unique, but different from its original
         private string RenameFile(string localPath)
@@ -184,11 +120,11 @@ namespace MyOneDriveClient
         #endregion
 
         #region IRemoteFileStoreDownload
-        public bool CreateLocalFolder(string folderPath)
+        public bool CreateLocalFolder(string localPath)
         {
             try
             {
-                System.IO.Directory.CreateDirectory(BuildPath(folderPath));
+                System.IO.Directory.CreateDirectory(BuildPath(localPath));
                 //TODO: send message
                 return true;
             }
@@ -197,7 +133,7 @@ namespace MyOneDriveClient
                 return false;
             }
         }
-        public async Task<bool> DeleteLocalItemAsync(IRemoteItemHandle remoteHandle)
+        public async Task<bool> DeleteLocalItemAsync(string localPath)
         {
             var localItem = GetItemMetadata(remoteHandle.Path);
             if (localItem == null)
@@ -227,7 +163,7 @@ namespace MyOneDriveClient
                 }
             }
         }
-        public async Task<string> GetLocalSHA1Async(string id)
+        public async Task<string> GetLocalSHA1Async(string localPath)
         {
             using (var fs = GetLocalFileStream(id))
             {
@@ -237,7 +173,7 @@ namespace MyOneDriveClient
                 }
             }
         }
-        public async Task<IRemoteItemHandle> GetFileHandleAsync(string localPath)
+        public async Task<IItemHandle> GetFileHandleAsync(string localPath)
         {
             var localItem = GetItemMetadata(localPath);
             if (localItem == null)
@@ -245,15 +181,7 @@ namespace MyOneDriveClient
 
             return new DownloadedFileHandle(this, localItem.Id, localItem.Path);
         }
-        public async Task<IRemoteItemHandle> GetFileHandleAsync(IRemoteItemHandle remoteHandle)
-        {
-            var localItem = GetItemMetadataById(remoteHandle.Id);
-            if (localItem == null)
-                return null;
-
-            return new DownloadedFileHandle(this, localItem.Id, localItem.Path);
-        }
-        public async Task SaveFileAsync(IRemoteItemHandle file)
+        public async Task SaveFileAsync(string localPath, Stream data)
         {
             var localItem = GetItemMetadataById(file.Id);
             if(localItem == null)
@@ -269,7 +197,7 @@ namespace MyOneDriveClient
                 }
             }
         }
-        public async Task<bool> MoveLocalItemAsync(IRemoteItemHandle remoteHandle)
+        public async Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath)
         {
             var localItem = GetItemMetadataById(remoteHandle.Id);
             if (localItem == null)
@@ -303,7 +231,7 @@ namespace MyOneDriveClient
                 }
             }
         }
-        public bool ItemExists(IRemoteItemHandle remoteHandle)
+        public bool ItemExists(string localPath)
         {
             var localItem = GetItemMetadataById(remoteHandle.Id);
             if (localItem == null)
@@ -334,6 +262,10 @@ namespace MyOneDriveClient
         }
         public async void Watcher_Changed(object sender, FileSystemEventArgs e)
         {
+            var info = GetItemInfo(e.FullPath);
+            if ((info.Attributes & FileAttributes.Hidden) != 0)
+                return;//don't send updates for hidden files
+
             //TODO: how do we effectively GET the ID of a created file back when the owner of this uploads it?
             //Will we get this when we check for deltas?
             LocalFileStoreEventArgs newE = new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath));
@@ -415,13 +347,6 @@ namespace MyOneDriveClient
                 return _fs.GetLocalFileStream(_id);
             }
             #endregion
-        }
-        private class RemoteItemMetadata
-        {
-            public bool IsFolder { get; set; }
-            public string Path { get; set; }
-            public DateTime RemoteLastModified { get; set; }
-            public string Id { get; set; }
         }
 
         #region IDisposable Support

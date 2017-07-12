@@ -18,11 +18,14 @@ namespace MyOneDriveClient
 
         private IEnumerable<string> _blacklist;
         private int _syncPeriod;
+
         private IRemoteFileStoreConnection _remote;
-        private IRemoteFileStoreDownload _local;
+        private ILocalFileStore _local;
         
         public IEnumerable<string> Blacklist { get => _blacklist; }
         public int SyncPeriod { get => _syncPeriod; }
+
+        public string Path { get => _local.PathRoot; }
 
         /// <summary>
         /// Creates a new instance of the ActiveSyncFileStore
@@ -30,7 +33,7 @@ namespace MyOneDriveClient
         /// <param name="pathRoot">the root path to store files</param>
         /// <param name="blacklist">the list of files that should not be synchronized</param>
         /// <param name="syncPeriod">the time duration in ms between sync attempts</param>
-        public ActiveSyncFileStore(string pathRoot, IEnumerable<string> blacklist, IRemoteFileStoreDownload local, IRemoteFileStoreConnection remote, int syncPeriod = 300000)
+        public ActiveSyncFileStore(IEnumerable<string> blacklist, ILocalFileStore local, IRemoteFileStoreConnection remote, int syncPeriod = 300000)
         {
             //_itemIdPathMap = JsonConvert.DeserializeObject<Dictionary<string, string>>(itemIdMapJson);
             _syncPeriod = syncPeriod;
@@ -38,7 +41,49 @@ namespace MyOneDriveClient
             _remote = remote;
             _local = local;
         }
-        
+
+
+        #region Metadata
+        private static string _localItemDataDB = "ItemMetadata";
+        private LocalFileStoreMetadata _metadata = new LocalFileStoreMetadata();
+        private async Task LoadLocalItemDataAsync()
+        {
+            if (_local.ItemExists(_localItemDataDB))
+            {
+                var dbItem = await _local.GetFileHandleAsync(_localItemDataDB);
+                using (var itemMetadataFile = await dbItem.GetFileDataAsync())
+                {
+                    StreamReader strReader = new StreamReader(itemMetadataFile, Encoding.UTF8);
+                    try
+                    {
+                        _metadata.Deserialize(await strReader.ReadToEndAsync()));
+                    }
+                    catch (Exception)
+                    {
+                        //this failed, so we want to build this database
+                        await BuildLocalItemDataAsync();
+                    }
+                }
+            }
+            else
+            {
+                await BuildLocalItemDataAsync();
+            }
+        }
+        private async Task BuildLocalItemDataAsync()
+        {
+            //goes through all of the local files and creates the RemoteItemMetadata's
+            throw new NotImplementedException();
+        }
+        private async Task SaveLocalItemDataAsync()
+        {
+            using (var jsonStream = _metadata.Serialize().ToStream(Encoding.UTF8))
+            {
+                await _local.SaveFileAsync(_localItemDataDB, jsonStream);
+            }
+        }
+        #endregion
+
         private string GetParentItemPath(string path)
         {
             var parts = path.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
