@@ -108,7 +108,7 @@ namespace MyOneDriveClient.OneDrive
                 //if (value["folder"] != null)
                 //    continue;
 
-                ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value["@microsoft.graph.downloadUrl"]?.ToString() ?? null, value["folder"] != null, (string)value["id"], value)));
+                ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value)));
             }
 
             //call the event handler (TODO: do we want to await this?)
@@ -128,9 +128,9 @@ namespace MyOneDriveClient.OneDrive
             return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
         }
         private static int _4MB = 4 * 1024 * 1024;
-        public async Task<string> UploadFileAsync(string remotePath, Stream data)
+        public async Task<IRemoteItemHandle> UploadFileAsync(string remotePath, DateTime lastModified, Stream data)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", lastModified, data);
         }
         public async Task<string> CreateFolderAsync(string remotePath)
         {
@@ -181,9 +181,9 @@ namespace MyOneDriveClient.OneDrive
         {
             return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
-        public async Task<string> UploadFileByIdAsync(string parentId, string name, Stream data)
+        public async Task<IRemoteItemHandle> UploadFileByIdAsync(string parentId, string name, DateTime lastModified, Stream data)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", lastModified, data);
         }
         public async Task<string> CreateFolderByIdAsync(string parentId, string name)
         {
@@ -214,31 +214,27 @@ namespace MyOneDriveClient.OneDrive
         }
         private async Task<IRemoteItemHandle> GetItemHandleByUrlAsync(string url)
         {
-            string downloadUrl = "";
-            string metadata = "";
             JObject metadataObj = null;
-            bool isFolder = false;
-            string id = "";
 
             //get the download URL
             try
             {
-                metadata = await GetItemMetadataByUrlAsync(url);
+                string metadata = await GetItemMetadataByUrlAsync(url);
                 metadataObj = (JObject)JsonConvert.DeserializeObject(metadata);
-                downloadUrl = metadataObj["@microsoft.graph.downloadUrl"].Value<string>();
-                isFolder = metadataObj["folder"] != null;
-                id = (string)metadataObj["id"];
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Failed to retrieve file handle: {ex.Message}");
+                return null;
             }
 
             //now download the text
-            return new OneDriveRemoteFileHandle(this, downloadUrl, isFolder, id, metadataObj);
+            return new OneDriveRemoteFileHandle(this, metadataObj);
         }
-        private async Task<string> UploadFileByUrlAsync(string url, Stream data)
+        private async Task<IRemoteItemHandle> UploadFileByUrlAsync(string url, DateTime lastModified,Stream data)
         {
+            OneDriveRemoteFileHandle ret = null;
+
             if (data.Length > _4MB) //if data > 4MB, then use chunked upload
             {
                 return null;
@@ -247,9 +243,16 @@ namespace MyOneDriveClient.OneDrive
             {
                 var httpResponse = await AuthenticatedHttpRequestAsync(url, _authResult.AccessToken, HttpMethod.Put, data);
                 string json = await ReadResponseAsStringAsync(httpResponse);
-                var obj = (JObject)JsonConvert.DeserializeObject(json);
-                return (string)obj["id"];
+                var metadataObj = (JObject)JsonConvert.DeserializeObject(json);
+                ret = new OneDriveRemoteFileHandle(this, metadataObj);
             }
+
+            if (ret != null)
+            {
+                //TODO: what if this returns false?
+                await SetRemoteLastModifiedByUrlAsync($"{_onedriveEndpoint}/items/{ret.Id}", lastModified);
+            }
+            return ret;
         }
         private async Task<bool> DeleteFileByUrlAsync(string url)
         {
@@ -259,6 +262,10 @@ namespace MyOneDriveClient.OneDrive
         private async Task<bool> UpdateItemByUrlAsync(string url, string json)
         {
             return (await AuthenticatedHttpRequestAsync(url, _authResult.AccessToken, _patch, json)).StatusCode == System.Net.HttpStatusCode.OK;
+        }
+        private async Task<bool> SetRemoteLastModifiedByUrlAsync(string url, DateTime timeStamp)
+        {
+            return await UpdateItemByUrlAsync(url, $"{{ \"lastModifiedDateTime\": \"{timeStamp}\" }}");
         }
         #endregion
 
@@ -329,18 +336,31 @@ namespace MyOneDriveClient.OneDrive
             private string _sha1Hash = null;
             private string _path = null;
             private string _name = null;
+            private bool _isFolderInitialized = false;
+            private bool _isFolder;
 
-            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, string downloadUrl, bool isFolder, string id, JObject metadata)
+            public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, JObject metadata)
             {
+                _downloadUrl = (string)metadata["@microsoft.graph.downloadUrl"];
+                Id = (string)metadata["id"];
+
                 _fileStore = fileStore;
-                _downloadUrl = downloadUrl;
                 _metadata = metadata;
-                IsFolder = isFolder;
-                Id = id;
             }
 
             #region IRemoteItemHandle
-            public bool IsFolder { get; }
+            public bool IsFolder
+            {
+                get
+                {
+                    if(!_isFolderInitialized)
+                    {
+                        _isFolder = _metadata["folder"] != null;
+                        _isFolderInitialized = true;
+                    }
+                    return _isFolder;
+                }
+            }
             public string Id { get; }
             public string Name
             {

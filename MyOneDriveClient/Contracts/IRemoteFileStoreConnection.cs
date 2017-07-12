@@ -60,8 +60,8 @@ namespace MyOneDriveClient
         /// </summary>
         /// <param name="remotePath">the remote path of the uploaded item</param>
         /// <param name="data">the data contents of the file</param>
-        /// <returns>the id of the created folder</returns>
-        Task<string> UploadFileAsync(string remotePath, Stream data);
+        /// <returns>the item handle of the created item</returns>
+        Task<IRemoteItemHandle> UploadFileAsync(string remotePath, DateTime lastModified, Stream data);
         /// <summary>
         /// Creates a folder with the given remote path
         /// </summary>
@@ -89,11 +89,11 @@ namespace MyOneDriveClient
         /// <param name="parentId">the id of the parent of this file (should be a folder)</param>
         /// <param name="fileName">the name of the file to create</param>
         /// <param name="data">the data contents of the file</param>
-        /// <returns>the ID of the created item</returns>
+        /// <returns>the item handle of the created item</returns>
         /// <remarks>
         /// This does not check to see if the file already exists.  There should be an option to keep both or overwrite
         /// </remarks>
-        Task<string> UploadFileByIdAsync(string parentId, string fileName, Stream data);
+        Task<IRemoteItemHandle> UploadFileByIdAsync(string parentId, string fileName, DateTime lastModified, Stream data);
         /// <summary>
         /// Create a remote folder as a child of the given parent id and name
         /// </summary>
