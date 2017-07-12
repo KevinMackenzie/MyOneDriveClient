@@ -40,8 +40,25 @@ namespace MyOneDriveClient
             _blacklist = blacklist;
             _remote = remote;
             _local = local;
+
+            //TODO: where do we do this?
+            //LoadLocalItemDataAsync().Wait();
+            _metadata.Clear();
         }
 
+        public bool IsBlacklisted(string localFilePath)
+        {
+            if (Blacklist == null)
+                return false;
+
+            var items = from item in Blacklist
+                        where localFilePath.Substring(0, item.Length) == item
+                        select item;
+            if (items.Count() != 0)
+                return true;
+            else
+                return false;
+        }
 
         #region Metadata
         private static string _localItemDataDB = "ItemMetadata";
@@ -51,18 +68,26 @@ namespace MyOneDriveClient
             if (_local.ItemExists(_localItemDataDB))
             {
                 var dbItem = await _local.GetFileHandleAsync(_localItemDataDB);
-                using (var itemMetadataFile = await dbItem.GetFileDataAsync())
+                if (dbItem != null)
                 {
-                    StreamReader strReader = new StreamReader(itemMetadataFile, Encoding.UTF8);
-                    try
+                    using (var itemMetadataFile = await dbItem.GetFileDataAsync())
                     {
-                        _metadata.Deserialize(await strReader.ReadToEndAsync());
+                        StreamReader strReader = new StreamReader(itemMetadataFile, Encoding.UTF8);
+                        try
+                        {
+                            _metadata.Deserialize(await strReader.ReadToEndAsync());
+                        }
+                        catch (Exception)
+                        {
+                            //this failed, so we want to build this database
+                            await BuildLocalItemDataAsync();
+                        }
                     }
-                    catch (Exception)
-                    {
-                        //this failed, so we want to build this database
-                        await BuildLocalItemDataAsync();
-                    }
+                }
+                else
+                {
+                    //meh, for now just set it to blank
+                    _metadata.Clear();
                 }
             }
             else
@@ -161,12 +186,15 @@ namespace MyOneDriveClient
         {
             while (_localChangeQueue.TryDequeue(out LocalFileStoreEventArgs e))
             {
+                if (IsBlacklisted(e.LocalPath))
+                    continue;
+
                 LocalChangeEventHandler(e).Wait();
             }
         }
 
         private DeltaPage _lastDeltaPage = null;
-        private async Task ApplyAllDeltas()
+        public async Task ApplyAllDeltas()//TODO: this should be private, public for testing
         {
             do
             {
@@ -174,6 +202,15 @@ namespace MyOneDriveClient
                 
                 foreach(var delta in _lastDeltaPage)
                 {
+                    if (delta.ItemHandle.Path == "/root")
+                        continue;//don't sync the root item TODO: this is SPECIFIC TO ONEDRIVE and should be put somewhere else
+
+                    //don't sync blacklisted items
+                    if(IsBlacklisted(delta.ItemHandle.Path))
+                    {
+                        continue;
+                    }
+
                     //update file/folder renames in BOTH the file system AND the itemIdMap
                     
                     bool localExists = _local.ItemExists(delta.ItemHandle.Path);
