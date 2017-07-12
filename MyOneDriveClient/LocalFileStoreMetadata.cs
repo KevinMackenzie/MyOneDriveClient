@@ -21,7 +21,7 @@ namespace MyOneDriveClient
             return JsonConvert.SerializeObject(_localItems);
         }
 
-        public RemoteItemMetadata GetItemMetadata(string localPath)
+        /*public RemoteItemMetadata GetItemMetadata(string localPath)
         {
             var items = (from localItem in _localItems
                          where localItem.Value.Path == localPath
@@ -31,18 +31,32 @@ namespace MyOneDriveClient
                 return null;
             //if (items.Count > 1) ;//???
             return items.First().Value;
-        }
+        }*/
         public RemoteItemMetadata GetItemMetadataById(string id)
         {
-            var items = (from localItem in _localItems
-                         where localItem.Value.Id == id
-                         select localItem).ToList();
-
-            if (items.Count == 0)
+            RemoteItemMetadata ret;
+            if(_localItems.TryGetValue(id, out ret))
+            {
+                return ret;
+            }
+            else
+            {
                 return null;
-            //if (items.Count > 1) ;//???
-            return items.First().Value;
+            }
         }
+        public void AddItemMetadata(IRemoteItemHandle handle)
+        {
+            AddItemMetadata(new RemoteItemMetadata() { IsFolder = handle.IsFolder, Id = handle.Id, Path = handle.Path, RemoteLastModified = handle.LastModified });
+        }
+        public void AddItemMetadata(RemoteItemMetadata metadata)
+        {
+            _localItems[metadata.Id] = metadata;
+        }
+        public void RemoveItemMetadataById(string id)
+        {
+            _localItems.Remove(id);
+        }
+
         public class RemoteItemMetadata
         {
             public bool IsFolder { get; set; }

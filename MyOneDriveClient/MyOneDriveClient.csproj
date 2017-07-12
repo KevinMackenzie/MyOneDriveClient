@@ -99,8 +99,10 @@
     <Compile Include="GraphConnection.cs" />
     <Compile Include="Contracts\ILocalFileStore.cs" />
     <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />
+    <Compile Include="LocalFileStoreMetadata.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
     <Compile Include="RemoteItemUpdate.cs" />
+    <Compile Include="StringUtils.cs" />
     <Compile Include="TokenCacheHelper.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>

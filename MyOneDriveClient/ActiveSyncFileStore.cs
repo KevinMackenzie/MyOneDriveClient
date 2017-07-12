@@ -56,7 +56,7 @@ namespace MyOneDriveClient
                     StreamReader strReader = new StreamReader(itemMetadataFile, Encoding.UTF8);
                     try
                     {
-                        _metadata.Deserialize(await strReader.ReadToEndAsync()));
+                        _metadata.Deserialize(await strReader.ReadToEndAsync());
                     }
                     catch (Exception)
                     {
@@ -79,7 +79,7 @@ namespace MyOneDriveClient
         {
             using (var jsonStream = _metadata.Serialize().ToStream(Encoding.UTF8))
             {
-                await _local.SaveFileAsync(_localItemDataDB, jsonStream);
+                await _local.SaveFileAsync(_localItemDataDB, DateTime.UtcNow, jsonStream);
             }
         }
         #endregion
@@ -139,73 +139,112 @@ namespace MyOneDriveClient
             LocalFileStoreEventArgs e;
             while (_localChangeQueue.TryDequeue(out e))
             {
-                LocalChangeEventHandler(e);
+                LocalChangeEventHandler(e).Wait();
             }
         }
 
         private DeltaPage _lastDeltaPage = null;
-        private void ApplyAllDeltas()
+        private async Task ApplyAllDeltas()
         {
             do
             {
-                _lastDeltaPage = _remote.GetDeltasPageAsync(_lastDeltaPage).Result;
+                _lastDeltaPage = await _remote.GetDeltasPageAsync(_lastDeltaPage);
                 
                 foreach(var delta in _lastDeltaPage)
                 {
                     //update file/folder renames in BOTH the file system AND the itemIdMap
                     
-                    bool result = _local.ItemExists(delta.ItemHandle);
-                    if(!result)
+                    bool localExists = _local.ItemExists(delta.ItemHandle.Path);
+
+                    if (delta.Deleted)
                     {
-                        //if the item doesn't exist, create it/download it
-                        if(delta.ItemHandle.IsFolder)
+                        if(localExists)
                         {
-                            //create folder
-                            _local.CreateLocalFolder(delta.ItemHandle.Path);
+                            //TODO: if the local file name changes, but the remote version is deleted, this will delete
+                            //the file locally too.   Is this the desired behavior?
+                            await _local.DeleteLocalItemAsync(_metadata.GetItemMetadataById(delta.ItemHandle.Id).Path);
                         }
-                        else
-                        {
-                            //download the file
-                            _local.SaveFileAsync(delta.ItemHandle).Wait();
-                        }
+                        //if the local item doesn't exist and we are deleting a file, just ignore this
+                        _metadata.RemoveItemMetadataById(delta.ItemHandle.Id);
                     }
                     else
                     {
-                        //the item does exist, but what do we do with it?
-                        string remoteName = delta.ItemHandle.Path;
-                        var localItem = _local.GetFileHandleAsync(delta.ItemHandle).Result;
-                        string localName = localItem.Path;
-                        if(localName != remoteName)
+                        if (!localExists)
                         {
+
+                            //if the item doesn't exist, create it/download it
                             if (delta.ItemHandle.IsFolder)
                             {
-                                _local.MoveLocalItemAsync(delta.ItemHandle).Wait();
+                                //create folder
+                                _local.CreateLocalFolder(delta.ItemHandle.Path, delta.ItemHandle.LastModified);
                             }
                             else
                             {
-                                //different paths/names, so check sha1sum to see if we need to just move it, or actually download the new version
-                                string localSHA1 = _local.GetLocalSHA1Async(delta.ItemHandle.Id).Result;
-                                if (localSHA1 != delta.ItemHandle.SHA1Hash)
-                                {
-                                    //different hashes, so delete the old file and download the new
-                                    _local.DeleteLocalItemAsync(delta.ItemHandle).Wait();
-                                    _local.SaveFileAsync(delta.ItemHandle).Wait();
-                                }
-                                else
-                                {
-                                    //same file, different location, so move it
-                                    _local.MoveLocalItemAsync(delta.ItemHandle).Wait();
-                                }
+                                //download the file
+                                await _local.SaveFileAsync(delta.ItemHandle.Path, delta.ItemHandle.LastModified, await delta.ItemHandle.GetFileDataAsync());
                             }
-
-                            //different location regardless, so update the dictionary
-                            //_itemIdPathMap[delta.ItemHandle.Id] = remoteName;
                         }
                         else
                         {
-                            //same path/names, so just download the new version
-                            _local.SaveFileAsync(delta.ItemHandle).Wait();
+                            //the item does exist, but what do we do with it?
+                            string remoteName = delta.ItemHandle.Path;
+                            var localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
+                            var localItem = await _local.GetFileHandleAsync(localMetadata.Path);
+                            string localName = localItem.Path;
+                            if (localName != remoteName)
+                            {
+                                if (delta.ItemHandle.IsFolder)
+                                {
+                                    await _local.MoveLocalItemAsync(localName, remoteName);
+                                }
+                                else
+                                {
+                                    //different paths/names, so check the time stamps to see if we need to just move it, or actually download the new version
+                                    var remoteTS = delta.ItemHandle.LastModified;
+                                    var lastRemoteTS = localMetadata.RemoteLastModified;
+                                    var localTS = localItem.LastModified;
+
+                                    //if the file has not changed since our last update
+                                    if (localTS == lastRemoteTS)
+                                    {
+                                        if (remoteTS > localTS)
+                                        {
+                                            //remote is newer than local, so delete local...
+                                            await _local.DeleteLocalItemAsync(localName);
+
+                                            //... and download the remote
+                                            await _local.SaveFileAsync(remoteName, remoteTS, await delta.ItemHandle.GetFileDataAsync());
+                                        }
+                                        else if (remoteTS == localTS)
+                                        {
+                                            //same time, different name, so move the existing file
+                                            await _local.MoveLocalItemAsync(localName, remoteName);
+                                        }
+                                    }
+                                    else//the local file has changed since the last update
+                                    {
+                                        //TODO: this puts the timestamp AFTER the file extension
+                                        string newPath = $"{localName} {localTS}";
+
+                                        //move the old one
+                                        await _local.MoveLocalItemAsync(localName, newPath);
+                                        //add this to the metadata (TODO: when we get the item renamed event, we have to realize that we have this metadata already)
+                                        _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata() { Id = "", IsFolder = false, Path = newPath, RemoteLastModified = localTS });
+
+                                        //download the new one
+                                        await _local.SaveFileAsync(remoteName, remoteTS, await delta.ItemHandle.GetFileDataAsync());
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                //same path/names, so just download the new version
+                                await _local.SaveFileAsync(localName, delta.ItemHandle.LastModified, await delta.ItemHandle.GetFileDataAsync());
+                            }
                         }
+
+                        //make sure the metadata is up to date
+                        _metadata.AddItemMetadata(delta.ItemHandle);
                     }
                 }
             } while (_lastDeltaPage?.NextPage != null);
@@ -239,7 +278,7 @@ namespace MyOneDriveClient
                 while (!ct.IsCancellationRequested)
                 {
                     //FindNewLocalItems();
-                    ApplyAllDeltas();
+                    ApplyAllDeltas().Wait();
                     ApplyLocalChanges();
 
                     Thread.Sleep(_syncPeriod);

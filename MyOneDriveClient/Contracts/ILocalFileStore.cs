@@ -16,9 +16,9 @@ namespace MyOneDriveClient
         /// relative to this path
         /// </summary>
         string PathRoot { get; }
-        Task SaveFileAsync(string localPath, Stream data);
+        Task SaveFileAsync(string localPath, DateTime lastModified, Stream data);
         Task<IItemHandle> GetFileHandleAsync(string localPath);
-        bool CreateLocalFolder(string localPath);
+        bool CreateLocalFolder(string localPath, DateTime lastModified);
         Task<string> GetLocalSHA1Async(string localPath);
         Task<bool> DeleteLocalItemAsync(string localPath);
         Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath);        

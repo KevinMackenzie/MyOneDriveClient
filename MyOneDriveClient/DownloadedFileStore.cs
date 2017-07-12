@@ -120,7 +120,7 @@ namespace MyOneDriveClient
         #endregion
 
         #region IRemoteFileStoreDownload
-        public bool CreateLocalFolder(string localPath)
+        public bool CreateLocalFolder(string localPath, DateTime lastModified)
         {
             try
             {
@@ -181,7 +181,7 @@ namespace MyOneDriveClient
 
             return new DownloadedFileHandle(this, localItem.Id, localItem.Path);
         }
-        public async Task SaveFileAsync(string localPath, Stream data)
+        public async Task SaveFileAsync(string localPath, DateTime lastModified, Stream data)
         {
             var localItem = GetItemMetadataById(file.Id);
             if(localItem == null)
