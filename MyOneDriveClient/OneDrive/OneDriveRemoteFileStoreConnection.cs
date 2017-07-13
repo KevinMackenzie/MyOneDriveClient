@@ -342,8 +342,8 @@ namespace MyOneDriveClient.OneDrive
 
             public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, JObject metadata)
             {
-                _downloadUrl = (string)metadata["@microsoft.graph.downloadUrl"];
                 Id = (string)metadata["id"];
+                _downloadUrl = $"{_onedriveEndpoint}/items/{Id}/content";//only use id for content
 
                 _fileStore = fileStore;
                 _metadata = metadata;
