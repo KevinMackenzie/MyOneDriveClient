@@ -63,11 +63,14 @@ namespace MyOneDriveClient
         }
         public void AddItemMetadata(IItemHandle localHandle)
         {
-            string id = GetUniqueId();
+            var metadata = GetItemMetadata(localHandle.Path);
+            var id = metadata != null ? metadata.Id : GetUniqueId();
             AddItemMetadata(new RemoteItemMetadata() { IsFolder = localHandle.IsFolder, Id = id, Path = localHandle.Path, RemoteLastModified = localHandle.LastModified });
         }
         public void AddItemMetadata(RemoteItemMetadata metadata)
         {
+            if (metadata.Id == "gen")
+                metadata.Id = GetUniqueId();
             _localItems[metadata.Id] = metadata;
         }
         public void RemoveItemMetadata(string localPath)
@@ -89,6 +92,7 @@ namespace MyOneDriveClient
             public string Path { get; set; }
             public DateTime RemoteLastModified { get; set; }
             public string Id { get; set; }
+            public bool HasValidId => (Id?.Length ?? 0) > 9;
         }
     }
 }
