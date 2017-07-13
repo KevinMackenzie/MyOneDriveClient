@@ -42,8 +42,8 @@ namespace MyOneDriveClient
             _local = local;
 
             //TODO: where do we do this?
-            //LoadLocalItemDataAsync().Wait();
-            _metadata.Clear();
+            LoadLocalItemDataAsync().Wait();
+            //_metadata.Clear();
         }
 
         public bool IsBlacklisted(string localFilePath)
@@ -63,7 +63,7 @@ namespace MyOneDriveClient
         #region Metadata
         private static string _localItemDataDB = "ItemMetadata";
         private LocalFileStoreMetadata _metadata = new LocalFileStoreMetadata();
-        private async Task LoadLocalItemDataAsync()
+        public async Task LoadLocalItemDataAsync()
         {
             if (_local.ItemExists(_localItemDataDB))
             {
@@ -80,31 +80,35 @@ namespace MyOneDriveClient
                         catch (Exception)
                         {
                             //this failed, so we want to build this database
-                            await BuildLocalItemDataAsync();
+                            await ScanForLocalItemMetadataAsync();
                         }
                     }
                 }
                 else
                 {
-                    //meh, for now just set it to blank
-                    _metadata.Clear();
+                    await ScanForLocalItemMetadataAsync();
                 }
             }
             else
             {
-                await BuildLocalItemDataAsync();
+                await ScanForLocalItemMetadataAsync();
             }
         }
-        private async Task BuildLocalItemDataAsync()
+        private async Task ScanForLocalItemMetadataAsync()
         {
-            //goes through all of the local files and creates the RemoteItemMetadata's
-            throw new NotImplementedException();
+            //goes through all of the local files and creates the metadatas
+            var items = await _local.EnumerateItemsAsync("/");
+            foreach (var item in items)
+            {
+                _metadata.AddItemMetadata(item);
+            }
+            await SaveLocalItemDataAsync();
         }
         private async Task SaveLocalItemDataAsync()
         {
             using (var jsonStream = _metadata.Serialize().ToStream(Encoding.UTF8))
             {
-                await _local.SaveFileAsync(_localItemDataDB, DateTime.UtcNow, jsonStream);
+                await _local.SaveFileAsync(_localItemDataDB, DateTime.UtcNow, jsonStream, FileAttributes.Hidden);
             }
         }
         #endregion
@@ -265,6 +269,8 @@ namespace MyOneDriveClient
                     {
                         //the item does exist, but what do we do with it?
                         string remoteName = delta.ItemHandle.Path;
+
+                        //TODO: this needs a LOT more null checking
                         var localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
                         var localItem = await _local.GetFileHandleAsync(localMetadata.Path);
                         string localName = localItem.Path;
@@ -324,6 +330,9 @@ namespace MyOneDriveClient
                     _metadata.AddItemMetadata(delta.ItemHandle);
                 }
             }
+
+            //after going through the deltas, save the metadata file again
+            await SaveLocalItemDataAsync();
         }
         
         private void UploadLocalChanges()

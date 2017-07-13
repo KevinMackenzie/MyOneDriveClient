@@ -34,7 +34,7 @@ namespace MyOneDriveClient
         private string UnBuildPath(string path)
         {
             //remote the path root
-            return RectifySlashes(path.Substring(PathRoot.Length - 1, path.Length - PathRoot.Length));
+            return RectifySlashes(path.Substring(PathRoot.Length - 1, path.Length - PathRoot.Length + 1));
         }
         private static string RectifySlashes(string path)
         {
@@ -101,9 +101,25 @@ namespace MyOneDriveClient
                 return false;
             }
         }
+
+        private void EnumerateItemsRecursive(ref List<IItemHandle> items, string fqp)
+        {
+            var directories = Directory.EnumerateDirectories(fqp);
+            foreach (var directory in directories)
+            {
+                items.Add(new DownloadedFileHandle(this, UnBuildPath(directory)));
+                EnumerateItemsRecursive(ref items, directory);
+            }
+
+            var files = Directory.EnumerateFiles(fqp);
+            foreach (var file in files)
+            {
+                items.Add(GetFileHandleAsync(UnBuildPath(file)).Result);
+            }
+        }
         #endregion
 
-        #region IRemoteFileStoreDownload
+        #region ILocalFileStore
         public bool CreateLocalFolder(string localPath, DateTime lastModified)
         {
             try
@@ -147,12 +163,17 @@ namespace MyOneDriveClient
         }
         public async Task SaveFileAsync(string localPath, DateTime lastModified, Stream data)
         {
+            await SaveFileAsync(localPath, lastModified, data, FileAttributes.Normal);
+        }
+        public async Task SaveFileAsync(string localPath, DateTime lastModified, Stream data, FileAttributes attributes)
+        {
             string fqp = BuildPath(localPath);
             using (var localStream = new FileStream(fqp, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
             {
                 await data.CopyToStreamAsync(localStream);                
             }
             File.SetLastWriteTimeUtc(fqp, lastModified);
+            File.SetAttributes(fqp, attributes);
         }
         public async Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath)
         {
@@ -183,6 +204,16 @@ namespace MyOneDriveClient
             string fqp = BuildPath(localPath);
             return Directory.Exists(fqp) || File.Exists(fqp);
         }
+        public async Task<IEnumerable<IItemHandle>> EnumerateItemsAsync(string localPath)
+        {
+            string fqp = BuildPath(localPath);
+            if (!Directory.Exists(fqp))
+                return null;
+
+            List<IItemHandle> ret = new List<IItemHandle>();
+            EnumerateItemsRecursive(ref ret, fqp);
+            return ret;
+        }
         public event EventDelegates.LocalFileStoreUpdateHandler OnUpdate;
         #endregion
 
@@ -211,7 +242,10 @@ namespace MyOneDriveClient
                 return;
 
             //Will we get this when we check for deltas?
-            await OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath), UnBuildPath(e.OldFullPath)));
+            var invoke = OnUpdate?.Invoke(this,
+                new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath), UnBuildPath(e.OldFullPath)));
+            if (invoke != null)
+                await invoke;
         }
         private async void Watcher_Changed(object sender, FileSystemEventArgs e)
         {
@@ -219,7 +253,9 @@ namespace MyOneDriveClient
                 return;
 
             //Will we get this when we check for deltas?
-            await OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath)));
+            var invoke = OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath)));
+            if (invoke != null)
+                await invoke;
         }
         #endregion
 

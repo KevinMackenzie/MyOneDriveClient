@@ -64,7 +64,7 @@ namespace MyOneDriveClient.OneDrive
         public async Task<DeltaPage> GetDeltasPageAsync(string deltaLink)
         {
             string downloadUrl = "";
-            if (deltaLink == "" || deltaLink == null)
+            if (string.IsNullOrEmpty(deltaLink))
             {
                 downloadUrl = $"{_onedriveEndpoint}/root/delta";
             }

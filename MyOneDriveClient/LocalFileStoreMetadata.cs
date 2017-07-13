@@ -9,11 +9,21 @@ namespace MyOneDriveClient
 {
     public class LocalFileStoreMetadata
     {
-        private Dictionary<string, RemoteItemMetadata> _localItems = null;
+        private Dictionary<string, RemoteItemMetadata> _localItems = new Dictionary<string, RemoteItemMetadata>();
+
+        private string GetUniqueId()
+        {
+            int i = 0;
+            while (_localItems.ContainsKey(i.ToString()))
+            {
+                i++;
+            }
+            return i.ToString();
+        }
 
         public void Clear()
         {
-            _localItems = new Dictionary<string, RemoteItemMetadata>();
+            _localItems.Clear();
         }
         public void Deserialize(string json)
         {
@@ -50,6 +60,11 @@ namespace MyOneDriveClient
         public void AddItemMetadata(IRemoteItemHandle handle)
         {
             AddItemMetadata(new RemoteItemMetadata() { IsFolder = handle.IsFolder, Id = handle.Id, Path = handle.Path, RemoteLastModified = handle.LastModified });
+        }
+        public void AddItemMetadata(IItemHandle localHandle)
+        {
+            string id = GetUniqueId();
+            AddItemMetadata(new RemoteItemMetadata() { IsFolder = localHandle.IsFolder, Id = id, Path = localHandle.Path, RemoteLastModified = localHandle.LastModified });
         }
         public void AddItemMetadata(RemoteItemMetadata metadata)
         {
