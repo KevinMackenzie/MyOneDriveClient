@@ -33,16 +33,16 @@ namespace MyOneDriveClient
         {
             //parameter checks
             if (source == null)
-                throw new ArgumentNullException("source", "Source stream must not be null");
+                throw new ArgumentNullException(nameof(source), "Source stream must not be null");
             if (destination == null)
-                throw new ArgumentNullException("destination", "Destination stream must not be null");
+                throw new ArgumentNullException(nameof(destination), "Destination stream must not be null");
             if (!source.CanRead)
-                throw new ArgumentException("Source stream must support reading", "source");
+                throw new ArgumentException("Source stream must support reading", nameof(source));
             if (!destination.CanWrite)
-                throw new ArgumentException("Destination stream must support writing", "destination");
+                throw new ArgumentException("Destination stream must support writing", nameof(destination));
 
             if (chunkSize < 1)
-                throw new ArgumentException("Buffer size for stream copying must be more than 1", "chunkSize");
+                throw new ArgumentException("Buffer size for stream copying must be more than 1", nameof(chunkSize));
 
             /*
              * 

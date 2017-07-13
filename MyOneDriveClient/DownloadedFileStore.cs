@@ -20,6 +20,8 @@ namespace MyOneDriveClient
                 PathRoot = pathRoot;
             else
                 PathRoot = $"{pathRoot}/";
+
+            SubscribeToLocalChanges();
         }
 
         public string PathRoot { get; }
@@ -27,18 +29,24 @@ namespace MyOneDriveClient
         #region Private Helper Methods
         private string BuildPath(string path)
         {
-            if (path.First() == '/')
-                return $"{PathRoot}{path}";
-            else
-                return $"{PathRoot}/{path}";
+            return RectifySlashes(path.First() == '/' ? $"{PathRoot}{path}" : $"{PathRoot}/{path}");
         }
         private string UnBuildPath(string path)
         {
             //remote the path root
-            string ret = path.Substring(0, PathRoot.Length);
-
+            return RectifySlashes(path.Substring(PathRoot.Length - 1, path.Length - PathRoot.Length));
+        }
+        private static string RectifySlashes(string path)
+        {
             //replace back slashes with forward slashes
-            return ret.Replace('\\', '/');
+            path = path.Replace('\\', '/');
+
+            //collapse all multi-forward slashes into singles
+            while (path.Contains("//"))
+            {
+                path = path.Replace("//", "/");
+            }
+            return path;
         }
         private FileSystemInfo GetItemInfo(string localPath)
         {
@@ -191,21 +199,27 @@ namespace MyOneDriveClient
             watcher.Created += Watcher_Changed;
             watcher.EnableRaisingEvents = true;//do we want this?
         }
-
-        public void Watcher_Renamed(object sender, RenamedEventArgs e)
+        private bool FilterLocalItems(string localPath)
         {
-            Watcher_Changed(sender, e);
+            var info = GetItemInfo(UnBuildPath(localPath));
+            if (info == null) return true;
+            return (info.Attributes & FileAttributes.Hidden) == 0;
         }
-        public async void Watcher_Changed(object sender, FileSystemEventArgs e)
+        private async void Watcher_Renamed(object sender, RenamedEventArgs e)
         {
-            var info = GetItemInfo(e.FullPath);
-            if ((info.Attributes & FileAttributes.Hidden) != 0)
-                return;//don't send updates for hidden files
+            if (FilterLocalItems(e.FullPath))
+                return;
 
-            //TODO: how do we effectively GET the ID of a created file back when the owner of this uploads it?
             //Will we get this when we check for deltas?
-            LocalFileStoreEventArgs newE = new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath));
-            await OnUpdate.Invoke(this, newE);
+            await OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath), UnBuildPath(e.OldFullPath)));
+        }
+        private async void Watcher_Changed(object sender, FileSystemEventArgs e)
+        {
+            if (FilterLocalItems(e.FullPath))
+                return;
+
+            //Will we get this when we check for deltas?
+            await OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath)));
         }
         #endregion
 
