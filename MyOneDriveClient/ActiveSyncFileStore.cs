@@ -328,7 +328,8 @@ namespace MyOneDriveClient
                             else//the local file has changed since the last update
                             {
                                 //TODO: this puts the timestamp AFTER the file extension
-                                string newPath = $"{localName} {localTS}";
+
+                                var newPath = GetNearestConflictResolution(localName);
 
                                 //move the old one
                                 await _local.MoveLocalItemAsync(localName, newPath);
@@ -348,6 +349,37 @@ namespace MyOneDriveClient
 
             //after going through the deltas, save the metadata file again
             await SaveLocalItemDataAsync();
+        }
+
+        //TODO: where should these functions go?
+        private string CompileString(IEnumerable<string> pathParts, string name)
+        {
+            var path = "";
+            foreach (var part in pathParts)
+            {
+                path += $"/{part}";
+            }
+
+            return $"{path}/{name}";
+        }
+        private string GetNearestConflictResolution(string path)
+        {
+            var pathParts = path.Split(new char[] {'/'}, StringSplitOptions.RemoveEmptyEntries);
+            var name = pathParts.Last();
+
+            pathParts = pathParts.Take(pathParts.Length - 1).ToArray();
+
+            var nameParts = name.Split(new char[] {'.'}, 2);
+
+            var i = 0;
+            string newPath;
+            var hasExt = nameParts.Length > 1;
+            do
+            {
+                newPath = CompileString(pathParts, hasExt ? $"{nameParts[0]} (local conflict {i}).{nameParts[1]}" : $"{nameParts[0]} (local conflict {i})");
+                i++;
+            } while (_local.ItemExists(newPath));
+            return newPath;
         }
         
         private void UploadLocalChanges()
