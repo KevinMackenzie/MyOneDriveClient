@@ -212,7 +212,7 @@ namespace MyOneDriveClient
                 return null;
 
             List<IItemHandle> ret = new List<IItemHandle>();
-            EnumerateItemsRecursive(ref ret, fqp);
+            await Task.Run(() => EnumerateItemsRecursive(ref ret, fqp));
             return ret;
         }
         public event EventDelegates.LocalFileStoreUpdateHandler OnUpdate;
