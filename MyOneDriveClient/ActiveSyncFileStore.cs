@@ -149,8 +149,12 @@ namespace MyOneDriveClient
 
                 if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Created) != 0)
                 {
+                    if (handle == null)
+                        return;//this is a weird case
+
                     //new item
-                    await _remote.UploadFileAsync(e.LocalPath, handle.LastModified, await handle.GetFileDataAsync());
+                    var remoteItem = await _remote.UploadFileAsync(e.LocalPath, handle.LastModified, await handle.GetFileDataAsync());
+                    _metadata.AddItemMetadata(remoteItem);
                 }
                 else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Deleted) != 0)
                 {
@@ -175,7 +179,7 @@ namespace MyOneDriveClient
                         string json = $"{{  \"name\": \"{e.InnerEventArgs.Name}\"  }}";
 
                         //update the item
-                        _remote.UpdateItemByIdAsync(metadata.Id, json).Wait();
+                        await _remote.UpdateItemByIdAsync(metadata.Id, json);
 
                         //and update the metadata
                         metadata.Path = e.LocalPath;
@@ -184,13 +188,16 @@ namespace MyOneDriveClient
                 }
                 else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Changed) != 0)
                 {
+                    if (handle == null)
+                        return;//this is a weird case
+
                     //changes to conents of a file
                     var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
 
-                    if (metadata != null && parentMetadata != null && handle != null)
+                    if (metadata != null && parentMetadata != null)
                     {
-                        _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, handle.LastModified,
-                            await handle.GetFileDataAsync()).Wait();
+                        await _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, handle.LastModified,
+                            await handle.GetFileDataAsync());
 
                         metadata.RemoteLastModified = handle.LastModified;
                         _metadata.AddItemMetadata(metadata); //is this line necessary?
