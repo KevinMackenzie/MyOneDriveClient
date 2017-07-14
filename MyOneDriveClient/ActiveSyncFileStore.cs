@@ -142,16 +142,19 @@ namespace MyOneDriveClient
                 if (IsBlacklisted(e.LocalPath))
                     return;
 
+                var metadata = _metadata.GetItemMetadata(e.LocalPath);
+                var handle = await _local.GetFileHandleAsync(e.LocalPath);
+                if (metadata != null && handle != null && metadata.RemoteLastModified == handle.LastModified)
+                    return;//SKIP, because this event either a) has already been handled, or b) was a remote delta
+
                 if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Created) != 0)
                 {
                     //new item
-                    var handle = await _local.GetFileHandleAsync(e.LocalPath);
                     await _remote.UploadFileAsync(e.LocalPath, handle.LastModified, await handle.GetFileDataAsync());
                 }
                 else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Deleted) != 0)
                 {
                     //deleted item
-                    var metadata = _metadata.GetItemMetadata(e.LocalPath);
                     if (metadata != null)
                     {
                         await _remote.DeleteItemByIdAsync(metadata.Id);
@@ -165,7 +168,7 @@ namespace MyOneDriveClient
                 else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Renamed) != 0)
                 {
                     //renamed item
-                    var metadata = _metadata.GetItemMetadata(e.OldLocalPath);
+                    metadata = _metadata.GetItemMetadata(e.OldLocalPath);
 
                     if (metadata != null)
                     {
@@ -182,16 +185,14 @@ namespace MyOneDriveClient
                 else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Changed) != 0)
                 {
                     //changes to conents of a file
-                    var metadata = _metadata.GetItemMetadata(e.LocalPath);
                     var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
-                    var itemHandle = await _local.GetFileHandleAsync(e.LocalPath);
 
-                    if (metadata != null && parentMetadata != null && itemHandle != null)
+                    if (metadata != null && parentMetadata != null && handle != null)
                     {
-                        _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, itemHandle.LastModified,
-                            await itemHandle.GetFileDataAsync()).Wait();
+                        _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, handle.LastModified,
+                            await handle.GetFileDataAsync()).Wait();
 
-                        metadata.RemoteLastModified = itemHandle.LastModified;
+                        metadata.RemoteLastModified = handle.LastModified;
                         _metadata.AddItemMetadata(metadata); //is this line necessary?
                     }
                 }
