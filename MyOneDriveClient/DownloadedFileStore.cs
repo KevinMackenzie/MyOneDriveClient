@@ -230,15 +230,14 @@ namespace MyOneDriveClient
             watcher.Created += Watcher_Changed;
             watcher.EnableRaisingEvents = true;//do we want this?
         }
-        private bool FilterLocalItems(string localPath)
+        private bool ShouldFilterLocalItem(string localPath)
         {
             var info = GetItemInfo(UnBuildPath(localPath));
-            if (info == null) return true;
-            return (info.Attributes & FileAttributes.Hidden) == 0;
+            return (info?.Attributes & FileAttributes.Hidden) != 0;
         }
         private async void Watcher_Renamed(object sender, RenamedEventArgs e)
         {
-            if (FilterLocalItems(e.FullPath))
+            if (ShouldFilterLocalItem(e.FullPath))
                 return;
 
             //Will we get this when we check for deltas?
@@ -249,7 +248,7 @@ namespace MyOneDriveClient
         }
         private async void Watcher_Changed(object sender, FileSystemEventArgs e)
         {
-            if (FilterLocalItems(e.FullPath))
+            if (ShouldFilterLocalItem(e.FullPath))
                 return;
 
             //Will we get this when we check for deltas?

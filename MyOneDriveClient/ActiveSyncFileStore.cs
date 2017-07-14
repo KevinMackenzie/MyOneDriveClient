@@ -15,6 +15,7 @@ namespace MyOneDriveClient
     {
         private Task _syncTask = null;
         private CancellationTokenSource _cts = new CancellationTokenSource();
+        private AsyncLock _lock = new AsyncLock();
 
         private IEnumerable<string> _blacklist;
         private int _syncPeriod;
@@ -43,7 +44,7 @@ namespace MyOneDriveClient
 
             //TODO: where do we do this?
             LoadLocalItemDataAsync().Wait();
-            //_metadata.Clear();
+            _local.OnUpdate += LocalChangeEventHandler;
         }
 
         public bool IsBlacklisted(string localFilePath)
@@ -65,23 +66,31 @@ namespace MyOneDriveClient
         private LocalFileStoreMetadata _metadata = new LocalFileStoreMetadata();
         public async Task LoadLocalItemDataAsync()
         {
-            if (_local.ItemExists(_localItemDataDB))
+            await _lock.WaitAsync();
+            try
             {
-                var dbItem = await _local.GetFileHandleAsync(_localItemDataDB);
-                if (dbItem != null)
+                if (_local.ItemExists(_localItemDataDB))
                 {
-                    using (var itemMetadataFile = await dbItem.GetFileDataAsync())
+                    var dbItem = await _local.GetFileHandleAsync(_localItemDataDB);
+                    if (dbItem != null)
                     {
-                        StreamReader strReader = new StreamReader(itemMetadataFile, Encoding.UTF8);
-                        try
+                        using (var itemMetadataFile = await dbItem.GetFileDataAsync())
                         {
-                            _metadata.Deserialize(await strReader.ReadToEndAsync());
+                            StreamReader strReader = new StreamReader(itemMetadataFile, Encoding.UTF8);
+                            try
+                            {
+                                _metadata.Deserialize(await strReader.ReadToEndAsync());
+                            }
+                            catch (Exception)
+                            {
+                                //this failed, so we want to build this database
+                                await ScanForLocalItemMetadataAsync();
+                            }
                         }
-                        catch (Exception)
-                        {
-                            //this failed, so we want to build this database
-                            await ScanForLocalItemMetadataAsync();
-                        }
+                    }
+                    else
+                    {
+                        await ScanForLocalItemMetadataAsync();
                     }
                 }
                 else
@@ -89,9 +98,9 @@ namespace MyOneDriveClient
                     await ScanForLocalItemMetadataAsync();
                 }
             }
-            else
+            finally
             {
-                await ScanForLocalItemMetadataAsync();
+                _lock.UnLock();
             }
         }
         private async Task ScanForLocalItemMetadataAsync()
@@ -106,9 +115,17 @@ namespace MyOneDriveClient
         }
         private async Task SaveLocalItemDataAsync()
         {
-            using (var jsonStream = _metadata.Serialize().ToStream(Encoding.UTF8))
+            await _lock.WaitAsync();
+            try
             {
-                await _local.SaveFileAsync(_localItemDataDB, DateTime.UtcNow, jsonStream, FileAttributes.Hidden);
+                using (var jsonStream = _metadata.Serialize().ToStream(Encoding.UTF8))
+                {
+                    await _local.SaveFileAsync(_localItemDataDB, DateTime.UtcNow, jsonStream, FileAttributes.Hidden);
+                }
+            }
+            finally
+            {
+                _lock.UnLock();
             }
         }
         #endregion
@@ -116,6 +133,8 @@ namespace MyOneDriveClient
         private string GetParentItemPath(string path)
         {
             var parts = path.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2)
+                return "/";
 
             string ret = "";
             for(int i = 0; i < parts.Length - 1; ++i)
@@ -130,225 +149,251 @@ namespace MyOneDriveClient
             return path.Split(new char[] { '/' }).Last();
         }
         
-        private ConcurrentQueue<LocalFileStoreEventArgs> _localChangeQueue = new ConcurrentQueue<LocalFileStoreEventArgs>();
-        private async Task LocalChangeEventHandler(LocalFileStoreEventArgs e)
+        private async Task LocalChangeEventHandler(object sender, LocalFileStoreEventArgs e)
         {
-            if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Created) != 0)
-            {
-                //new item
-                var handle = await _local.GetFileHandleAsync(e.LocalPath);
-                await _remote.UploadFileAsync(e.LocalPath, handle.LastModified, await handle.GetFileDataAsync());
-            }
-            else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Deleted) != 0)
-            {
-                //deleted item
-                var metadata = _metadata.GetItemMetadata(e.LocalPath);
-                if (metadata != null)
-                {
-                    await _remote.DeleteItemByIdAsync(metadata.Id);
-                }
-                else
-                {
-                    await _remote.DeleteItemAsync(e.LocalPath);
-                }
-                _metadata.RemoveItemMetadata(e.LocalPath);
-            }
-            else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Renamed) != 0)
-            {
-                //renamed item
-                var metadata = _metadata.GetItemMetadata(e.OldLocalPath);
-
-                if (metadata != null)
-                {
-                    string json = $"{{  \"name\": \"{e.InnerEventArgs.Name}\"  }}";
-
-                    //update the item
-                    _remote.UpdateItemByIdAsync(metadata.Id, json).Wait();
-
-                    //and update the metadata
-                    metadata.Path = e.LocalPath;
-                    _metadata.AddItemMetadata(metadata);
-                }
-            }
-            else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Changed) != 0)
-            {
-                //changes to conents of a file
-                var metadata = _metadata.GetItemMetadata(e.LocalPath);
-                var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
-                var itemHandle = await _local.GetFileHandleAsync(e.LocalPath);
-
-                if (metadata != null && parentMetadata != null && itemHandle != null)
-                {
-                    _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, itemHandle.LastModified, await itemHandle.GetFileDataAsync()).Wait();
-
-                    metadata.RemoteLastModified = itemHandle.LastModified;
-                    _metadata.AddItemMetadata(metadata);//is this line necessary?
-                }
-            }
-        }
-        private void ApplyLocalChanges()
-        {
-            while (_localChangeQueue.TryDequeue(out LocalFileStoreEventArgs e))
+            await _lock.WaitAsync(); //is this responsible?
+            try
             {
                 if (IsBlacklisted(e.LocalPath))
-                    continue;
+                    return;
 
-                LocalChangeEventHandler(e).Wait();
+                if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Created) != 0)
+                {
+                    //new item
+                    var handle = await _local.GetFileHandleAsync(e.LocalPath);
+                    await _remote.UploadFileAsync(e.LocalPath, handle.LastModified, await handle.GetFileDataAsync());
+                }
+                else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Deleted) != 0)
+                {
+                    //deleted item
+                    var metadata = _metadata.GetItemMetadata(e.LocalPath);
+                    if (metadata != null)
+                    {
+                        await _remote.DeleteItemByIdAsync(metadata.Id);
+                    }
+                    else
+                    {
+                        await _remote.DeleteItemAsync(e.LocalPath);
+                    }
+                    _metadata.RemoveItemMetadata(e.LocalPath);
+                }
+                else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Renamed) != 0)
+                {
+                    //renamed item
+                    var metadata = _metadata.GetItemMetadata(e.OldLocalPath);
+
+                    if (metadata != null)
+                    {
+                        string json = $"{{  \"name\": \"{e.InnerEventArgs.Name}\"  }}";
+
+                        //update the item
+                        _remote.UpdateItemByIdAsync(metadata.Id, json).Wait();
+
+                        //and update the metadata
+                        metadata.Path = e.LocalPath;
+                        _metadata.AddItemMetadata(metadata);
+                    }
+                }
+                else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Changed) != 0)
+                {
+                    //changes to conents of a file
+                    var metadata = _metadata.GetItemMetadata(e.LocalPath);
+                    var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
+                    var itemHandle = await _local.GetFileHandleAsync(e.LocalPath);
+
+                    if (metadata != null && parentMetadata != null && itemHandle != null)
+                    {
+                        _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, itemHandle.LastModified,
+                            await itemHandle.GetFileDataAsync()).Wait();
+
+                        metadata.RemoteLastModified = itemHandle.LastModified;
+                        _metadata.AddItemMetadata(metadata); //is this line necessary?
+                    }
+                }
+            }
+            finally
+            {
+                _lock.UnLock();
             }
         }
         
         public async Task ApplyAllDeltas()//TODO: this should be private, public for testing
         {
-            List<IRemoteItemUpdate> allDeltas = new List<IRemoteItemUpdate>();
-            var nextPage = _metadata.DeltaLink;
-            do
-            {
-                //get the delta page
-                var deltaPage = await _remote.GetDeltasPageAsync(nextPage);
-                
-                //copy its contents to our list
-                allDeltas.AddRange(deltaPage);
-
-                //set the next page equal to this next page
-                nextPage = deltaPage.NextPage;
-
-                //usually null.  Can we do this only the last time?
-                _metadata.DeltaLink = deltaPage.DeltaLink;
-
-            } while (nextPage != null);
-
-            //we should never get to this point
-            if (string.IsNullOrEmpty(_metadata.DeltaLink))
+            if (!await _lock.TryWaitAsync(5000))
                 return;
-            
-            foreach(var delta in allDeltas)
+            try
             {
-                if (delta.ItemHandle.Path == "/root")
-                    continue;//don't sync the root item TODO: this is SPECIFIC TO ONEDRIVE and should be put somewhere else
 
-                //don't sync blacklisted items
-                if(IsBlacklisted(delta.ItemHandle.Path))
+                List<IRemoteItemUpdate> allDeltas = new List<IRemoteItemUpdate>();
+                var nextPage = _metadata.DeltaLink;
+                do
                 {
-                    continue;
-                }
+                    //get the delta page
+                    var deltaPage = await _remote.GetDeltasPageAsync(nextPage);
 
-                //update file/folder renames in BOTH the file system AND the itemIdMap
-                    
-                string remoteName = delta.ItemHandle.Path;
+                    //copy its contents to our list
+                    allDeltas.AddRange(deltaPage);
 
-                bool localExists = true;
+                    //set the next page equal to this next page
+                    nextPage = deltaPage.NextPage;
 
-                //TODO: this needs a LOT more null checking
-                var localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
-                if (localMetadata == null)
+                    //usually null.  Can we do this only the last time?
+                    _metadata.DeltaLink = deltaPage.DeltaLink;
+
+                } while (nextPage != null);
+
+                //we should never get to this point
+                if (string.IsNullOrEmpty(_metadata.DeltaLink))
+                    return;
+
+                foreach (var delta in allDeltas)
                 {
-                    localMetadata = _metadata.GetItemMetadata(delta.ItemHandle.Path);
+                    if (delta.ItemHandle.Path == "/root")
+                    {
+                        var localRoot = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
+                        if (localRoot == null)
+                            _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
+                            {
+                                Id = delta.ItemHandle.Id,
+                                Path = "/",
+                                IsFolder = true,
+                                RemoteLastModified = delta.ItemHandle.LastModified
+                            });
+                        continue; //don't sync the root item TODO: this is SPECIFIC TO ONEDRIVE and should be put somewhere else
+                    }
+
+                    //don't sync blacklisted items
+                    if (IsBlacklisted(delta.ItemHandle.Path))
+                    {
+                        continue;
+                    }
+
+                    //update file/folder renames in BOTH the file system AND the itemIdMap
+
+                    string remoteName = delta.ItemHandle.Path;
+
+                    bool localExists = true;
+
+                    //TODO: this needs a LOT more null checking
+                    var localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
                     if (localMetadata == null)
                     {
-                        //_metadata.AddItemMetadata(delta.ItemHandle);
-                        //localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
-                        localExists = false;
-                    }
-                    else
-                    {
-                        //when the item at that path has no ID, give it the remote item with that path
-                        var oldId = localMetadata.Id;
-                        localMetadata.Id = delta.ItemHandle.Id;
-                        _metadata.AddItemMetadata(localMetadata);
-                        _metadata.RemoveItemMetadataById(oldId);
-                    }
-                }
-
-                if (delta.Deleted)
-                {
-                    if (localExists)
-                    {
-                        //TODO: if the local file name changes, but the remote version is deleted, this will delete
-                        //the file locally too.   Is this the desired behavior?
-                        await _local.DeleteLocalItemAsync(_metadata.GetItemMetadataById(delta.ItemHandle.Id).Path);
-                    }
-                    //if the local item doesn't exist and we are deleting a file, just ignore this
-                    _metadata.RemoveItemMetadataById(delta.ItemHandle.Id);
-                }
-                else
-                {
-                    if (!localExists)
-                    {
-                        if (delta.ItemHandle.IsFolder)
+                        localMetadata = _metadata.GetItemMetadata(delta.ItemHandle.Path);
+                        if (localMetadata == null)
                         {
-                            //create folder
-                            _local.CreateLocalFolder(delta.ItemHandle.Path, delta.ItemHandle.LastModified);
+                            //_metadata.AddItemMetadata(delta.ItemHandle);
+                            //localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
+                            localExists = false;
                         }
                         else
                         {
-                            //download the file
-                            await _local.SaveFileAsync(delta.ItemHandle.Path, delta.ItemHandle.LastModified, await delta.ItemHandle.GetFileDataAsync());
+                            //when the item at that path has no ID, give it the remote item with that path
+                            var oldId = localMetadata.Id;
+                            localMetadata.Id = delta.ItemHandle.Id;
+                            _metadata.AddItemMetadata(localMetadata);
+                            _metadata.RemoveItemMetadataById(oldId);
                         }
+                    }
+
+                    if (delta.Deleted)
+                    {
+                        if (localExists)
+                        {
+                            //TODO: if the local file name changes, but the remote version is deleted, this will delete
+                            //the file locally too.   Is this the desired behavior?
+                            await _local.DeleteLocalItemAsync(_metadata.GetItemMetadataById(delta.ItemHandle.Id).Path);
+                        }
+                        //if the local item doesn't exist and we are deleting a file, just ignore this
+                        _metadata.RemoveItemMetadataById(delta.ItemHandle.Id);
                     }
                     else
                     {
-                        var localItem = await _local.GetFileHandleAsync(localMetadata.Path);
-                        string localName = localItem.Path;
-                        if (delta.ItemHandle.IsFolder)
+                        if (!localExists)
                         {
-                            if (localName != remoteName)
+                            if (delta.ItemHandle.IsFolder)
                             {
-                                await _local.MoveLocalItemAsync(localName, remoteName);
+                                //create folder
+                                _local.CreateLocalFolder(delta.ItemHandle.Path, delta.ItemHandle.LastModified);
+                            }
+                            else
+                            {
+                                //download the file
+                                await _local.SaveFileAsync(delta.ItemHandle.Path, delta.ItemHandle.LastModified,
+                                    await delta.ItemHandle.GetFileDataAsync());
                             }
                         }
                         else
                         {
-                            //different paths/names, so check the time stamps to see if we need to just move it, or actually download the new version
-                            var remoteTS = delta.ItemHandle.LastModified;
-                            var lastRemoteTS = localMetadata.RemoteLastModified;
-                            var localTS = localItem.LastModified;
-
-                            //if the file has not changed since our last update
-                            if (localTS == lastRemoteTS)
+                            var localItem = await _local.GetFileHandleAsync(localMetadata.Path);
+                            string localName = localItem.Path;
+                            if (delta.ItemHandle.IsFolder)
                             {
-                                if (remoteTS > localTS)
+                                if (localName != remoteName)
                                 {
-                                    //remote is newer than local, so delete local...
-                                    await _local.DeleteLocalItemAsync(localName);
-
-                                    //... and download the remote
-                                    await _local.SaveFileAsync(remoteName, remoteTS, await delta.ItemHandle.GetFileDataAsync());
+                                    await _local.MoveLocalItemAsync(localName, remoteName);
                                 }
-                                else if (remoteTS == localTS) //will this code ever be reached?  when renaming a file, the TS also gets updated
+                            }
+                            else
+                            {
+                                //different paths/names, so check the time stamps to see if we need to just move it, or actually download the new version
+                                var remoteTS = delta.ItemHandle.LastModified;
+                                var lastRemoteTS = localMetadata.RemoteLastModified;
+                                var localTS = localItem.LastModified;
+
+                                //if the file has not changed since our last update
+                                if (localTS == lastRemoteTS)
                                 {
-                                    if (localName != remoteName)
+                                    if (remoteTS > localTS)
                                     {
-                                        //same time, different name, so move the existing file
-                                        await _local.MoveLocalItemAsync(localName, remoteName);
+                                        //remote is newer than local, so delete local...
+                                        await _local.DeleteLocalItemAsync(localName);
+
+                                        //... and download the remote
+                                        await _local.SaveFileAsync(remoteName, remoteTS,
+                                            await delta.ItemHandle.GetFileDataAsync());
+                                    }
+                                    else if (remoteTS == localTS
+                                    ) //will this code ever be reached?  when renaming a file, the TS also gets updated
+                                    {
+                                        if (localName != remoteName)
+                                        {
+                                            //same time, different name, so move the existing file
+                                            await _local.MoveLocalItemAsync(localName, remoteName);
+                                        }
                                     }
                                 }
-                            }
-                            else//the local file has changed since the last update
-                            {
-                                //TODO: this puts the timestamp AFTER the file extension
-
-                                var newPath = GetNearestConflictResolution(localName);
-
-                                //move the old one
-                                await _local.MoveLocalItemAsync(localName, newPath);
-                                //add this to the metadata (TODO: when we get the item renamed event, we have to realize that we have this metadata already)
-                                _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
+                                else //the local file has changed since the last update
                                 {
-                                    Id = "gen",
-                                    IsFolder = false,
-                                    Path = newPath,
-                                    RemoteLastModified = localTS
-                                });
+                                    //TODO: this puts the timestamp AFTER the file extension
 
-                                //download the new one
-                                await _local.SaveFileAsync(remoteName, remoteTS, await delta.ItemHandle.GetFileDataAsync());
+                                    var newPath = GetNearestConflictResolution(localName);
+
+                                    //move the old one
+                                    await _local.MoveLocalItemAsync(localName, newPath);
+                                    //add this to the metadata (TODO: when we get the item renamed event, we have to realize that we have this metadata already)
+                                    _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
+                                    {
+                                        Id = "gen",
+                                        IsFolder = false,
+                                        Path = newPath,
+                                        RemoteLastModified = localTS
+                                    });
+
+                                    //download the new one
+                                    await _local.SaveFileAsync(remoteName, remoteTS,
+                                        await delta.ItemHandle.GetFileDataAsync());
+                                }
                             }
                         }
-                    }
 
-                    //make sure the metadata is up to date
-                    _metadata.AddItemMetadata(delta.ItemHandle);
+                        //make sure the metadata is up to date
+                        _metadata.AddItemMetadata(delta.ItemHandle);
+                    }
                 }
+            }
+            finally
+            {
+                _lock.UnLock();
             }
 
             //after going through the deltas, save the metadata file again
@@ -399,22 +444,13 @@ namespace MyOneDriveClient
                 // ON FIRST TIME
                 UploadLocalChanges();
 
-                //register for file/folder changes
-                _local.OnUpdate += (object sender, LocalFileStoreEventArgs e) =>
-                {
-                    return new Task(() =>
-                    {
-                        _localChangeQueue.Enqueue(e);
-                    });
-                };
-
                 while (!ct.IsCancellationRequested)
                 {
                     //FindNewLocalItems();
                     ApplyAllDeltas().Wait();
-                    ApplyLocalChanges();
+                    //ApplyLocalChanges().Wait();
 
-                    Thread.Sleep(_syncPeriod);
+                    Task.Delay(_syncPeriod, _cts.Token);
                 }
             }, ct);
         }
