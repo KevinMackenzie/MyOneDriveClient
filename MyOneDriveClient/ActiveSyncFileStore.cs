@@ -234,11 +234,34 @@ namespace MyOneDriveClient
 
                 //update file/folder renames in BOTH the file system AND the itemIdMap
                     
-                bool localExists = _local.ItemExists(delta.ItemHandle.Path);
+                string remoteName = delta.ItemHandle.Path;
+
+                bool localExists = true;
+
+                //TODO: this needs a LOT more null checking
+                var localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
+                if (localMetadata == null)
+                {
+                    localMetadata = _metadata.GetItemMetadata(delta.ItemHandle.Path);
+                    if (localMetadata == null)
+                    {
+                        //_metadata.AddItemMetadata(delta.ItemHandle);
+                        //localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
+                        localExists = false;
+                    }
+                    else
+                    {
+                        //when the item at that path has no ID, give it the remote item with that path
+                        var oldId = localMetadata.Id;
+                        localMetadata.Id = delta.ItemHandle.Id;
+                        _metadata.AddItemMetadata(localMetadata);
+                        _metadata.RemoveItemMetadataById(oldId);
+                    }
+                }
 
                 if (delta.Deleted)
                 {
-                    if(localExists)
+                    if (localExists)
                     {
                         //TODO: if the local file name changes, but the remote version is deleted, this will delete
                         //the file locally too.   Is this the desired behavior?
@@ -251,8 +274,6 @@ namespace MyOneDriveClient
                 {
                     if (!localExists)
                     {
-
-                        //if the item doesn't exist, create it/download it
                         if (delta.ItemHandle.IsFolder)
                         {
                             //create folder
@@ -266,29 +287,6 @@ namespace MyOneDriveClient
                     }
                     else
                     {
-                        //the item does exist, but what do we do with it?
-                        string remoteName = delta.ItemHandle.Path;
-
-                        //TODO: this needs a LOT more null checking
-                        var localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
-                        if (localMetadata == null)
-                        {
-                            localMetadata = _metadata.GetItemMetadata(delta.ItemHandle.Path);
-                            if (localMetadata == null)//this should rarely happen
-                            {
-                                _metadata.AddItemMetadata(delta.ItemHandle);
-                                localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
-                            }
-                            else
-                            {
-                                //if the item does exist at the path, but doesn't have an ID, it should be deleted
-                                var oldId = localMetadata.Id;
-                                localMetadata.Id = delta.ItemHandle.Id;
-                                _metadata.AddItemMetadata(localMetadata);
-                                _metadata.RemoveItemMetadataById(oldId);
-                            }
-                        }
-
                         var localItem = await _local.GetFileHandleAsync(localMetadata.Path);
                         string localName = localItem.Path;
                         if (delta.ItemHandle.IsFolder)
@@ -316,7 +314,7 @@ namespace MyOneDriveClient
                                     //... and download the remote
                                     await _local.SaveFileAsync(remoteName, remoteTS, await delta.ItemHandle.GetFileDataAsync());
                                 }
-                                else if (remoteTS == localTS)
+                                else if (remoteTS == localTS) //will this code ever be reached?  when renaming a file, the TS also gets updated
                                 {
                                     if (localName != remoteName)
                                     {
@@ -334,7 +332,13 @@ namespace MyOneDriveClient
                                 //move the old one
                                 await _local.MoveLocalItemAsync(localName, newPath);
                                 //add this to the metadata (TODO: when we get the item renamed event, we have to realize that we have this metadata already)
-                                _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata() { Id = "gen", IsFolder = false, Path = newPath, RemoteLastModified = localTS });
+                                _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
+                                {
+                                    Id = "gen",
+                                    IsFolder = false,
+                                    Path = newPath,
+                                    RemoteLastModified = localTS
+                                });
 
                                 //download the new one
                                 await _local.SaveFileAsync(remoteName, remoteTS, await delta.ItemHandle.GetFileDataAsync());
