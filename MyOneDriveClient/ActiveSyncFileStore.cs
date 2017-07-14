@@ -100,7 +100,7 @@ namespace MyOneDriveClient
             var items = await _local.EnumerateItemsAsync("/");
             foreach (var item in items)
             {
-                await _metadata.AddItemMetadataAsync(item);
+                _metadata.AddItemMetadata(item);
             }
             await SaveLocalItemDataAsync();
         }
@@ -146,7 +146,7 @@ namespace MyOneDriveClient
             else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Deleted) != 0)
             {
                 //deleted item
-                var metadata = await _metadata.GetItemMetadataAsync(e.LocalPath);
+                var metadata = _metadata.GetItemMetadata(e.LocalPath);
                 if (metadata != null)
                 {
                     await _remote.DeleteItemByIdAsync(metadata.Id);
@@ -155,12 +155,12 @@ namespace MyOneDriveClient
                 {
                     await _remote.DeleteItemAsync(e.LocalPath);
                 }
-                await _metadata.RemoveItemMetadataAsync(e.LocalPath);
+                _metadata.RemoveItemMetadata(e.LocalPath);
             }
             else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Renamed) != 0)
             {
                 //renamed item
-                var metadata = await _metadata.GetItemMetadataAsync(e.OldLocalPath);
+                var metadata = _metadata.GetItemMetadata(e.OldLocalPath);
 
                 if (metadata != null)
                 {
@@ -171,14 +171,14 @@ namespace MyOneDriveClient
 
                     //and update the metadata
                     metadata.Path = e.LocalPath;
-                    await _metadata.AddItemMetadataAsync(metadata);
+                    _metadata.AddItemMetadata(metadata);
                 }
             }
             else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Changed) != 0)
             {
                 //changes to conents of a file
-                var metadata = await _metadata.GetItemMetadataAsync(e.LocalPath);
-                var parentMetadata = await _metadata.GetItemMetadataAsync(GetParentItemPath(e.LocalPath));
+                var metadata = _metadata.GetItemMetadata(e.LocalPath);
+                var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
                 var itemHandle = await _local.GetFileHandleAsync(e.LocalPath);
 
                 if (metadata != null && parentMetadata != null && itemHandle != null)
@@ -187,7 +187,7 @@ namespace MyOneDriveClient
                         await itemHandle.GetFileDataAsync()).Wait();
 
                     metadata.RemoteLastModified = itemHandle.LastModified;
-                    await _metadata.AddItemMetadataAsync(metadata); //is this line necessary?
+                    _metadata.AddItemMetadata(metadata); //is this line necessary?
                 }
             }
         }
@@ -220,9 +220,9 @@ namespace MyOneDriveClient
             {
                 if (delta.ItemHandle.Path == "/root")
                 {
-                    var localRoot = await _metadata.GetItemMetadataByIdAsync(delta.ItemHandle.Id);
+                    var localRoot = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
                     if (localRoot == null)
-                        await _metadata.AddItemMetadataAsync(new LocalFileStoreMetadata.RemoteItemMetadata()
+                        _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
                         {
                             Id = delta.ItemHandle.Id,
                             Path = "/",
@@ -244,10 +244,10 @@ namespace MyOneDriveClient
 
                 bool localExists = true;
                 
-                var localMetadata = await _metadata.GetItemMetadataByIdAsync(delta.ItemHandle.Id);
+                var localMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
                 if (localMetadata == null)
                 {
-                    localMetadata = await _metadata.GetItemMetadataAsync(delta.ItemHandle.Path);
+                    localMetadata = _metadata.GetItemMetadata(delta.ItemHandle.Path);
                     if (localMetadata == null)
                     {
                         //_metadata.AddItemMetadata(delta.ItemHandle);
@@ -259,8 +259,8 @@ namespace MyOneDriveClient
                         //when the item at that path has no ID, give it the remote item with that path
                         var oldId = localMetadata.Id;
                         localMetadata.Id = delta.ItemHandle.Id;
-                        await _metadata.AddItemMetadataAsync(localMetadata);
-                        await _metadata.RemoveItemMetadataById(oldId);
+                        _metadata.AddItemMetadata(localMetadata);
+                        _metadata.RemoveItemMetadataById(oldId);
                     }
                 }
 
@@ -270,10 +270,10 @@ namespace MyOneDriveClient
                     {
                         //TODO: if the local file name changes, but the remote version is deleted, this will delete
                         //the file locally too.   Is this the desired behavior?
-                        await _local.DeleteLocalItemAsync((await _metadata.GetItemMetadataByIdAsync(delta.ItemHandle.Id)).Path);
+                        await _local.DeleteLocalItemAsync(_metadata.GetItemMetadataById(delta.ItemHandle.Id).Path);
                     }
                     //if the local item doesn't exist and we are deleting a file, just ignore this
-                    await _metadata.RemoveItemMetadataById(delta.ItemHandle.Id);
+                    _metadata.RemoveItemMetadataById(delta.ItemHandle.Id);
                 }
                 else
                 {
@@ -340,7 +340,7 @@ namespace MyOneDriveClient
                                 //move the old one
                                 await _local.MoveLocalItemAsync(localName, newPath);
                                 //add this to the metadata (TODO: when we get the item renamed event, we have to realize that we have this metadata already)
-                                await _metadata.AddItemMetadataAsync(new LocalFileStoreMetadata.RemoteItemMetadata()
+                                _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
                                 {
                                     Id = "gen",
                                     IsFolder = false,
@@ -356,7 +356,7 @@ namespace MyOneDriveClient
                     }
 
                     //make sure the metadata is up to date
-                    await _metadata.AddItemMetadataAsync(delta.ItemHandle);
+                    _metadata.AddItemMetadata(delta.ItemHandle);
                 }
             }
 
