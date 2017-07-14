@@ -17,6 +17,7 @@ namespace MyOneDriveClient
         }
 
         private LocalFileStoreMetadataData _data = new LocalFileStoreMetadataData();
+        private AsyncLock _lock = new AsyncLock();
 
         public string DeltaLink
         {
@@ -36,67 +37,135 @@ namespace MyOneDriveClient
 
         public void Clear()
         {
-            _data.LocalItems.Clear();
+            try
+            {
+                _lock.WaitAsync().Wait();
+                _data.LocalItems.Clear();
+            }
+            finally
+            {
+                _lock.UnLock();
+            }
         }
         public void Deserialize(string json)
         {
-            _data.LocalItems.Clear();
-            _data = JsonConvert.DeserializeObject<LocalFileStoreMetadataData>(json);
+            try
+            {
+                _lock.WaitAsync().Wait();
+                _data.LocalItems.Clear();
+                _data = JsonConvert.DeserializeObject<LocalFileStoreMetadataData>(json);
+            }
+            finally
+            {
+                _lock.UnLock();
+            }
         }
         public string Serialize()
         {
-            return JsonConvert.SerializeObject(_data);
-        }
-
-        public RemoteItemMetadata GetItemMetadata(string localPath)
-        {
-            var items = (from localItem in _data.LocalItems
-                         where localItem.Value.Path == localPath
-                         select localItem).ToList();
-
-            if (items.Count == 0)
-                return null;
-            //if (items.Count > 1) ;//???
-            return items.First().Value;
-        }
-        public RemoteItemMetadata GetItemMetadataById(string id)
-        {
-            if (_data.LocalItems.TryGetValue(id, out RemoteItemMetadata ret))
+            try
             {
-                return ret;
+                _lock.WaitAsync().Wait();
+                return JsonConvert.SerializeObject(_data);
             }
-            else
+            finally
             {
-                return null;
+                _lock.UnLock();
             }
         }
-        public void AddItemMetadata(IRemoteItemHandle handle)
+
+        public async Task<RemoteItemMetadata> GetItemMetadataAsync(string localPath)
         {
-            AddItemMetadata(new RemoteItemMetadata() { IsFolder = handle.IsFolder, Id = handle.Id, Path = handle.Path, RemoteLastModified = handle.LastModified });
+            try
+            {
+                await _lock.WaitAsync();
+
+                var items = (from localItem in _data.LocalItems
+                    where localItem.Value.Path == localPath
+                    select localItem).ToList();
+
+                if (items.Count == 0)
+                    return null;
+                //if (items.Count > 1) ;//???
+                return items.First().Value;
+            }
+            finally
+            {
+                _lock.UnLock();
+            }
         }
-        public void AddItemMetadata(IItemHandle localHandle)
+        public async Task<RemoteItemMetadata> GetItemMetadataByIdAsync(string id)
         {
-            var metadata = GetItemMetadata(localHandle.Path);
+            try
+            {
+                await _lock.WaitAsync();
+
+                if (_data.LocalItems.TryGetValue(id, out RemoteItemMetadata ret))
+                {
+                    return ret;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            finally
+            {
+                _lock.UnLock();
+            }
+        }
+        public async Task AddItemMetadataAsync(IRemoteItemHandle handle)
+        {
+            await AddItemMetadataAsync(new RemoteItemMetadata() { IsFolder = handle.IsFolder, Id = handle.Id, Path = handle.Path, RemoteLastModified = handle.LastModified });
+        }
+        public async Task AddItemMetadataAsync(IItemHandle localHandle)
+        {
+            var metadata = await GetItemMetadataAsync(localHandle.Path);
             var id = metadata != null ? metadata.Id : GetUniqueId();
-            AddItemMetadata(new RemoteItemMetadata() { IsFolder = localHandle.IsFolder, Id = id, Path = localHandle.Path, RemoteLastModified = localHandle.LastModified });
+            await AddItemMetadataAsync(new RemoteItemMetadata() { IsFolder = localHandle.IsFolder, Id = id, Path = localHandle.Path, RemoteLastModified = localHandle.LastModified });
         }
-        public void AddItemMetadata(RemoteItemMetadata metadata)
+        public async Task AddItemMetadataAsync(RemoteItemMetadata metadata)
         {
-            if (metadata.Id == "gen")
-                metadata.Id = GetUniqueId();
-            _data.LocalItems[metadata.Id] = metadata;
+            try
+            {
+                await _lock.WaitAsync();
+
+                if (metadata.Id == "gen")
+                    metadata.Id = GetUniqueId();
+                _data.LocalItems[metadata.Id] = metadata;
+            }
+            finally
+            {
+                _lock.UnLock();
+            }
         }
-        public void RemoveItemMetadata(string localPath)
+        public async Task RemoveItemMetadataAsync(string localPath)
         {
-            var metadata = GetItemMetadata(localPath);
+            var metadata = await GetItemMetadataAsync(localPath);
+
             if(metadata != null)
             {
-                _data.LocalItems.Remove(metadata.Id);
+                try
+                {
+                    await _lock.WaitAsync();
+                    _data.LocalItems.Remove(metadata.Id);
+                }
+                finally
+                {
+                    _lock.UnLock();
+                }
             }
         }
-        public void RemoveItemMetadataById(string id)
+        public async Task RemoveItemMetadataById(string id)
         {
-            _data.LocalItems.Remove(id);
+            try
+            {
+                await _lock.WaitAsync();
+                _data.LocalItems.Remove(id);
+            }
+            finally
+            {
+                _lock.UnLock();
+            }
         }
 
         public class RemoteItemMetadata

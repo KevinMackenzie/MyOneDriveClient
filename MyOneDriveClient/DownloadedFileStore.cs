@@ -153,7 +153,8 @@ namespace MyOneDriveClient
             {
                 using (var cryptoProvider = new SHA1CryptoServiceProvider())
                 {
-                    return BitConverter.ToString(cryptoProvider.ComputeHash(fs));
+                    return await Task.Run(
+                        () => BitConverter.ToString(cryptoProvider.ComputeHash(fs)));
                 }
             }
         }
