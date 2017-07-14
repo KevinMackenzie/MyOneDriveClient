@@ -196,12 +196,11 @@ namespace MyOneDriveClient
                 LocalChangeEventHandler(e).Wait();
             }
         }
-
-        private string _deltaLink;
+        
         public async Task ApplyAllDeltas()//TODO: this should be private, public for testing
         {
             List<IRemoteItemUpdate> allDeltas = new List<IRemoteItemUpdate>();
-            var nextPage = _deltaLink;
+            var nextPage = _metadata.DeltaLink;
             do
             {
                 //get the delta page
@@ -214,12 +213,12 @@ namespace MyOneDriveClient
                 nextPage = deltaPage.NextPage;
 
                 //usually null.  Can we do this only the last time?
-                _deltaLink = deltaPage.DeltaLink;
+                _metadata.DeltaLink = deltaPage.DeltaLink;
 
             } while (nextPage != null);
 
             //we should never get to this point
-            if (_deltaLink == null)
+            if (string.IsNullOrEmpty(_metadata.DeltaLink))
                 return;
             
             foreach(var delta in allDeltas)

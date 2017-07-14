@@ -9,12 +9,25 @@ namespace MyOneDriveClient
 {
     public class LocalFileStoreMetadata
     {
-        private Dictionary<string, RemoteItemMetadata> _localItems = new Dictionary<string, RemoteItemMetadata>();
+        private class LocalFileStoreMetadataData
+        {
+            public Dictionary<string, RemoteItemMetadata> LocalItems { get; set; } = new Dictionary<string, RemoteItemMetadata>();
+            public string DeltaLink { get; set; } = "";
+
+        }
+
+        private LocalFileStoreMetadataData _data = new LocalFileStoreMetadataData();
+
+        public string DeltaLink
+        {
+            get => _data.DeltaLink;
+            set => _data.DeltaLink = value;
+        }
 
         private string GetUniqueId()
         {
             int i = 0;
-            while (_localItems.ContainsKey(i.ToString()))
+            while (_data.LocalItems.ContainsKey(i.ToString()))
             {
                 i++;
             }
@@ -23,21 +36,21 @@ namespace MyOneDriveClient
 
         public void Clear()
         {
-            _localItems.Clear();
+            _data.LocalItems.Clear();
         }
         public void Deserialize(string json)
         {
-            _localItems.Clear();
-            _localItems = JsonConvert.DeserializeObject<Dictionary<string, RemoteItemMetadata>>(json);
+            _data.LocalItems.Clear();
+            _data = JsonConvert.DeserializeObject<LocalFileStoreMetadataData>(json);
         }
         public string Serialize()
         {
-            return JsonConvert.SerializeObject(_localItems);
+            return JsonConvert.SerializeObject(_data);
         }
 
         public RemoteItemMetadata GetItemMetadata(string localPath)
         {
-            var items = (from localItem in _localItems
+            var items = (from localItem in _data.LocalItems
                          where localItem.Value.Path == localPath
                          select localItem).ToList();
 
@@ -48,7 +61,7 @@ namespace MyOneDriveClient
         }
         public RemoteItemMetadata GetItemMetadataById(string id)
         {
-            if (_localItems.TryGetValue(id, out RemoteItemMetadata ret))
+            if (_data.LocalItems.TryGetValue(id, out RemoteItemMetadata ret))
             {
                 return ret;
             }
@@ -71,19 +84,19 @@ namespace MyOneDriveClient
         {
             if (metadata.Id == "gen")
                 metadata.Id = GetUniqueId();
-            _localItems[metadata.Id] = metadata;
+            _data.LocalItems[metadata.Id] = metadata;
         }
         public void RemoveItemMetadata(string localPath)
         {
             var metadata = GetItemMetadata(localPath);
             if(metadata != null)
             {
-                _localItems.Remove(metadata.Id);
+                _data.LocalItems.Remove(metadata.Id);
             }
         }
         public void RemoveItemMetadataById(string id)
         {
-            _localItems.Remove(id);
+            _data.LocalItems.Remove(id);
         }
 
         public class RemoteItemMetadata
