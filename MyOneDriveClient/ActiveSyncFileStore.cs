@@ -356,13 +356,11 @@ namespace MyOneDriveClient
                                 }
                                 else //the local file has changed since the last update
                                 {
-                                    //TODO: this puts the timestamp AFTER the file extension
-
                                     var newPath = GetNearestConflictResolution(localName);
 
                                     //move the old one
                                     await _local.MoveLocalItemAsync(localName, newPath);
-                                    //add this to the metadata (TODO: when we get the item renamed event, we have to realize that we have this metadata already)
+                                    //add this to the metadata
                                     _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
                                     {
                                         Id = "gen",
