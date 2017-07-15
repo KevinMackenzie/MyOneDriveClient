@@ -99,7 +99,6 @@ namespace MyOneDriveClient
         }
         private async Task ScanForLocalItemMetadataAsync(bool firstTime)
         {
-            //TODO: this should also do checking as outlined in part of issue #15
             //goes through all of the local files and creates the metadatas
             var items = await _local.EnumerateItemsAsync("/");
             foreach (var item in items)
@@ -220,7 +219,6 @@ namespace MyOneDriveClient
                     }
                     if (remoteItem == null)
                     {
-                        //TODO: what to do here?
                         return false;
                     }
                     await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
@@ -323,7 +321,7 @@ namespace MyOneDriveClient
 
                 foreach (var delta in allDeltas)
                 {
-                    if (delta.ItemHandle.Path == "/root")
+                    if (delta.ItemHandle.Path == "/")
                     {
                         var localRoot = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
                         if (localRoot == null)
@@ -334,7 +332,7 @@ namespace MyOneDriveClient
                                 IsFolder = true,
                                 RemoteLastModified = delta.ItemHandle.LastModified
                             });
-                        continue; //don't sync the root item TODO: this is SPECIFIC TO ONEDRIVE and should be put somewhere else
+                        continue; //don't sync the root item
                     }
 
                     //don't sync blacklisted items

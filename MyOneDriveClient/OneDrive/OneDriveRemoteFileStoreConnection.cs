@@ -381,6 +381,8 @@ namespace MyOneDriveClient.OneDrive
                         var parentReference = _metadata["parentReference"];
                         _path = HttpUtility.UrlDecode($"{(string) parentReference["path"]}/{Name}"
                             .Split(new char[] {':'}, 2, StringSplitOptions.RemoveEmptyEntries).Last());
+                        if (_path == "/root")
+                            _path = "/";//we need this to be uniform across all remotes
                     }
                     return _path;
                 }
