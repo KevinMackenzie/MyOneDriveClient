@@ -83,28 +83,55 @@ namespace MyOneDriveClient
                         catch (Exception)
                         {
                             //this failed, so we want to build this database
-                            await ScanForLocalItemMetadataAsync();
+                            await ScanForLocalItemMetadataAsync(true);
                         }
                     }
                 }
                 else
                 {
-                    await ScanForLocalItemMetadataAsync();
+                    await ScanForLocalItemMetadataAsync(true);
                 }
             }
             else
             {
-                await ScanForLocalItemMetadataAsync();
+                await ScanForLocalItemMetadataAsync(true);
             }
         }
-        private async Task ScanForLocalItemMetadataAsync()
+        private async Task ScanForLocalItemMetadataAsync(bool firstTime)
         {
             //TODO: this should also do checking as outlined in part of issue #15
             //goes through all of the local files and creates the metadatas
             var items = await _local.EnumerateItemsAsync("/");
             foreach (var item in items)
             {
-                _metadata.AddItemMetadata(item);
+                var metadata = _metadata.GetItemMetadata(item.Path);
+                if (metadata == null)
+                {
+                    //local item does NOT exist, so add it to the metadata ...
+                    _metadata.AddItemMetadata(item);
+                    
+                    //... and enqueue the change
+                    await LocalChangeEventHandler(null,
+                        new LocalFileStoreEventArgs(WatcherChangeTypes.Created, item.Path));
+                    
+                }
+                else
+                {
+                    if (item.LastModified == metadata.RemoteLastModified)
+                    {
+                        //do nothing
+                    }
+                    else if (item.LastModified > metadata.RemoteLastModified)
+                    {
+                        //update
+                        await LocalChangeEventHandler(null,
+                            new LocalFileStoreEventArgs(WatcherChangeTypes.Changed, item.Path));
+                    }
+                    else
+                    {
+                        //we need to pull down the latest version (TODO is it safe to assume that ApplyDeltas will deal with this)?
+                    }
+                }
             }
             await SaveLocalItemDataAsync();
         }
