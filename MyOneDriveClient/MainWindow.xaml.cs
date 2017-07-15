@@ -34,6 +34,7 @@ namespace MyOneDriveClient
         public MainWindow()
         {
             InitializeComponent();
+            App.OneDriveConnection.PromptUserLoginAsync();
         }
 
         /// <summary>
@@ -160,7 +161,7 @@ namespace MyOneDriveClient
 
             try
             {
-                await App.OneDriveConnection.UploadFileAsync(RemoteFilePath.Text, DateTime.UtcNow, data);
+                await App.OneDriveConnection.UploadFileAsync(RemoteFilePath.Text, data);
             }
             catch(Exception ex)
             {

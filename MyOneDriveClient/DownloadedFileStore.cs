@@ -160,7 +160,7 @@ namespace MyOneDriveClient
         }
         public async Task<IItemHandle> GetFileHandleAsync(string localPath)
         {
-            return new DownloadedFileHandle(this, localPath);
+            return ItemExists(localPath) ? new DownloadedFileHandle(this, localPath) : null;
         }
         public async Task SaveFileAsync(string localPath, DateTime lastModified, Stream data)
         {
@@ -171,10 +171,15 @@ namespace MyOneDriveClient
             string fqp = BuildPath(localPath);
             using (var localStream = new FileStream(fqp, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
             {
-                await data.CopyToStreamAsync(localStream);                
+                await data.CopyToStreamAsync(localStream);
             }
             File.SetLastWriteTimeUtc(fqp, lastModified);
             File.SetAttributes(fqp, attributes);
+        }
+        public async Task SetFileLastModifiedAsync(string localPath, DateTime lastModified)
+        {
+            string fqp = BuildPath(localPath);
+            File.SetLastWriteTimeUtc(fqp, lastModified);
         }
         public async Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath)
         {
@@ -234,7 +239,9 @@ namespace MyOneDriveClient
         private bool ShouldFilterLocalItem(string localPath)
         {
             var info = GetItemInfo(UnBuildPath(localPath));
-            return (info?.Attributes & FileAttributes.Hidden) != 0;
+            if (info == null) return false; //if it can't find the info, the file must have been deleted
+
+            return (info.Attributes & FileAttributes.Hidden) != 0;
         }
         private async void Watcher_Renamed(object sender, RenamedEventArgs e)
         {

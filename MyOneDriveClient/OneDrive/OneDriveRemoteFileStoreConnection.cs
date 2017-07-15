@@ -128,9 +128,9 @@ namespace MyOneDriveClient.OneDrive
             return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
         }
         private static int _4MB = 4 * 1024 * 1024;
-        public async Task<IRemoteItemHandle> UploadFileAsync(string remotePath, DateTime lastModified, Stream data)
+        public async Task<IRemoteItemHandle> UploadFileAsync(string remotePath, Stream data)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", lastModified, data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data);
         }
         public async Task<string> CreateFolderAsync(string remotePath)
         {
@@ -181,9 +181,9 @@ namespace MyOneDriveClient.OneDrive
         {
             return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
-        public async Task<IRemoteItemHandle> UploadFileByIdAsync(string parentId, string name, DateTime lastModified, Stream data)
+        public async Task<IRemoteItemHandle> UploadFileByIdAsync(string parentId, string name, Stream data)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", lastModified, data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data);
         }
         public async Task<string> CreateFolderByIdAsync(string parentId, string name)
         {
@@ -231,7 +231,7 @@ namespace MyOneDriveClient.OneDrive
             //now download the text
             return new OneDriveRemoteFileHandle(this, metadataObj);
         }
-        private async Task<IRemoteItemHandle> UploadFileByUrlAsync(string url, DateTime lastModified,Stream data)
+        private async Task<IRemoteItemHandle> UploadFileByUrlAsync(string url, Stream data)
         {
             OneDriveRemoteFileHandle ret = null;
 
@@ -246,12 +246,6 @@ namespace MyOneDriveClient.OneDrive
                 var metadataObj = (JObject)JsonConvert.DeserializeObject(json);
                 ret = new OneDriveRemoteFileHandle(this, metadataObj);
             }
-
-            if (ret != null)
-            {
-                //TODO: what if this returns false?
-                await SetRemoteLastModifiedByUrlAsync($"{_onedriveEndpoint}/items/{ret.Id}", lastModified);
-            }
             return ret;
         }
         private async Task<bool> DeleteFileByUrlAsync(string url)
@@ -262,10 +256,6 @@ namespace MyOneDriveClient.OneDrive
         private async Task<bool> UpdateItemByUrlAsync(string url, string json)
         {
             return (await AuthenticatedHttpRequestAsync(url, _patch, json)).StatusCode == System.Net.HttpStatusCode.OK;
-        }
-        private async Task<bool> SetRemoteLastModifiedByUrlAsync(string url, DateTime timeStamp)
-        {
-            return await UpdateItemByUrlAsync(url, $"{{ \"lastModifiedDateTime\": \"{timeStamp}\" }}");
         }
         #endregion
 
