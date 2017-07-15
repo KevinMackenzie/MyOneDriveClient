@@ -152,15 +152,19 @@ namespace MyOneDriveClient
                     if (handle == null)
                         return;//this is a weird case
 
-                    IRemoteItemHandle remoteItem = null;
+                    IRemoteItemHandle remoteItem;
                     if (handle.IsFolder)
                     {
-                        
+                        remoteItem = await _remote.CreateFolderAsync(e.LocalPath);
                     }
                     else
                     {
                         //new item
                         remoteItem = await _remote.UploadFileAsync(e.LocalPath, await handle.GetFileDataAsync());
+                    }
+                    if (remoteItem == null)
+                    {
+                        //TODO: what to do here?
                     }
                     await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
                     _metadata.AddItemMetadata(remoteItem);
