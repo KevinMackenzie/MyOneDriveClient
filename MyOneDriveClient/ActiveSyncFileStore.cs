@@ -16,6 +16,7 @@ namespace MyOneDriveClient
         private Task _syncTask = null;
         private CancellationTokenSource _cts = new CancellationTokenSource();
         private AsyncLock _metadataLock = new AsyncLock();
+        //DO NOT ACCESS DIRECTLY.  ONLY ACCESS WITH LocalChangeEventHandler TODO: this is not a great design for safety purposes
         private ConcurrentQueue<LocalFileStoreEventArgs> _localFileStoreChangeQueue = new ConcurrentQueue<LocalFileStoreEventArgs>();
 
         private IEnumerable<string> _blacklist;
@@ -98,6 +99,7 @@ namespace MyOneDriveClient
         }
         private async Task ScanForLocalItemMetadataAsync()
         {
+            //TODO: this should also do checking as outlined in part of issue #15
             //goes through all of the local files and creates the metadatas
             var items = await _local.EnumerateItemsAsync("/");
             foreach (var item in items)
@@ -133,25 +135,51 @@ namespace MyOneDriveClient
         {
             return path.Split(new char[] { '/' }).Last();
         }
-        
+
+        private async Task<bool> ProcessLocalChanges()
+        {
+            while (!_localFileStoreChangeQueue.TryPeek(out LocalFileStoreEventArgs e))
+            {
+                if (!await LocalChangeEventHandler(e))
+                    return false;
+
+                //only dequeue if we're successful
+                _localFileStoreChangeQueue.TryDequeue(out LocalFileStoreEventArgs e2);
+            }
+            return true;
+        }
         private async Task LocalChangeEventHandler(object sender, LocalFileStoreEventArgs e)
         {
             await _metadataLock.WaitAsync();
 
             try
             {
+                //do filtering BEFORE enqueueing
                 if (IsBlacklisted(e.LocalPath))
                     return;
+            }
+            finally
+            {
+                _metadataLock.UnLock();
+            }
+            _localFileStoreChangeQueue.Enqueue(e);
+            await ProcessLocalChanges();
+        }
+        private async Task<bool> LocalChangeEventHandler(LocalFileStoreEventArgs e)
+        {
+            await _metadataLock.WaitAsync();
 
+            try
+            {
                 var metadata = _metadata.GetItemMetadata(e.LocalPath);
                 var handle = await _local.GetFileHandleAsync(e.LocalPath);
                 if (metadata != null && handle != null && metadata.RemoteLastModified == handle.LastModified)
-                    return;//SKIP, because this event either a) has already been handled, or b) was a remote delta
+                    return true;//SKIP, because this event either a) has already been handled, or b) was a remote delta
 
                 if ((e.ChangeType & WatcherChangeTypes.Created) != 0)
                 {
                     if (handle == null)
-                        return;//this is a weird case
+                        return false;//this is a weird case
 
                     IRemoteItemHandle remoteItem;
                     if (handle.IsFolder)
@@ -166,6 +194,7 @@ namespace MyOneDriveClient
                     if (remoteItem == null)
                     {
                         //TODO: what to do here?
+                        return false;
                     }
                     await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
                     _metadata.AddItemMetadata(remoteItem);
@@ -173,53 +202,62 @@ namespace MyOneDriveClient
                 else if ((e.ChangeType & WatcherChangeTypes.Deleted) != 0)
                 {
                     //deleted item
+                    bool result;
                     if (metadata != null)
                     {
-                        await _remote.DeleteItemByIdAsync(metadata.Id);
+                        result = await _remote.DeleteItemByIdAsync(metadata.Id);
                     }
                     else
                     {
-                        await _remote.DeleteItemAsync(e.LocalPath);
+                        result = await  _remote.DeleteItemAsync(e.LocalPath);
                     }
+                    if (!result)
+                        return false;
+
                     _metadata.RemoveItemMetadata(e.LocalPath);
                 }
                 else if ((e.ChangeType & WatcherChangeTypes.Renamed) != 0)
                 {
                     //renamed item
                     metadata = _metadata.GetItemMetadata(e.OldLocalPath);
+                    if (metadata == null)
+                        return false;
+                    
+                    string json = $"{{  \"name\": \"{e.Name}\"  }}";
 
-                    if (metadata != null)
-                    {
-                        string json = $"{{  \"name\": \"{e.Name}\"  }}";
+                    //update the item
+                    var remoteItem = await _remote.UpdateItemByIdAsync(metadata.Id, json);
+                    if (remoteItem == null)
+                        return false;
 
-                        //update the item
-                        await _remote.UpdateItemByIdAsync(metadata.Id, json);
-
-                        //and update the metadata
-                        metadata.Path = e.LocalPath;
-                        _metadata.AddItemMetadata(metadata);
-                    }
+                    //and update the metadata
+                    metadata.Path = e.LocalPath;
+                    _metadata.AddItemMetadata(metadata);
                 }
                 else if ((e.ChangeType & WatcherChangeTypes.Changed) != 0)
                 {
                     if (handle == null)
-                        return;//this is a weird case
+                        return false;//this is a weird case
 
                     //changes to conents of a file
                     var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
 
-                    if (metadata != null && parentMetadata != null)
-                    {
-                        if(metadata.IsFolder)
-                            return;//idk why we get this message, but it's something to include
+                    if (parentMetadata == null || metadata == null)
+                        return false;
+                    
+                    if(metadata.IsFolder)
+                        return true;//idk why we get this message, but it's something to include
                         
-                        var remoteItem = await _remote.UploadFileByIdAsync(parentMetadata.Id, metadata.Name, await handle.GetFileDataAsync());
-                        await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
+                    var remoteItem = await _remote.UploadFileByIdAsync(parentMetadata.Id, metadata.Name, await handle.GetFileDataAsync());
+                    if (remoteItem == null)
+                        return false;
 
-                        metadata.RemoteLastModified = remoteItem.LastModified;
-                        _metadata.AddItemMetadata(metadata); //is this line necessary?
-                    }
+                    await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
+
+                    metadata.RemoteLastModified = remoteItem.LastModified;
+                    _metadata.AddItemMetadata(metadata); //is this line necessary?
                 }
+                return true;
             }
             finally
             {
