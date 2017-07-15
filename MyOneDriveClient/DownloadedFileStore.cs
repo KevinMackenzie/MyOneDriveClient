@@ -236,6 +236,7 @@ namespace MyOneDriveClient
         {
             watcher.Path = PathRoot;
             watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
+            watcher.IncludeSubdirectories = true;
             watcher.Filter = "*";
             watcher.Changed += Watcher_Changed;
             watcher.Renamed += Watcher_Renamed;
@@ -243,9 +244,9 @@ namespace MyOneDriveClient
             watcher.Created += Watcher_Changed;
             watcher.EnableRaisingEvents = true;//do we want this?
         }
-        private bool ShouldFilterLocalItem(string localPath)
+        private bool ShouldFilterLocalItem(string fqp)
         {
-            var info = GetItemInfo(UnBuildPath(localPath));
+            var info = GetItemInfo(UnBuildPath(fqp));
             if (info == null) return false; //if it can't find the info, the file must have been deleted
 
             return (info.Attributes & FileAttributes.Hidden) != 0;

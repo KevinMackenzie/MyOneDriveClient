@@ -121,20 +121,24 @@ namespace MyOneDriveClient.OneDrive
         public async Task<string> GetItemMetadataAsync(string remotePath)
         {
             //TODO: return null if the item cannot be found.  This code is kinda bad.
-            return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
+            return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
         }
         public async Task<IRemoteItemHandle> GetItemHandleAsync(string remotePath)
         {
-            return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
+            return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
         }
         private static int _4MB = 4 * 1024 * 1024;
         public async Task<IRemoteItemHandle> UploadFileAsync(string remotePath, Stream data)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}:/content", data);
         }
         public async Task<IRemoteItemHandle> CreateFolderAsync(string remotePath)
         {
-            var pathParts = remotePath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            var httpEncodedPath = HttpUtility.UrlEncode(remotePath);
+            if (httpEncodedPath == null)
+                return null;
+
+            var pathParts = httpEncodedPath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             string folderName = pathParts.Last();
 
             //first, get the id of the parent folder
@@ -164,11 +168,11 @@ namespace MyOneDriveClient.OneDrive
         }
         public async Task<bool> DeleteItemAsync(string remotePath)
         {
-            return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
+            return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
         }
         public async Task<IRemoteItemHandle> UpdateItemAsync(string remotePath, string json)
         {
-            return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}", json);
+            return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}", json);
         }
 
 
@@ -375,7 +379,8 @@ namespace MyOneDriveClient.OneDrive
                     if(_path == null)
                     {
                         var parentReference = _metadata["parentReference"];
-                        _path = $"{(string)parentReference["path"]}/{Name}".Split(new char[] { ':' }, 2, StringSplitOptions.RemoveEmptyEntries).Last();
+                        _path = HttpUtility.UrlDecode($"{(string) parentReference["path"]}/{Name}"
+                            .Split(new char[] {':'}, 2, StringSplitOptions.RemoveEmptyEntries).Last());
                     }
                     return _path;
                 }

@@ -91,6 +91,8 @@ namespace MyOneDriveClient
         public bool RemoveItemMetadata(string localPath)
         {
             var metadata = GetItemMetadata(localPath);
+            if (metadata == null)
+                return false;//failure
 
             return RemoveItemMetadataById(metadata.Id);
         }
@@ -105,7 +107,10 @@ namespace MyOneDriveClient
             public string Path { get; set; }
             public DateTime RemoteLastModified { get; set; }
             public string Id { get; set; }
+            [JsonIgnore]
             public bool HasValidId => (Id?.Length ?? 0) > 9;
+            [JsonIgnore]
+            public string Name => Path?.Split(new char[] { '/' }).Last() ?? "";
         }
     }
 }

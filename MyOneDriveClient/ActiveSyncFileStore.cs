@@ -123,7 +123,7 @@ namespace MyOneDriveClient
             string ret = "";
             for(int i = 0; i < parts.Length - 1; ++i)
             {
-                ret = $"/{ret}{parts[i]}";
+                ret = $"{ret}/{parts[i]}";
             }
             return ret;
         }
@@ -209,10 +209,13 @@ namespace MyOneDriveClient
 
                     if (metadata != null && parentMetadata != null)
                     {
-                        var remoteItem = await _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, await handle.GetFileDataAsync());
+                        if(metadata.IsFolder)
+                            return;//idk why we get this message, but it's something to include
+                        
+                        var remoteItem = await _remote.UploadFileByIdAsync(parentMetadata.Id, metadata.Name, await handle.GetFileDataAsync());
                         await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
 
-                        metadata.RemoteLastModified = handle.LastModified;
+                        metadata.RemoteLastModified = remoteItem.LastModified;
                         _metadata.AddItemMetadata(metadata); //is this line necessary?
                     }
                 }
