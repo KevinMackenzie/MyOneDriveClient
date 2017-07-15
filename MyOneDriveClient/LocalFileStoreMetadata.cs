@@ -110,7 +110,7 @@ namespace MyOneDriveClient
             [JsonIgnore]
             public bool HasValidId => (Id?.Length ?? 0) > 9;
             [JsonIgnore]
-            public string Name => Path?.Split(new char[] { '/' }).Last() ?? "";
+            public string Name => Path?.Split(new char[] { '/' }).Last();
         }
     }
 }

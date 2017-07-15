@@ -16,6 +16,7 @@ namespace MyOneDriveClient
         private Task _syncTask = null;
         private CancellationTokenSource _cts = new CancellationTokenSource();
         private AsyncLock _metadataLock = new AsyncLock();
+        private ConcurrentQueue<LocalFileStoreEventArgs> _localFileStoreChangeQueue = new ConcurrentQueue<LocalFileStoreEventArgs>();
 
         private IEnumerable<string> _blacklist;
         private int _syncPeriod;
@@ -147,7 +148,7 @@ namespace MyOneDriveClient
                 if (metadata != null && handle != null && metadata.RemoteLastModified == handle.LastModified)
                     return;//SKIP, because this event either a) has already been handled, or b) was a remote delta
 
-                if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Created) != 0)
+                if ((e.ChangeType & WatcherChangeTypes.Created) != 0)
                 {
                     if (handle == null)
                         return;//this is a weird case
@@ -169,7 +170,7 @@ namespace MyOneDriveClient
                     await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
                     _metadata.AddItemMetadata(remoteItem);
                 }
-                else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Deleted) != 0)
+                else if ((e.ChangeType & WatcherChangeTypes.Deleted) != 0)
                 {
                     //deleted item
                     if (metadata != null)
@@ -182,14 +183,14 @@ namespace MyOneDriveClient
                     }
                     _metadata.RemoveItemMetadata(e.LocalPath);
                 }
-                else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Renamed) != 0)
+                else if ((e.ChangeType & WatcherChangeTypes.Renamed) != 0)
                 {
                     //renamed item
                     metadata = _metadata.GetItemMetadata(e.OldLocalPath);
 
                     if (metadata != null)
                     {
-                        string json = $"{{  \"name\": \"{e.InnerEventArgs.Name}\"  }}";
+                        string json = $"{{  \"name\": \"{e.Name}\"  }}";
 
                         //update the item
                         await _remote.UpdateItemByIdAsync(metadata.Id, json);
@@ -199,7 +200,7 @@ namespace MyOneDriveClient
                         _metadata.AddItemMetadata(metadata);
                     }
                 }
-                else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Changed) != 0)
+                else if ((e.ChangeType & WatcherChangeTypes.Changed) != 0)
                 {
                     if (handle == null)
                         return;//this is a weird case

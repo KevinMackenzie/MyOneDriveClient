@@ -14,15 +14,15 @@ namespace MyOneDriveClient.Events
     /// Eventually this will have information on whether the file was created by the user, or by the internal code (which would allow
     /// the calling code to prompt the user for keeping or removing duplicates/resolve sync conflicts)
     /// </remarks>
-    public class LocalFileStoreEventArgs
+    public class LocalFileStoreEventArgs : EventArgs
     {
-        public LocalFileStoreEventArgs(FileSystemEventArgs e, string path)
+        public LocalFileStoreEventArgs(WatcherChangeTypes changeType, string path)
         {
-            InnerEventArgs = e;
+            ChangeType = changeType;
             LocalPath = path;
         }
 
-        public LocalFileStoreEventArgs(RenamedEventArgs e, string path, string oldLocalPath) : this(e, path)
+        public LocalFileStoreEventArgs(WatcherChangeTypes changeType, string path, string oldLocalPath) : this(changeType, path)
         {
             OldLocalPath = oldLocalPath;
         }
@@ -30,8 +30,9 @@ namespace MyOneDriveClient.Events
         /// <summary>
         /// can be casted to <see cref="RenamedEventArgs"/> if <see cref="FileSystemEventArgs.ChangeType"/> is <see cref="WatcherChangeTypes.Renamed"/>
         /// </summary>
-        public FileSystemEventArgs InnerEventArgs { get; }
+        public WatcherChangeTypes ChangeType { get; }
         public string LocalPath { get; }
+        public string Name => LocalPath?.Split(new char[] { '/' }).Last();
         public string OldLocalPath { get; }
     }
 }

@@ -258,7 +258,7 @@ namespace MyOneDriveClient
 
             //Will we get this when we check for deltas?
             var invoke = OnUpdate?.Invoke(this,
-                new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath), UnBuildPath(e.OldFullPath)));
+                new LocalFileStoreEventArgs(e.ChangeType, UnBuildPath(e.FullPath), UnBuildPath(e.OldFullPath)));
             if (invoke != null)
                 await invoke;
         }
@@ -268,7 +268,7 @@ namespace MyOneDriveClient
                 return;
 
             //Will we get this when we check for deltas?
-            var invoke = OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e, UnBuildPath(e.FullPath)));
+            var invoke = OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e.ChangeType, UnBuildPath(e.FullPath)));
             if (invoke != null)
                 await invoke;
         }
