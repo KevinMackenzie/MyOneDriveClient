@@ -132,7 +132,7 @@ namespace MyOneDriveClient.OneDrive
         {
             return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data);
         }
-        public async Task<string> CreateFolderAsync(string remotePath)
+        public async Task<IRemoteItemHandle> CreateFolderAsync(string remotePath)
         {
             var pathParts = remotePath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             string folderName = pathParts.Last();
@@ -166,7 +166,7 @@ namespace MyOneDriveClient.OneDrive
         {
             return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}");
         }
-        public async Task<bool> UpdateItemAsync(string remotePath, string json)
+        public async Task<IRemoteItemHandle> UpdateItemAsync(string remotePath, string json)
         {
             return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}", json);
         }
@@ -185,7 +185,7 @@ namespace MyOneDriveClient.OneDrive
         {
             return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data);
         }
-        public async Task<string> CreateFolderByIdAsync(string parentId, string name)
+        public async Task<IRemoteItemHandle> CreateFolderByIdAsync(string parentId, string name)
         {
             string requestUrl = $"{_onedriveEndpoint}/items/{parentId}/children";
             string requestJson = $"{{\"name\": \"{name}\", \"folder\": {{}} }}";
@@ -194,13 +194,13 @@ namespace MyOneDriveClient.OneDrive
             string json = await ReadResponseAsStringAsync(httpResponse);
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
-            return (string)obj["id"];
+            return new OneDriveRemoteFileHandle(this, obj);
         }
         public async Task<bool> DeleteItemByIdAsync(string id)
         {
             return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
-        public async Task<bool> UpdateItemByIdAsync(string id, string json)
+        public async Task<IRemoteItemHandle> UpdateItemByIdAsync(string id, string json)
         {
             return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/items/{id}", json);
         }
@@ -253,9 +253,13 @@ namespace MyOneDriveClient.OneDrive
             return (await AuthenticatedHttpRequestAsync(url, HttpMethod.Delete)).StatusCode == System.Net.HttpStatusCode.NoContent;
         }
         private HttpMethod _patch = new HttpMethod("PATCH");
-        private async Task<bool> UpdateItemByUrlAsync(string url, string json)
+        private async Task<IRemoteItemHandle> UpdateItemByUrlAsync(string url, string json)
         {
-            return (await AuthenticatedHttpRequestAsync(url, _patch, json)).StatusCode == System.Net.HttpStatusCode.OK;
+            var result = await AuthenticatedHttpRequestAsync(url, _patch, json);
+            if (!result.IsSuccessStatusCode) return null;
+            string responseJson = await ReadResponseAsStringAsync(result);
+            var metadataObj = (JObject)JsonConvert.DeserializeObject(responseJson);
+            return new OneDriveRemoteFileHandle(this, metadataObj);
         }
         #endregion
 
@@ -431,46 +435,54 @@ namespace MyOneDriveClient.OneDrive
         /// <param name="url"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, Stream body)
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, Stream body, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
             if (body != null)
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, new StreamContent(body));
+                return await AuthenticatedHttpRequestAsync(url, verb, new StreamContent(body), headers);
             }
             else
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null);
+                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null, headers);
             }
         }
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, string body)
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, string body, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
             if (body != null)
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, new StringContent(body));
+                return await AuthenticatedHttpRequestAsync(url, verb, new StringContent(body, Encoding.UTF8, "application/json"), headers);
             }
             else
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null);
+                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null, headers);
             }
         }
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, byte[] body)
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, byte[] body, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
             if (body != null)
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, new MemoryStream(body));
+                return await AuthenticatedHttpRequestAsync(url, verb, new MemoryStream(body), headers);
             }
             else
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null);
+                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null, headers);
             }
         }
-        private async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, HttpContent content = null)
+        private async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, HttpContent content = null, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
             var request = new HttpRequestMessage(verb, url);
             if (content != null)
+            {
                 request.Content = content;
+            }
 
-            //Add the token in Authorization header
+            if (headers != null)
+            {
+                foreach (var header in headers)
+                {
+                    request.Headers.Add(header.Key, header.Value);
+                }
+            }
             var response = await _httpClient.SendAsync(request);
             return response;
         }

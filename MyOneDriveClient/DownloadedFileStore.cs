@@ -176,10 +176,17 @@ namespace MyOneDriveClient
             File.SetLastWriteTimeUtc(fqp, lastModified);
             File.SetAttributes(fqp, attributes);
         }
-        public async Task SetFileLastModifiedAsync(string localPath, DateTime lastModified)
+        public async Task SetItemLastModifiedAsync(string localPath, DateTime lastModified)
         {
             string fqp = BuildPath(localPath);
-            File.SetLastWriteTimeUtc(fqp, lastModified);
+            if (File.Exists(fqp))
+            {
+                File.SetLastWriteTimeUtc(fqp, lastModified);
+            }
+            else if (Directory.Exists(fqp))
+            {
+                Directory.SetLastWriteTimeUtc(fqp, lastModified);
+            }
         }
         public async Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath)
         {

@@ -18,7 +18,7 @@ namespace MyOneDriveClient
         Task SaveFileAsync(string localPath, DateTime lastModified, Stream data);
         //changes to hidden files will not be propagated through the OnUpdate event
         Task SaveFileAsync(string localPath, DateTime lastModified, Stream data, FileAttributes attributes);
-        Task SetFileLastModifiedAsync(string localPath, DateTime lastModified);
+        Task SetItemLastModifiedAsync(string localPath, DateTime lastModified);
         Task<IItemHandle> GetFileHandleAsync(string localPath);
         bool CreateLocalFolder(string localPath, DateTime lastModified);
         Task<string> GetLocalSHA1Async(string localPath);

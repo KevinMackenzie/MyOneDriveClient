@@ -152,9 +152,17 @@ namespace MyOneDriveClient
                     if (handle == null)
                         return;//this is a weird case
 
-                    //new item
-                    var remoteItem = await _remote.UploadFileAsync(e.LocalPath, await handle.GetFileDataAsync());
-                    await _local.SetFileLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
+                    IRemoteItemHandle remoteItem = null;
+                    if (handle.IsFolder)
+                    {
+                        
+                    }
+                    else
+                    {
+                        //new item
+                        remoteItem = await _remote.UploadFileAsync(e.LocalPath, await handle.GetFileDataAsync());
+                    }
+                    await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
                     _metadata.AddItemMetadata(remoteItem);
                 }
                 else if ((e.InnerEventArgs.ChangeType & WatcherChangeTypes.Deleted) != 0)
@@ -198,7 +206,7 @@ namespace MyOneDriveClient
                     if (metadata != null && parentMetadata != null)
                     {
                         var remoteItem = await _remote.UploadFileByIdAsync(parentMetadata.Id, e.InnerEventArgs.Name, await handle.GetFileDataAsync());
-                        await _local.SetFileLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
+                        await _local.SetItemLastModifiedAsync(e.LocalPath, remoteItem.LastModified);
 
                         metadata.RemoteLastModified = handle.LastModified;
                         _metadata.AddItemMetadata(metadata); //is this line necessary?
