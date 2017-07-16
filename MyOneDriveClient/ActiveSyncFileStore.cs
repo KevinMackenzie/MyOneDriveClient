@@ -164,7 +164,7 @@ namespace MyOneDriveClient
 
         private async Task<bool> ProcessLocalChanges()
         {
-            while (!_localFileStoreChangeQueue.TryPeek(out LocalFileStoreEventArgs e))
+            while (_localFileStoreChangeQueue.TryPeek(out LocalFileStoreEventArgs e))
             {
                 if (!await LocalChangeEventHandler(e))
                     return false;
@@ -183,6 +183,12 @@ namespace MyOneDriveClient
                 //do filtering BEFORE enqueueing
                 if (IsBlacklisted(e.LocalPath))
                     return;
+
+                //do this filtering TWICE (it will catch here most of the time)
+                var metadata = _metadata.GetItemMetadata(e.LocalPath);
+                var handle = await _local.GetFileHandleAsync(e.LocalPath);
+                if (metadata != null && handle != null && metadata.RemoteLastModified == handle.LastModified)
+                    return;//SKIP, because this event either a) has already been handled, or b) was a remote delta
             }
             finally
             {
@@ -210,7 +216,10 @@ namespace MyOneDriveClient
                     IRemoteItemHandle remoteItem;
                     if (handle.IsFolder)
                     {
-                        remoteItem = await _remote.CreateFolderAsync(e.LocalPath);
+                        metadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
+                        if (metadata == null)
+                            return false;
+                        remoteItem = await _remote.CreateFolderByIdAsync(metadata.Id, metadata.Name);
                     }
                     else
                     {
@@ -271,7 +280,7 @@ namespace MyOneDriveClient
                         return false;
                     
                     if(metadata.IsFolder)
-                        return true;//idk why we get this message, but it's something to include
+                        return true;//when the contents of a folder change... we don't care
                         
                     var remoteItem = await _remote.UploadFileByIdAsync(parentMetadata.Id, metadata.Name, await handle.GetFileDataAsync());
                     if (remoteItem == null)
