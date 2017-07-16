@@ -134,11 +134,11 @@ namespace MyOneDriveClient.OneDrive
         }
         public async Task<IRemoteItemHandle> CreateFolderAsync(string remotePath)
         {
-            var httpEncodedPath = HttpUtility.UrlEncode(remotePath);
-            if (httpEncodedPath == null)
-                return null;
+            //var httpEncodedPath = HttpUtility.UrlEncode(remotePath);
+            //if (httpEncodedPath == null)
+            //    return null;
 
-            var pathParts = httpEncodedPath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            var pathParts = remotePath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             string folderName = pathParts.Last();
 
             //first, get the id of the parent folder
@@ -152,7 +152,7 @@ namespace MyOneDriveClient.OneDrive
                 parentUrl = $"{_onedriveEndpoint}/root:/";
                 for(int i = 0; i < pathParts.Length - 1; ++i)
                 {
-                    parentUrl = $"{parentUrl}/{pathParts[i]}";
+                    parentUrl = $"{parentUrl}/{HttpUtility.UrlEncode(pathParts[i])}";
                 }
             }
 
@@ -187,7 +187,7 @@ namespace MyOneDriveClient.OneDrive
         }
         public async Task<IRemoteItemHandle> UploadFileByIdAsync(string parentId, string name, Stream data)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{HttpUtility.UrlEncode(name)}:/content", data);
         }
         public async Task<IRemoteItemHandle> CreateFolderByIdAsync(string parentId, string name)
         {
