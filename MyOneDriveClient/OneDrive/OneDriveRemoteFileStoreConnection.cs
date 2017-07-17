@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -187,7 +188,7 @@ namespace MyOneDriveClient.OneDrive
         }
         public async Task<IRemoteItemHandle> UploadFileByIdAsync(string parentId, string name, Stream data)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{HttpUtility.UrlEncode(name)}:/content", data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data);
         }
         public async Task<IRemoteItemHandle> CreateFolderByIdAsync(string parentId, string name)
         {
