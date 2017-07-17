@@ -216,18 +216,20 @@ namespace MyOneDriveClient
                     if (metadata != null)
                         return true;//we created an item that already has metadata.  This means that it was a delta item
 
+
+                    var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
+                    if (parentMetadata == null)
+                        return false;
+
                     IRemoteItemHandle remoteItem;
                     if (handle.IsFolder)
                     {
-                        metadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
-                        if (metadata == null)
-                            return false;
-                        remoteItem = await _remote.CreateFolderByIdAsync(metadata.Id, metadata.Name);
+                        remoteItem = await _remote.CreateFolderByIdAsync(parentMetadata.Id, e.Name);
                     }
                     else
                     {
                         //new item
-                        remoteItem = await _remote.UploadFileAsync(e.LocalPath, await handle.GetFileDataAsync());
+                        remoteItem = await _remote.UploadFileByIdAsync(parentMetadata.Id, e.Name, await handle.GetFileDataAsync());
                     }
                     if (remoteItem == null)
                     {
