@@ -255,7 +255,8 @@ namespace MyOneDriveClient.OneDrive
         }
         private async Task<bool> DeleteFileByUrlAsync(string url)
         {
-            return (await AuthenticatedHttpRequestAsync(url, HttpMethod.Delete)).StatusCode == System.Net.HttpStatusCode.NoContent;
+            var result = await AuthenticatedHttpRequestAsync(url, HttpMethod.Delete);
+            return result.StatusCode == HttpStatusCode.NotFound || result.StatusCode == HttpStatusCode.NoContent;
         }
         private HttpMethod _patch = new HttpMethod("PATCH");
         private async Task<IRemoteItemHandle> UpdateItemByUrlAsync(string url, string json)
