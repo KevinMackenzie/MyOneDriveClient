@@ -131,7 +131,7 @@ namespace MyOneDriveClient.OneDrive
         private static int _4MB = 4 * 1024 * 1024;
         public async Task<IRemoteItemHandle> UploadFileAsync(string remotePath, Stream data)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}:/content", data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data);
         }
         public async Task<IRemoteItemHandle> CreateFolderAsync(string remotePath)
         {
