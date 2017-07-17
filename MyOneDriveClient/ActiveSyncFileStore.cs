@@ -213,6 +213,9 @@ namespace MyOneDriveClient
                     if (handle == null)
                         return false;//this is a weird case
 
+                    if (metadata != null)
+                        return true;//we created an item that already has metadata.  This means that it was a delta item
+
                     IRemoteItemHandle remoteItem;
                     if (handle.IsFolder)
                     {
@@ -252,6 +255,9 @@ namespace MyOneDriveClient
                 }
                 else if ((e.ChangeType & WatcherChangeTypes.Renamed) != 0)
                 {
+                    if (metadata != null)
+                        return true; //a "renamed" item with metadata at that name means it was a remote delta (usually a folder)
+
                     //renamed item
                     metadata = _metadata.GetItemMetadata(e.OldLocalPath);
                     if (metadata == null)
