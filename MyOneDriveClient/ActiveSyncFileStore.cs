@@ -66,7 +66,7 @@ namespace MyOneDriveClient
         #region Metadata
         private static string _localItemDataDB = "ItemMetadata";
         private LocalFileStoreMetadata _metadata = new LocalFileStoreMetadata();
-        public async Task LoadLocalItemDataAsync()
+        private async Task LoadLocalItemDataAsync()
         {
             if (_local.ItemExists(_localItemDataDB))
             {
@@ -83,36 +83,46 @@ namespace MyOneDriveClient
                         catch (Exception)
                         {
                             //this failed, so we want to build this database
-                            await ScanForLocalItemMetadataAsync(true);
+                            //await ScanForLocalItemMetadataAsync(true);
                         }
                     }
                 }
                 else
                 {
-                    await ScanForLocalItemMetadataAsync(true);
+                    //await ScanForLocalItemMetadataAsync(true);
                 }
             }
             else
             {
-                await ScanForLocalItemMetadataAsync(true);
+                //await ScanForLocalItemMetadataAsync(true);
             }
         }
-        private async Task ScanForLocalItemMetadataAsync(bool firstTime)
+        public async Task ScanForLocalItemMetadataAsync(bool firstTime) //this needs to happen AFTER authentication
         {
+            //Get the deltas to build our metadata to start with (mainly the root item)
+            await ApplyAllDeltas();
+
             //goes through all of the local files and creates the metadatas
             var items = await _local.EnumerateItemsAsync("/");
+            _metadata.ClearLocalMetadata();
+            _metadata.ClearOrphanedMetadata();
+
             foreach (var item in items)
             {
+                if (item.Path == "/")
+                {
+                    //this is the root item, but we don't do anything with it
+                    continue;
+                }
                 var metadata = _metadata.GetItemMetadata(item.Path);
                 if (metadata == null)
                 {
                     //local item does NOT exist, so add it to the metadata ...
                     _metadata.AddItemMetadata(item);
-                    
+
                     //... and enqueue the change
                     await LocalChangeEventHandler(null,
                         new LocalFileStoreEventArgs(WatcherChangeTypes.Created, item.Path));
-                    
                 }
                 else
                 {
@@ -158,26 +168,22 @@ namespace MyOneDriveClient
         }
         private async Task LocalChangeEventHandler(object sender, LocalFileStoreEventArgs e)
         {
-            await _metadataLock.WaitAsync();
-
-            try
-            {
-                //do filtering BEFORE enqueueing
-                if (IsBlacklisted(e.LocalPath))
-                    return;
-
-                //do this filtering TWICE (it will catch here most of the time)
-                var metadata = _metadata.GetItemMetadata(e.LocalPath);
-                var handle = await _local.GetFileHandleAsync(e.LocalPath);
-                if (metadata != null && handle != null && metadata.RemoteLastModified == handle.LastModified)
-                    return;//SKIP, because this event either a) has already been handled, or b) was a remote delta
-            }
-            finally
-            {
-                _metadataLock.UnLock();
-            }
+            //DON"T filter here, because we don't want to bind _metadataLock
             _localFileStoreChangeQueue.Enqueue(e);
             await ProcessLocalChanges();
+        }
+
+        private void EnqueueDeleteChildren(string localPath)
+        {
+            var children = _metadata.GetChildMetadatas(localPath);
+            if (children == null) return;
+
+            foreach (var child in children)
+            {
+                _localFileStoreChangeQueue.Enqueue(new LocalFileStoreEventArgs(WatcherChangeTypes.Deleted,
+                    child.Path));
+                EnqueueDeleteChildren(child.Path);
+            }
         }
         private async Task<bool> LocalChangeEventHandler(LocalFileStoreEventArgs e)
         {
@@ -185,7 +191,20 @@ namespace MyOneDriveClient
 
             try
             {
-                var metadata = _metadata.GetItemMetadata(e.LocalPath);
+                if (IsBlacklisted(e.LocalPath))
+                    return true;
+
+
+                LocalFileStoreMetadata.RemoteItemMetadata metadata;
+                try
+                {
+                    metadata = _metadata.GetItemMetadata(e.LocalPath);
+                }
+                catch (Exception exception)
+                {
+                    return true;//this happens and I don't like it, but don't know what to do about it
+                }
+
                 var handle = await _local.GetFileHandleAsync(e.LocalPath);
                 if (metadata != null && handle != null && metadata.RemoteLastModified == handle.LastModified)
                     return true;//SKIP, because this event either a) has already been handled, or b) was a remote delta
@@ -196,7 +215,12 @@ namespace MyOneDriveClient
                         return false;//this is a weird case
 
                     if (metadata != null)
-                        return true;//we created an item that already has metadata.  This means that it was a delta item
+                    {
+                        if (metadata.HasValidId)
+                        {
+                            return true; //we created an item that already has a valid id.  This means that it was a delta item
+                        }
+                    }
 
 
                     var parentMetadata = _metadata.GetItemMetadata(PathUtils.GetParentItemPath(e.LocalPath));
@@ -224,6 +248,14 @@ namespace MyOneDriveClient
                 {
                     //deleted item
                     bool result;
+
+                    //when deleting an item, delete all of its children too
+                    if (e.ChangeType == WatcherChangeTypes.Deleted)
+                    {
+                        //TODO: this doesn't really help
+                        //EnqueueDeleteChildren(e.LocalPath);
+                    }
+
                     if (metadata != null)
                     {
                         result = await _remote.DeleteItemByIdAsync(metadata.Id);

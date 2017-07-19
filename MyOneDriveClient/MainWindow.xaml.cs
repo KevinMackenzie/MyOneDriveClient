@@ -212,5 +212,11 @@ namespace MyOneDriveClient
                 ContentsText.Text += $"{id} : {path}{Environment.NewLine}";
             }*/
         }
+
+        private async void ScanForChangesButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            await App.OneDriveConnection.PromptUserLoginAsync();
+            await App.FileStore.ScanForLocalItemMetadataAsync(false);
+        }
     }
 }

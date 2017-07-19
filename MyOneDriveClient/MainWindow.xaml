@@ -31,10 +31,11 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="80"/>
                 <ColumnDefinition Width="70"/>
-                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="120"/>
             </Grid.ColumnDefinitions>
             <Button x:Name="GetDeltasButton" Content="Get Deltas" HorizontalAlignment="Stretch" Padding="5" Margin="5" Click="GetDeltasButton_Click" FontFamily="Segoe Ui" Grid.Column="0"/>
             <Button x:Name="SignOutButton" Content="Sign-Out" HorizontalAlignment="Stretch" Padding="5" Click="SignOutButton_Click" Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="1"/>
+            <Button x:Name="ScanForChangesButton" Content="Scan For Changes" HorizontalAlignment="Stretch" Padding="5" Click="ScanForChangesButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="2" />
         </Grid>
 
         <Label Content="File Metadata" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="2" />

@@ -126,7 +126,16 @@ namespace MyOneDriveClient.OneDrive
         }
         public async Task<IRemoteItemHandle> GetItemHandleAsync(string remotePath)
         {
-            return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
+            string url;
+            if (remotePath == "" || remotePath == "/")
+            {
+                url = $"{_onedriveEndpoint}/root";
+            }
+            else
+            {
+                url = $"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}";
+            }
+            return await GetItemHandleByUrlAsync(url);
         }
         private static int _4MB = 4 * 1024 * 1024;
         public async Task<IRemoteItemHandle> UploadFileAsync(string remotePath, Stream data)

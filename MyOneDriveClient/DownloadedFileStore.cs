@@ -114,7 +114,12 @@ namespace MyOneDriveClient
             var files = Directory.EnumerateFiles(fqp);
             foreach (var file in files)
             {
-                items.Add(GetFileHandleAsync(UnBuildPath(file)).Result);
+                var filePath = UnBuildPath(fqp);
+                var info = GetItemInfo(filePath);
+                if((info.Attributes & FileAttributes.Hidden) > 0)
+                    continue;// do not enumerate hidden files
+
+                items.Add(GetFileHandleAsync(filePath).Result);
             }
         }
         #endregion
@@ -224,6 +229,7 @@ namespace MyOneDriveClient
                 return null;
 
             List<IItemHandle> ret = new List<IItemHandle>();
+            ret.Add(new DownloadedFileHandle(this, localPath));//add the root item of the request
             await Task.Run(() => EnumerateItemsRecursive(ref ret, fqp));
             return ret;
         }
@@ -267,8 +273,9 @@ namespace MyOneDriveClient
             if (ShouldFilterLocalItem(e.FullPath))
                 return;
 
+            var localPath = UnBuildPath(e.FullPath);
             //Will we get this when we check for deltas?
-            var invoke = OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e.ChangeType, UnBuildPath(e.FullPath)));
+            var invoke = OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e.ChangeType, localPath));
             if (invoke != null)
                 await invoke;
         }

@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -55,8 +56,48 @@ namespace MyOneDriveClient
             return JsonConvert.SerializeObject(_data);
         }
 
+        /// <summary>
+        /// Deletes all metadata with <see cref="RemoteItemMetadata.HasValidId"/> as false
+        /// </summary>
+        public void ClearLocalMetadata()
+        {
+            var items = (from localItem in _data.LocalItems
+                         where !localItem.Value.HasValidId
+                         select localItem.Value);
+            foreach (var item in items)
+            {
+                RemoveItemMetadataById(item.Id);
+            }
+        }
+
+        /// <summary>
+        /// Deletes all metadata whose parents have been deleted (<see cref="RemoteItemMetadata.Path"/> throws an exception)
+        /// </summary>
+        public void ClearOrphanedMetadata()
+        {
+            var items = new List<string>();
+            foreach (var item in _data.LocalItems)
+            {
+                try
+                {
+                    var path = item.Value.Path;
+                }
+                catch (Exception)
+                {
+                    items.Add(item.Value.Id);
+                }
+            }
+            foreach (var item in items)
+            {
+                RemoveItemMetadataById(item);
+            }
+        }
+
         public RemoteItemMetadata GetItemMetadata(string localPath)
         {
+            if (localPath == "/")
+                localPath = "";
+
             var items = (from localItem in _data.LocalItems
                 where localItem.Value.Path == localPath
                 select localItem).ToList();
@@ -70,7 +111,18 @@ namespace MyOneDriveClient
         public RemoteItemMetadata GetParentItemMetadata(string localPath)
         {
             var parentPath = PathUtils.GetParentItemPath(localPath);
-            return GetItemMetadata(localPath);
+            return GetItemMetadata(parentPath);
+        }
+        public IEnumerable<RemoteItemMetadata> GetChildMetadatas(string localPath)
+        {
+            var parentItem = GetItemMetadata(localPath);
+            if (parentItem == null)
+                return null;
+            var parentId = parentItem.Id;
+
+            return (from item in _data.LocalItems
+                where item.Value.ParentId == parentId
+                select item.Value);
         }
         public RemoteItemMetadata GetItemMetadataById(string id)
         {
@@ -124,7 +176,7 @@ namespace MyOneDriveClient
                 Id = id,
                 ParentId = parentId,
                 Name = localHandle.Name,
-                RemoteLastModified = localHandle.LastModified
+                RemoteLastModified = DateTime.MinValue
             });
         }
         public bool AddItemMetadata(RemoteItemMetadata metadata)
@@ -150,26 +202,19 @@ namespace MyOneDriveClient
         public class RemoteItemMetadata
         {
             [JsonIgnore]
-            private RemoteItemMetadata _parentItemMetadata;
-            [JsonIgnore]
             public LocalFileStoreMetadata Metadata { get; set; }
             [JsonIgnore]
             public string Path
             {
-
                 get
                 {
                     if (ParentId == "")
-                        return "/";
-                    if (_parentItemMetadata == null)
-                    {
-                        _parentItemMetadata = Metadata.GetItemMetadataById(ParentId);
-                        if(_parentItemMetadata == null)
-                            throw new Exception("Could not find item parent!");
-                    }
-                    return $"{_parentItemMetadata.Path}/{Name}".Substring(1);//remove the leading "/"
+                        return "";
+                    var parentItemMetadata = Metadata.GetItemMetadataById(ParentId);
+                    if(parentItemMetadata == null)
+                        throw new Exception("Could not find item parent!");
+                    return $"{parentItemMetadata.Path}/{Name}";
                 }
-
             }
             [JsonIgnore]
             public bool HasValidId => (Id?.Length ?? 0) > 9;
