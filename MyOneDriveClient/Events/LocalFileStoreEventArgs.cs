@@ -32,7 +32,7 @@ namespace MyOneDriveClient.Events
         /// </summary>
         public WatcherChangeTypes ChangeType { get; }
         public string LocalPath { get; }
-        public string Name => LocalPath?.Split(new char[] { '/' }).Last();
+        public string Name => PathUtils.GetItemName(LocalPath);
         public string OldLocalPath { get; }
     }
 }

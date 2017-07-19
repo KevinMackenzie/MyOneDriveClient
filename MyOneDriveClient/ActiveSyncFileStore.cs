@@ -143,24 +143,6 @@ namespace MyOneDriveClient
         }
         #endregion
 
-        private string GetParentItemPath(string path)
-        {
-            var parts = path.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length < 2)
-                return "/";
-
-            string ret = "";
-            for(int i = 0; i < parts.Length - 1; ++i)
-            {
-                ret = $"{ret}/{parts[i]}";
-            }
-            return ret;
-        }
-
-        private string GetItemName(string path)
-        {
-            return path.Split(new char[] { '/' }).Last();
-        }
 
         private async Task<bool> ProcessLocalChanges()
         {
@@ -217,7 +199,7 @@ namespace MyOneDriveClient
                         return true;//we created an item that already has metadata.  This means that it was a delta item
 
 
-                    var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
+                    var parentMetadata = _metadata.GetItemMetadata(PathUtils.GetParentItemPath(e.LocalPath));
                     if (parentMetadata == null)
                         return false;
 
@@ -273,7 +255,7 @@ namespace MyOneDriveClient
                         return false;
 
                     //and update the metadata
-                    metadata.Path = e.LocalPath;
+                    metadata.Name = e.Name;
                     _metadata.AddItemMetadata(metadata);
                 }
                 else if ((e.ChangeType & WatcherChangeTypes.Changed) != 0)
@@ -282,7 +264,7 @@ namespace MyOneDriveClient
                         return false;//this is a weird case
 
                     //changes to conents of a file
-                    var parentMetadata = _metadata.GetItemMetadata(GetParentItemPath(e.LocalPath));
+                    var parentMetadata = _metadata.GetItemMetadata(PathUtils.GetParentItemPath(e.LocalPath));
 
                     if (parentMetadata == null || metadata == null)
                         return false;
@@ -345,7 +327,7 @@ namespace MyOneDriveClient
                             _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
                             {
                                 Id = delta.ItemHandle.Id,
-                                Path = "/",
+                                ParentId = "",
                                 IsFolder = true,
                                 RemoteLastModified = delta.ItemHandle.LastModified
                             });
@@ -462,7 +444,7 @@ namespace MyOneDriveClient
                                     {
                                         Id = "gen",
                                         IsFolder = false,
-                                        Path = newPath,
+                                        ParentId = delta.ItemHandle.ParentId,
                                         RemoteLastModified = localTS
                                     });
 
@@ -488,16 +470,6 @@ namespace MyOneDriveClient
         }
 
         //TODO: where should these functions go?
-        private string CompileString(IEnumerable<string> pathParts, string name)
-        {
-            var path = "";
-            foreach (var part in pathParts)
-            {
-                path += $"/{part}";
-            }
-
-            return $"{path}/{name}";
-        }
         private string GetNearestConflictResolution(string path)
         {
             var pathParts = path.Split(new char[] {'/'}, StringSplitOptions.RemoveEmptyEntries);
@@ -512,7 +484,7 @@ namespace MyOneDriveClient
             var hasExt = nameParts.Length > 1;
             do
             {
-                newPath = CompileString(pathParts, hasExt ? $"{nameParts[0]} (local conflict {i}).{nameParts[1]}" : $"{nameParts[0]} (local conflict {i})");
+                newPath = PathUtils.CompileString(pathParts, hasExt ? $"{nameParts[0]} (local conflict {i}).{nameParts[1]}" : $"{nameParts[0]} (local conflict {i})");
                 i++;
             } while (_local.ItemExists(newPath));
             return newPath;

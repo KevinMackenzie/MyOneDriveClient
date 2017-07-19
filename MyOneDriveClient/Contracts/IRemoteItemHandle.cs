@@ -13,5 +13,6 @@ namespace MyOneDriveClient
         //there should be NO guarantee of what this is, so it should probably not even exist....
         //JObject Metadata { get; }
         string Id { get; }
+        string ParentId { get; }
     }
 }

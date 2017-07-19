@@ -337,6 +337,7 @@ namespace MyOneDriveClient.OneDrive
             private string _sha1Hash = null;
             private string _path = null;
             private string _name = null;
+            private string _parentId;
             private bool _isFolderInitialized = false;
             private bool _isFolder;
 
@@ -373,6 +374,19 @@ namespace MyOneDriveClient.OneDrive
                     }
                     return _name;
                 }
+            }
+            public string ParentId
+            {
+                get
+                {
+                    if (_parentId == null)
+                    {
+                        var parentReference = _metadata["parentReference"];
+                        _parentId = (string) parentReference["id"];
+                    }
+                    return _parentId;
+                }
+
             }
             public string Path
             {
