@@ -114,7 +114,7 @@ namespace MyOneDriveClient
             var files = Directory.EnumerateFiles(fqp);
             foreach (var file in files)
             {
-                var filePath = UnBuildPath(fqp);
+                var filePath = UnBuildPath(file);
                 var info = GetItemInfo(filePath);
                 if((info.Attributes & FileAttributes.Hidden) > 0)
                     continue;// do not enumerate hidden files
