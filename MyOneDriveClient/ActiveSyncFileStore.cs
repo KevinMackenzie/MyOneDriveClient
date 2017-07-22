@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -202,6 +203,7 @@ namespace MyOneDriveClient
                 }
                 catch (Exception exception)
                 {
+                    Debug.WriteLine($"Failed to retrieve metadata for item.  Reason: \"{exception.Message}\"");
                     return true;//this happens and I don't like it, but don't know what to do about it
                 }
 
@@ -212,7 +214,10 @@ namespace MyOneDriveClient
                 if ((e.ChangeType & WatcherChangeTypes.Created) != 0)
                 {
                     if (handle == null)
-                        return false;//this is a weird case
+                    {
+                        Debug.WriteLine($"Locally created item has no local reference: \"{e.LocalPath}\"");
+                        return false; //this is a weird case
+                    }
 
                     if (metadata != null)
                     {
@@ -293,7 +298,10 @@ namespace MyOneDriveClient
                 else if ((e.ChangeType & WatcherChangeTypes.Changed) != 0)
                 {
                     if (handle == null)
-                        return false;//this is a weird case
+                    {
+                        Debug.WriteLine($"Locally changed file has no local file handle: \"{e.LocalPath}\"");
+                        return false; //this is a weird case
+                    }
 
                     //changes to conents of a file
                     var parentMetadata = _metadata.GetItemMetadata(PathUtils.GetParentItemPath(e.LocalPath));

@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -35,6 +36,11 @@ namespace MyOneDriveClient
         {
             InitializeComponent();
             App.OneDriveConnection.PromptUserLoginAsync();
+
+
+            Debug.Listeners.Add(new DebugListener(this));
+
+            Debug.WriteLine("Debug initialized");
         }
 
         /// <summary>
@@ -218,5 +224,30 @@ namespace MyOneDriveClient
             await App.OneDriveConnection.PromptUserLoginAsync();
             await App.FileStore.ScanForLocalItemMetadataAsync(false);
         }
+
+
+        private class DebugListener : TraceListener
+        {
+            private MainWindow _window;
+            public DebugListener(MainWindow window)
+            {
+                _window = window;
+            }
+
+            /// <inheritdoc />
+            public override void Write(string message)
+            {
+                _window.DebugBox.Text += message;
+                _window.DebugBox.ScrollToEnd();
+            }
+
+            /// <inheritdoc />
+            public override void WriteLine(string message)
+            {
+                _window.DebugBox.Text += $"{message}{Environment.NewLine}";
+                _window.DebugBox.ScrollToEnd();
+            }
+        }
+
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
@@ -159,6 +160,7 @@ namespace MyOneDriveClient
                 {
                     //TODO: this should never happen
                     parentId = "-1";
+                    Debug.WriteLine($"Failed to get parent item metadata with item path \"{localHandle.Path}\"");
                 }
                 else
                 {

@@ -5,13 +5,15 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MyOneDriveClient"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="750">
+        Title="MainWindow" Height="700" Width="750">
     <Grid Background="Azure">
         <Grid.RowDefinitions>
             <RowDefinition Height="35"/>
             <RowDefinition Height="35"/>
             <RowDefinition Height="25"/>
             <RowDefinition Height="150"/>
+            <RowDefinition Height="25"/>
+            <RowDefinition Height="1*"/>
             <RowDefinition Height="25"/>
             <RowDefinition Height="1*"/>
         </Grid.RowDefinitions>
@@ -42,10 +44,8 @@
         <TextBox x:Name="MetadataText" TextWrapping="Wrap" MinHeight="120" Margin="5" FontFamily="Segoe Ui" Grid.Row="3" />
         <Label Content="FileContents" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="4" />
         <TextBox x:Name="ContentsText" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Height="150" Margin="5" FontFamily="Segoe Ui" Grid.Row="5" />
-        
-        <StackPanel>
-            <StackPanel Background="Azure">
-            </StackPanel>
-        </StackPanel>
+
+        <Label Content="Debug" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="6" />
+        <TextBox x:Name="DebugBox" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Height="150" Margin="5" FontFamily="Segoe Ui" Grid.Row="7" />
     </Grid>
 </Window>
