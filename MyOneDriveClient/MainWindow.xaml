@@ -46,6 +46,7 @@
         <TextBox x:Name="ContentsText" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Height="150" Margin="5" FontFamily="Segoe Ui" Grid.Row="5" />
 
         <Label Content="Debug" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="6" />
+        <Button Content="Get Debug" Width="150" Click="ButtonBase_OnClick" Grid.Row="6"/>
         <TextBox x:Name="DebugBox" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Height="150" Margin="5" FontFamily="Segoe Ui" Grid.Row="7" />
     </Grid>
 </Window>

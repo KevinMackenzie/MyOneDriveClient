@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -225,6 +226,21 @@ namespace MyOneDriveClient
             await App.FileStore.ScanForLocalItemMetadataAsync(false);
         }
 
+        private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
+        {
+            DequeueDebug();
+        }
+
+        private ConcurrentQueue<string> debugQueue = new ConcurrentQueue<string>();
+
+        private void DequeueDebug()
+        {
+            while (debugQueue.TryDequeue(out string result))
+            {
+                DebugBox.Text += result;
+                DebugBox.ScrollToEnd();
+            }
+        }
 
         private class DebugListener : TraceListener
         {
@@ -237,17 +253,18 @@ namespace MyOneDriveClient
             /// <inheritdoc />
             public override void Write(string message)
             {
-                _window.DebugBox.Text += message;
-                _window.DebugBox.ScrollToEnd();
+                _window.debugQueue.Enqueue(message);
+                //_window.DebugBox.Text += message;
+                //_window.DebugBox.ScrollToEnd();
             }
 
             /// <inheritdoc />
             public override void WriteLine(string message)
             {
-                _window.DebugBox.Text += $"{message}{Environment.NewLine}";
-                _window.DebugBox.ScrollToEnd();
+                _window.debugQueue.Enqueue($"{message}{Environment.NewLine}");
+                //_window.DebugBox.Text += $"{message}{Environment.NewLine}";
+                //_window.DebugBox.ScrollToEnd();
             }
         }
-
     }
 }
