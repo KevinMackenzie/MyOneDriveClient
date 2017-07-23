@@ -52,6 +52,9 @@ namespace MyOneDriveClient
 
         public bool IsBlacklisted(string localFilePath)
         {
+            if (localFilePath == _localItemDataDB)
+                return true;
+
             if (Blacklist == null)
                 return false;
 
@@ -103,47 +106,58 @@ namespace MyOneDriveClient
             //Get the deltas to build our metadata to start with (mainly the root item)
             await ApplyAllDeltas();
 
-            //goes through all of the local files and creates the metadatas
-            var items = await _local.EnumerateItemsAsync("/");
-            _metadata.ClearLocalMetadata();
-            _metadata.ClearOrphanedMetadata();
+            await _metadataLock.WaitAsync();
 
-            foreach (var item in items)
+            try
             {
-                if (item.Path == "/")
-                {
-                    //this is the root item, but we don't do anything with it
-                    continue;
-                }
-                var metadata = _metadata.GetItemMetadata(item.Path);
-                if (metadata == null)
-                {
-                    //local item does NOT exist, so add it to the metadata ...
-                    _metadata.AddItemMetadata(item);
 
-                    //... and enqueue the change
-                    await LocalChangeEventHandler(null,
-                        new LocalFileStoreEventArgs(WatcherChangeTypes.Created, item.Path));
-                }
-                else
+                //goes through all of the local files and creates the metadatas
+                var items = await _local.EnumerateItemsAsync("/");
+                _metadata.ClearLocalMetadata();
+                _metadata.ClearOrphanedMetadata();
+
+                foreach (var item in items)
                 {
-                    if (item.LastModified == metadata.RemoteLastModified)
+                    if (item.Path == "/")
                     {
-                        //do nothing
+                        //this is the root item, but we don't do anything with it
+                        continue;
                     }
-                    else if (item.LastModified > metadata.RemoteLastModified)
+                    var metadata = _metadata.GetItemMetadata(item.Path);
+                    if (metadata == null)
                     {
-                        //update
-                        await LocalChangeEventHandler(null,
-                            new LocalFileStoreEventArgs(WatcherChangeTypes.Changed, item.Path));
+                        //local item does NOT exist, so add it to the metadata ...
+                        _metadata.AddItemMetadata(item);
+
+                        //... and enqueue the change
+                        _localFileStoreChangeQueue.Enqueue(new LocalFileStoreEventArgs(WatcherChangeTypes.Created, item.Path));
                     }
                     else
                     {
-                        //we need to pull down the latest version (TODO is it safe to assume that ApplyDeltas will deal with this)?
+                        if (item.LastModified == metadata.RemoteLastModified)
+                        {
+                            //do nothing
+                        }
+                        else if (item.LastModified > metadata.RemoteLastModified)
+                        {
+                            //update
+                            await LocalChangeEventHandler(null,
+                                new LocalFileStoreEventArgs(WatcherChangeTypes.Changed, item.Path));
+                        }
+                        else
+                        {
+                            //we need to pull down the latest version (TODO is it safe to assume that ApplyDeltas will deal with this)?
+                        }
                     }
                 }
+                await SaveLocalItemDataAsync();
             }
-            await SaveLocalItemDataAsync();
+            finally
+            {
+                _metadataLock.UnLock();
+            }
+
+            await ProcessLocalChanges();
         }
         private async Task SaveLocalItemDataAsync()
         {
