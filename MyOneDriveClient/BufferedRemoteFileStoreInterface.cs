@@ -97,7 +97,6 @@ namespace MyOneDriveClient
                 Status = RequestStatus.Pending;
                 ErrorMessage = null;
                 Type = type;
-                Progress = 0;
                 ExtraData = extraData;
             }
             /// <summary>
@@ -120,12 +119,25 @@ namespace MyOneDriveClient
             /// The type of the request
             /// </summary>
             public RequestType Type { get; }
-            /// <summary>
-            /// The progress from 0 to 1.0 of the request if applicable
-            /// </summary>
-            public float Progress { get; set; }
 
             public IRemoteFileStoreRequestExtraData ExtraData { get; }
+
+
+            public void SetStatusFromHttpResponse(HttpResult result)
+            {
+                if (result.HttpMessage.IsSuccessStatusCode)
+                {
+                    //success!
+                    Status = RequestStatus.Success;
+                }
+                else
+                {
+                    //failure...
+                    Status = RequestStatus.Failure;
+                    ErrorMessage =
+                        $"Http Error \"{result.HttpMessage.StatusCode}\" because: \"{result.HttpMessage.ReasonPhrase}\"";
+                }
+            }
         }
 
         public class RemoteItemDelta : ItemDelta
@@ -158,6 +170,10 @@ namespace MyOneDriveClient
         }
 
         #region Private Methods
+        private void InvokeStatusChanged(RemoteFileStoreRequest request)
+        {
+            OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request.RequestId, request.Status));
+        }
         private int EnqueueRequest(RemoteFileStoreRequest request)
         {
             _requests.Enqueue(request);
@@ -165,12 +181,63 @@ namespace MyOneDriveClient
         }
         private async Task UploadFileWithProgress(string parentId, IItemHandle item, RemoteFileStoreRequest request)
         {
-            throw new NotImplementedException();
-            //var data = await _remote.UploadFileByIdAsync(parentId, item.Name, await item.GetFileDataAsync());
+            HttpResult<IRemoteItemHandle> uploadResult; 
+            //wrap the local stream to track read progress of local file
+            using (var stream = await item.GetFileDataAsync())
+            {
+                var wrapper = new ProgressableStreamWrapper(stream);
+                wrapper.OnReadProgressChanged += (sender, args) => OnRequestProgressChanged?.Invoke(this,
+                    new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
+
+                //request is in progress now
+                request.Status = RequestStatus.InProgress;
+                InvokeStatusChanged(request);
+
+                //make the upload request
+                uploadResult = await _remote.UploadFileByIdAsync(parentId, item.Name, wrapper);
+            }
+
+            //set the request status and error
+            request.SetStatusFromHttpResponse(uploadResult);
+            
+            //set the request status change
+            InvokeStatusChanged(request);
         }
         private async Task DownloadFileWithProgress(string itemId, ILocalItemHandle item, RemoteFileStoreRequest request)
         {
-            throw new NotImplementedException();
+            var getHandleRequest = await _remote.GetItemHandleByIdAsync(itemId);
+            if (!getHandleRequest.HttpMessage.IsSuccessStatusCode)
+            {
+                request.SetStatusFromHttpResponse(getHandleRequest);
+                InvokeStatusChanged(request);
+                return;
+            }
+
+            //successfully got item
+            var remoteItem = getHandleRequest.Value;
+
+            //try to get the item
+            var getDataRequest = await remoteItem.TryGetFileDataAsync();
+            if (!getDataRequest.HttpMessage.IsSuccessStatusCode)
+            {
+                //if we failed, then that's what the request should say
+                request.SetStatusFromHttpResponse(getDataRequest);
+                InvokeStatusChanged(request);
+                return;
+            }
+
+            //start trying to stream item
+            using (var stream =  getDataRequest.Value)
+            {
+                var wrapper = new ProgressableStreamWrapper(stream, remoteItem.Size);
+                wrapper.OnReadProgressChanged += (sender, args) => OnRequestProgressChanged?.Invoke(this,
+                    new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
+
+                using (var writeStream = item.GetWritableStream())
+                {
+                    await wrapper.CopyToAsync(writeStream);
+                }
+            }
         }
         private async Task RenameItem(string itemId, string newName, RemoteFileStoreRequest request)
         {

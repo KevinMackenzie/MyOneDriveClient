@@ -12,6 +12,7 @@ namespace MyOneDriveClient
         bool IsFolder { get; }
         string Path { get; }
         string Name { get; }
+        long Size { get; }
         string SHA1Hash { get; }
         DateTime LastModified { get; }
         //DateTime Created { get; } (less important)

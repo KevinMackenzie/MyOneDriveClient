@@ -111,6 +111,8 @@
     <Compile Include="HttpResult.cs" />
     <Compile Include="ItemDelta.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
+    <Compile Include="ProgressableStreamWrapper.cs" />
+    <Compile Include="ProgressChangedEventArgs.cs" />
     <Compile Include="RemoteItemMetadataCache.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
     <Compile Include="PathUtils.cs" />

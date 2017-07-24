@@ -7,12 +7,11 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public class HttpResult<ReturnType> : IDisposable
+    public class HttpResult : IDisposable
     {
         private HttpResponseMessage _responseMessage;
-        public HttpResult(HttpResponseMessage responseMessage, ReturnType returnValue)
+        public HttpResult(HttpResponseMessage responseMessage)
         {
-            Value = returnValue;
             _responseMessage = responseMessage;
         }
 
@@ -20,16 +19,33 @@ namespace MyOneDriveClient
         /// The response to the http request, null if timed out
         /// </summary>
         public HttpResponseMessage HttpMessage => _responseMessage;
+
+
+        /// <inheritdoc />
+        public virtual void Dispose()
+        {
+            _responseMessage?.Dispose();
+        }
+    }
+    public class HttpResult<ReturnType> : HttpResult
+    {
+        public HttpResult(HttpResponseMessage responseMessage, ReturnType returnValue) : base(responseMessage)
+        {
+            Value = returnValue;
+        }
+
         /// <summary>
         /// The value of the completed request, null if not <see cref="HttpResponseMessage.IsSuccessStatusCode"/>
         /// </summary>
         public ReturnType Value { get; }
 
-
         /// <inheritdoc />
-        public void Dispose()
+        public override void Dispose()
         {
-            _responseMessage?.Dispose();
+            var val = Value as IDisposable;
+            val?.Dispose();
+
+            base.Dispose();
         }
     }
 }

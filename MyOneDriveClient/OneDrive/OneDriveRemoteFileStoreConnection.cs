@@ -55,13 +55,6 @@ namespace MyOneDriveClient.OneDrive
         }
 
         #region IRemoteFileStoreConnection
-        //public void Initialize(string data)
-        //{
-            //TODO: some checking that this is ACTUALLY a good link
-        //    _deltaUrl = data;
-        //}
-        //public event Events.EventDelegates.RemoteFileStoreConnectionUpdateHandler OnUpdate;
-
         public async Task<DeltaPage> GetDeltasAsync(string deltaLink)
         {
             List<IRemoteItemUpdate> allDeltas = new List<IRemoteItemUpdate>();
@@ -128,26 +121,18 @@ namespace MyOneDriveClient.OneDrive
             //get the file handles
             foreach(JObject value in obj["value"])
             {
-                //TODO: folders are important deltas, because when folders are renamed, their descendents DON"T get the delta update
-                //if (value["folder"] != null)
-                //    continue;
-
                 ret.Add(new RemoteItemUpdate(value["deleted"] != null, new OneDriveRemoteFileHandle(this, value)));
             }
-
-            //call the event handler (TODO: do we want to await this?)
-            //await OnUpdate.Invoke(this, new Events.RemoteFileStoreDataChanged(_deltaUrl));
 
             return ret;
         }
 
 
-        public async Task<string> GetItemMetadataAsync(string remotePath)
+        public async Task<HttpResult<string>> GetItemMetadataAsync(string remotePath)
         {
-            //TODO: return null if the item cannot be found.  This code is kinda bad.
             return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
         }
-        public async Task<IRemoteItemHandle> GetItemHandleAsync(string remotePath)
+        public async Task<HttpResult<IRemoteItemHandle>> GetItemHandleAsync(string remotePath)
         {
             string url;
             if (remotePath == "" || remotePath == "/")
@@ -161,11 +146,11 @@ namespace MyOneDriveClient.OneDrive
             return await GetItemHandleByUrlAsync(url);
         }
         private static int _4MB = 4 * 1024 * 1024;
-        public async Task<IRemoteItemHandle> UploadFileAsync(string remotePath, Stream data)
+        public async Task<HttpResult<IRemoteItemHandle>> UploadFileAsync(string remotePath, Stream data)
         {
             return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data);
         }
-        public async Task<IRemoteItemHandle> CreateFolderAsync(string remotePath)
+        public async Task<HttpResult<IRemoteItemHandle>> CreateFolderAsync(string remotePath)
         {
             //var httpEncodedPath = HttpUtility.UrlEncode(remotePath);
             //if (httpEncodedPath == null)
@@ -199,107 +184,109 @@ namespace MyOneDriveClient.OneDrive
 
             return await CreateFolderByIdAsync(parentId, folderName);
         }
-        public async Task<bool> DeleteItemAsync(string remotePath)
+        public async Task<HttpResult<bool>> DeleteItemAsync(string remotePath)
         {
             return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
         }
-        public async Task<IRemoteItemHandle> UpdateItemAsync(string remotePath, string json)
+        public async Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json)
         {
             return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}", json);
         }
 
 
-        public async Task<string> GetItemMetadataByIdAsync(string id)
+        public async Task<HttpResult<string>> GetItemMetadataByIdAsync(string id)
         {
-            //TODO: return null if the item cannot be found.  This code is kinda bad.
             return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
-        public async Task<IRemoteItemHandle> GetItemHandleByIdAsync(string id)
+        public async Task<HttpResult<IRemoteItemHandle>> GetItemHandleByIdAsync(string id)
         {
             return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
-        public async Task<IRemoteItemHandle> UploadFileByIdAsync(string parentId, string name, Stream data)
+        public async Task<HttpResult<IRemoteItemHandle>> UploadFileByIdAsync(string parentId, string name, Stream data)
         {
             return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data);
         }
-        public async Task<IRemoteItemHandle> CreateFolderByIdAsync(string parentId, string name)
+        public async Task<HttpResult<IRemoteItemHandle>> CreateFolderByIdAsync(string parentId, string name)
         {
             string requestUrl = $"{_onedriveEndpoint}/items/{parentId}/children";
             string requestJson = $"{{\"name\": \"{name}\", \"folder\": {{}} }}";
 
             var httpResponse = await AuthenticatedHttpRequestAsync(requestUrl, HttpMethod.Post, requestJson);
+            if (!httpResponse.IsSuccessStatusCode)
+            {
+                return new HttpResult<IRemoteItemHandle>(httpResponse, null);
+            }
+
             string json = await ReadResponseAsStringAsync(httpResponse);
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
-            return new OneDriveRemoteFileHandle(this, obj);
+            return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, obj));
         }
-        public async Task<bool> DeleteItemByIdAsync(string id)
+        public async Task<HttpResult<bool>> DeleteItemByIdAsync(string id)
         {
             return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
-        public async Task<IRemoteItemHandle> UpdateItemByIdAsync(string id, string json)
+        public async Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json)
         {
             return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/items/{id}", json);
         }
 
 
         #region Helper Methods
-        private async Task<string> GetItemMetadataByUrlAsync(string url)
+        private async Task<HttpResult<string>> GetItemMetadataByUrlAsync(string url)
         {
-            //TODO: return null if the item cannot be found.  This code is kinda bad.
-            return await ReadResponseAsStringAsync(await AuthenticatedHttpRequestAsync(url, HttpMethod.Get));
+            var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Get);
+            return !httpResponse.IsSuccessStatusCode ? 
+                new HttpResult<string>(httpResponse, null) : 
+                new HttpResult<string>(httpResponse, await ReadResponseAsStringAsync(httpResponse));
         }
-        private async Task<IRemoteItemHandle> GetItemHandleByUrlAsync(string url)
+        private async Task<HttpResult<IRemoteItemHandle>> GetItemHandleByUrlAsync(string url)
         {
-            JObject metadataObj = null;
-
             //get the download URL
-            try
-            {
-                string metadata = await GetItemMetadataByUrlAsync(url);
-                metadataObj = (JObject)JsonConvert.DeserializeObject(metadata);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to retrieve file handle: {ex.Message}");
-                return null;
-            }
+            var result = await GetItemMetadataByUrlAsync(url);
+            if (result.Value == null)
+                return new HttpResult<IRemoteItemHandle>(result.HttpMessage, null);
+
+            var metadata = result.Value;
+            var metadataObj = (JObject)JsonConvert.DeserializeObject(metadata);
 
             //now download the text
-            return new OneDriveRemoteFileHandle(this, metadataObj);
+            return new HttpResult<IRemoteItemHandle>(result.HttpMessage, new OneDriveRemoteFileHandle(this, metadataObj));
         }
-        private async Task<IRemoteItemHandle> UploadFileByUrlAsync(string url, Stream data)
+        private async Task<HttpResult<IRemoteItemHandle>> UploadFileByUrlAsync(string url, Stream data)
         {
-            OneDriveRemoteFileHandle ret = null;
-
             if (data.Length > _4MB) //if data > 4MB, then use chunked upload
             {
-                return null;
+                throw new NotImplementedException();
             }
             else //use regular upload
             {
                 var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Put, data);
-                if (!httpResponse.IsSuccessStatusCode) return null;
+                if (!httpResponse.IsSuccessStatusCode) 
+                    return new HttpResult<IRemoteItemHandle>(httpResponse, null);
 
                 var json = await ReadResponseAsStringAsync(httpResponse);
                 var metadataObj = (JObject) JsonConvert.DeserializeObject(json);
-                ret = new OneDriveRemoteFileHandle(this, metadataObj);
+                return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, metadataObj));
             }
-            return ret;
         }
-        private async Task<bool> DeleteFileByUrlAsync(string url)
+        private async Task<HttpResult<bool>> DeleteFileByUrlAsync(string url)
         {
-            var result = await AuthenticatedHttpRequestAsync(url, HttpMethod.Delete);
-            return result.StatusCode == HttpStatusCode.NotFound || result.StatusCode == HttpStatusCode.NoContent;
+            var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Delete);
+            return new HttpResult<bool>(httpResponse,
+                httpResponse.StatusCode == HttpStatusCode.NotFound ||
+                httpResponse.StatusCode == HttpStatusCode.NoContent);
         }
         private HttpMethod _patch = new HttpMethod("PATCH");
-        private async Task<IRemoteItemHandle> UpdateItemByUrlAsync(string url, string json)
+        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemByUrlAsync(string url, string json)
         {
-            var result = await AuthenticatedHttpRequestAsync(url, _patch, json);
-            if (!result.IsSuccessStatusCode) return null;
-            string responseJson = await ReadResponseAsStringAsync(result);
+            var httpResponse = await AuthenticatedHttpRequestAsync(url, _patch, json);
+            if (!httpResponse.IsSuccessStatusCode) 
+                return new HttpResult<IRemoteItemHandle>(httpResponse, null);
+
+            var responseJson = await ReadResponseAsStringAsync(httpResponse);
             var metadataObj = (JObject)JsonConvert.DeserializeObject(responseJson);
-            return new OneDriveRemoteFileHandle(this, metadataObj);
+            return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, metadataObj));
         }
         #endregion
 
@@ -355,9 +342,15 @@ namespace MyOneDriveClient.OneDrive
         #endregion
 
 
-        private async Task<Stream> DownloadFileWithLinkAsync(string downloadUrl)
+        private async Task<HttpResult<Stream>> DownloadFileWithLinkAsync(string downloadUrl)
         {
-            return await (await AuthenticatedHttpRequestAsync(downloadUrl, HttpMethod.Get))?.Content?.ReadAsStreamAsync();
+            var result = await AuthenticatedHttpRequestAsync(downloadUrl, HttpMethod.Get);
+            if (!result.IsSuccessStatusCode)
+            {
+                return new HttpResult<Stream>(result, null);
+            }
+            var readAsStreamAsync = result.Content?.ReadAsStreamAsync();
+            return readAsStreamAsync != null ? new HttpResult<Stream>(result, await readAsStreamAsync) : new HttpResult<Stream>(result, null);
         }
 
         public class OneDriveRemoteFileHandle : IRemoteItemHandle
@@ -375,6 +368,7 @@ namespace MyOneDriveClient.OneDrive
             private string _parentId;
             private bool _isFolderInitialized = false;
             private bool _isFolder;
+            private long _size = -1;
 
             public OneDriveRemoteFileHandle(OneDriveRemoteFileStoreConnection fileStore, JObject metadata)
             {
@@ -438,6 +432,21 @@ namespace MyOneDriveClient.OneDrive
                     return _path;
                 }
             }
+            public long Size
+            {
+                get
+                {
+                    if (_size == -1)
+                    {
+                        if (long.TryParse((string) _metadata["size"], out long size))
+                        {
+                            _size = size;
+                        }
+                    }
+                    return _size;
+                }
+
+            }
             public string SHA1Hash
             {
                 get
@@ -481,6 +490,10 @@ namespace MyOneDriveClient.OneDrive
                 }
             }
             public async Task<Stream> GetFileDataAsync()
+            {
+                return (await TryGetFileDataAsync())?.Value;
+            }
+            public async Task<HttpResult<Stream>> TryGetFileDataAsync()
             {
                 return await _fileStore.DownloadFileWithLinkAsync(_downloadUrl);
             }
