@@ -174,12 +174,19 @@ namespace MyOneDriveClient
         {
             OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request.RequestId, request.Status));
         }
+        private void FailRequest(RemoteFileStoreRequest request, string errorMessage)
+        {
+            request.Status = RequestStatus.Failure;
+            request.ErrorMessage = errorMessage;
+            _failedRequests[request.RequestId] = request;
+            InvokeStatusChanged(request);
+        }
         private int EnqueueRequest(RemoteFileStoreRequest request)
         {
             _requests.Enqueue(request);
             return request.RequestId;
         }
-        private async Task UploadFileWithProgress(string parentId, IItemHandle item, RemoteFileStoreRequest request)
+        private async Task<bool> UploadFileWithProgressAsync(string parentId, IItemHandle item, RemoteFileStoreRequest request)
         {
             HttpResult<IRemoteItemHandle> uploadResult; 
             //wrap the local stream to track read progress of local file
@@ -202,15 +209,17 @@ namespace MyOneDriveClient
             
             //set the request status change
             InvokeStatusChanged(request);
+
+            return request.Status == RequestStatus.Success;
         }
-        private async Task DownloadFileWithProgress(string itemId, ILocalItemHandle item, RemoteFileStoreRequest request)
+        private async Task<bool> DownloadFileWithProgressAsync(string itemId, ILocalItemHandle item, RemoteFileStoreRequest request)
         {
             var getHandleRequest = await _remote.GetItemHandleByIdAsync(itemId);
             if (!getHandleRequest.HttpMessage.IsSuccessStatusCode)
             {
                 request.SetStatusFromHttpResponse(getHandleRequest);
                 InvokeStatusChanged(request);
-                return;
+                return false;
             }
 
             //successfully got item
@@ -223,7 +232,7 @@ namespace MyOneDriveClient
                 //if we failed, then that's what the request should say
                 request.SetStatusFromHttpResponse(getDataRequest);
                 InvokeStatusChanged(request);
-                return;
+                return false;
             }
 
             //start trying to stream item
@@ -238,22 +247,35 @@ namespace MyOneDriveClient
                     await wrapper.CopyToAsync(writeStream);
                 }
             }
+            return request.Status == RequestStatus.Success;
         }
-        private async Task RenameItem(string itemId, string newName, RemoteFileStoreRequest request)
+        private async Task<bool> RenameItemAsync(string itemId, string newName, RemoteFileStoreRequest request)
         {
-            throw new NotImplementedException();
+            var response = await _remote.RenameItemByIdAsync(itemId, newName);
+            request.SetStatusFromHttpResponse(response);
+            InvokeStatusChanged(request);
+            return request.Status == RequestStatus.Success;
         }
-        private async Task MoveItem(string itemId, string newParentId, RemoteFileStoreRequest request)
+        private async Task<bool> MoveItemAsync(string itemId, string newParentId, RemoteFileStoreRequest request)
         {
-            throw new NotImplementedException();
+            var response = await _remote.MoveItemByIdAsync(itemId, newParentId);
+            request.SetStatusFromHttpResponse(response);
+            InvokeStatusChanged(request);
+            return request.Status == RequestStatus.Success;
         }
-        private async Task CreateItem(string parentId, string name, RemoteFileStoreRequest request)
+        private async Task<bool> CreateItemAsync(string parentId, string name, RemoteFileStoreRequest request)
         {
-            throw new NotImplementedException();
+            var response = await _remote.CreateFolderByIdAsync(parentId, name);
+            request.SetStatusFromHttpResponse(response);
+            InvokeStatusChanged(request);
+            return request.Status == RequestStatus.Success;
         }
-        private async Task DeleteItem(string parentId, string name, RemoteFileStoreRequest request)
+        private async Task<bool> DeleteItemAsync(string itemId, RemoteFileStoreRequest request)
         {
-            throw new NotImplementedException();
+            var response = await _remote.DeleteItemByIdAsync(itemId);
+            request.SetStatusFromHttpResponse(response);
+            InvokeStatusChanged(request);
+            return request.Status == RequestStatus.Success;
         }
         private async Task ProcessQueue(CancellationToken ct)
         {
@@ -261,40 +283,41 @@ namespace MyOneDriveClient
             {
                 if (_requests.TryPeek(out RemoteFileStoreRequest request))
                 {
+                    bool dequeue = false;
+                    var itemMetadata = _metadata.GetItemMetadata(request.Path);
                     //since only this class has access to the queue, we have good confidence that 
                     //the appropriate extra data will be with the appropriate request type
                     switch (request.Type)
                     {
                         case RequestType.Upload:
+                        {
                             var data = request.ExtraData as RequestUploadExtraData;
                             if (data != null)
                             {
                                 //try to get the item metadata
-                                var itemMetadata = _metadata.GetItemMetadata(request.Path);
                                 if (itemMetadata == null)
                                 {
                                     //this is a new item, so get it's parent metadata
                                     var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
-                                    
+
                                     if (parentMetadata == null)
                                     {
-                                        //no parent item, so we have issues.  This could be resolved by creating the directory path
-                                        request.Status = RequestStatus.Failure;
-                                        request.ErrorMessage =
-                                            $"Could not find parent of file {request.Path} to upload";
-                                        _failedRequests[request.RequestId] = request;
+                                        //no parent item, so we have issues. TODO: This could be resolved by creating the directory path
+                                        FailRequest(request, $"Could not find parent of file \"{request.Path}\" to upload");
+
+                                        dequeue = true;
                                     }
                                     else
                                     {
                                         //We found the parent, so upload this child to it
-                                        await UploadFileWithProgress(parentMetadata.Id,
+                                        dequeue = await UploadFileWithProgressAsync(parentMetadata.Id,
                                             data.ItemHandle, request);
                                     }
                                 }
                                 else
                                 {
                                     //the item already exists, so upload a new version
-                                    await UploadFileWithProgress(itemMetadata.ParentId, data.ItemHandle, request);
+                                    dequeue = await UploadFileWithProgressAsync(itemMetadata.ParentId, data.ItemHandle, request);
                                 }
 
                             }
@@ -302,19 +325,137 @@ namespace MyOneDriveClient
                             {
                                 Debug.WriteLine("Upload request was called without appropriate extra data");
                             }
+                        }
                             break;
                         case RequestType.Download:
+                        {
+                            var data = request.ExtraData as RequestDownloadExtraData;
+                            if (data != null)
+                            {
+                                //try to get item metadata
+                                if (itemMetadata != null)
+                                {
+                                    //item exists already, so download it
+                                    dequeue = await DownloadFileWithProgressAsync(itemMetadata.Id, data.ItemHandle, request);
+                                }
+                                else
+                                {
+                                    //item doesn't exist
+                                    FailRequest(request, $"Could not find file \"{request.Path}\" to download");
+
+                                    dequeue = true;
+                                }
+                            }
+                            else
+                            {
+                                Debug.Write("Download request was called without approprate extra data");
+                            }
+                        }
                             break;
                         case RequestType.Rename:
+                        {
+                            var data = request.ExtraData as RequestRenameExtraData;
+                            if (data != null)
+                            {
+                                if (itemMetadata == null)
+                                {
+                                    //item doesn't exist
+                                    FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
+
+                                    dequeue = true;
+                                }
+                                else
+                                {
+                                    //rename the file
+                                    dequeue = await RenameItemAsync(itemMetadata.Id, data.NewName, request);
+                                }
+                            }
+                            else
+                            {
+                                Debug.Write("Rename request was called without approprate extra data");
+                            }
+                        }
                             break;
                         case RequestType.Move:
+                        {
+                            var data = request.ExtraData as RequestMoveExtraData;
+                            if (data != null)
+                            {
+                                if (itemMetadata == null)
+                                {
+                                    //item doesn't exist
+                                    FailRequest(request, $"Could not find file \"{request.Path}\" to move");
+
+                                    dequeue = true;
+                                }
+                                else
+                                {
+                                    var parentMetadata = _metadata.GetItemMetadata(data.NewParentPath);
+                                    if (parentMetadata == null)
+                                    {
+                                        //new location doesn't exist TODO: should this be an error or should we create the new location?
+                                        FailRequest(request, $"Could not find new location \"{data.NewParentPath}\" for \"{request.Path}\" to move to");
+
+                                        dequeue = true;
+                                    }
+                                    else
+                                    {
+                                        //item exists, so move it
+                                        dequeue = await MoveItemAsync(itemMetadata.Id, parentMetadata.Id, request);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                Debug.Write("Move request was called without approprate extra data");
+                            }
+                        }
                             break;
                         case RequestType.Create:
+                        {
+                            var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                            if (parentMetadata == null)
+                            {
+                                //new location doesn't exist TODO: should this be an error or should we create the new location?
+                                FailRequest(request, $"Could not create \"{request.Path}\" because parent location doesn't exist");
+
+                                dequeue = true;
+                            }
+                            else
+                            {
+                                dequeue = await CreateItemAsync(parentMetadata.Id, PathUtils.GetItemName(request.Path),
+                                    request);
+                            }
+                        }
                             break;
                         case RequestType.Delete:
+                        {
+                            if (itemMetadata == null)
+                            {
+                                //item doesn't exist.  Is this an issue?
+                                FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
+                                dequeue = true;
+                            }
+                            else
+                            {
+                                dequeue = await DeleteItemAsync(itemMetadata.Id, request);
+                            }
+                        }
                             break;
                         default:
                             throw new ArgumentOutOfRangeException();
+                    }
+
+                    //should we dequeue the item?
+                    if (dequeue)
+                    {
+                        //yes
+                        _requests.TryDequeue(out RemoteFileStoreRequest result);
+                    }
+                    else
+                    {
+                        //something failed, so we should wait a little bit before trying again
+                        await Task.Delay(100, ct);
                     }
                 }
                 await Task.Delay(100, ct);

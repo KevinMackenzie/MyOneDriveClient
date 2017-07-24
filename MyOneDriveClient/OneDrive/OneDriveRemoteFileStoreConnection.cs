@@ -188,9 +188,13 @@ namespace MyOneDriveClient.OneDrive
         {
             return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
         }
-        public async Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json)
+        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json)
         {
             return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}", json);
+        }
+        public async Task<HttpResult<IRemoteItemHandle>> RenameItemAsync(string remotePath, string newName)
+        {
+            return await UpdateItemAsync(remotePath, $"{{ \"name\": \"{newName}\" }}");
         }
 
 
@@ -226,9 +230,17 @@ namespace MyOneDriveClient.OneDrive
         {
             return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/items/{id}");
         }
-        public async Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json)
+        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json)
         {
             return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/items/{id}", json);
+        }
+        public async Task<HttpResult<IRemoteItemHandle>> RenameItemByIdAsync(string id, string newName)
+        {
+            return await UpdateItemByIdAsync(id, $"{{ \"name\": \"{newName}\" }}");
+        }
+        public async Task<HttpResult<IRemoteItemHandle>> MoveItemByIdAsync(string id, string newParentId)
+        {
+            return await UpdateItemByIdAsync(id, $"{{ \"parentReference\": {{ \"id\": \"{newParentId}\" }} }}");
         }
 
 

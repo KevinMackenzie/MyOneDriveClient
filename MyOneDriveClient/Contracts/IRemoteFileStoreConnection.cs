@@ -68,7 +68,8 @@ namespace MyOneDriveClient
         /// <returns>the id of the created folder.  if the folder already exists, returns id of existing folder</returns>
         Task<HttpResult<IRemoteItemHandle>> CreateFolderAsync(string remotePath);
         Task<HttpResult<bool>> DeleteItemAsync(string remotePath);
-        Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json);
+        //Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json);
+        Task<HttpResult<IRemoteItemHandle>> RenameItemAsync(string remotePath, string newName);
 
         /// <summary>
         /// Gets item metadata with a given id
@@ -104,7 +105,9 @@ namespace MyOneDriveClient
         /// </remarks>
         Task<HttpResult<IRemoteItemHandle>> CreateFolderByIdAsync(string parentId, string name);
         Task<HttpResult<bool>> DeleteItemByIdAsync(string id);
-        Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json);
+        //Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json);
+        Task<HttpResult<IRemoteItemHandle>> RenameItemByIdAsync(string id, string newName);
+        Task<HttpResult<IRemoteItemHandle>> MoveItemByIdAsync(string id, string newParentId);
 
         /// <summary>
         /// When important settings change that need to be cached to the disk to be used on startup
