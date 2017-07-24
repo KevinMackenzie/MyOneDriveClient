@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using MyOneDriveClient.Events;
 
@@ -37,31 +39,82 @@ namespace MyOneDriveClient
 
         public enum RequestType
         {
-            Write,
-            Read,
+            Upload,
+            Download,
             Rename,
+            Move,
             Create,
             Delete
         }
 
+        public interface IRemoteFileStoreRequestExtraData
+        { }
+
+        #region Request Extra Datas
+        private class RequestUploadExtraData : IRemoteFileStoreRequestExtraData
+        {
+            public RequestUploadExtraData(IItemHandle itemHandle)
+            {
+                ItemHandle = itemHandle;
+            }
+            public IItemHandle ItemHandle { get; }
+        }
+        private class RequestDownloadExtraData : IRemoteFileStoreRequestExtraData
+        {
+            public RequestDownloadExtraData(ILocalItemHandle itemHandle)
+            {
+                ItemHandle = itemHandle;
+            }
+            public ILocalItemHandle ItemHandle { get; }
+        }
+        private class RequestRenameExtraData : IRemoteFileStoreRequestExtraData
+        {
+            public RequestRenameExtraData(string newName)
+            {
+                NewName = newName;
+            }
+            public string NewName { get; }
+        }
+        private class RequestMoveExtraData : IRemoteFileStoreRequestExtraData
+        {
+            public RequestMoveExtraData(string newParentPath)
+            {
+                NewParentPath = newParentPath;
+            }
+            public string NewParentPath { get; }
+        }
+        #endregion
+
         public struct RemoteFileStoreRequest
         {
+            private int _requestId;
+            public RemoteFileStoreRequest(ref int id, RequestType type, string path, IRemoteFileStoreRequestExtraData extraData)
+            {
+                _requestId = Interlocked.Increment(ref id);
+
+                Path = path;
+                Status = RequestStatus.Pending;
+                ErrorMessage = null;
+                Type = type;
+                Progress = 0;
+                ExtraData = extraData;
+            }
             /// <summary>
             /// The ID of the request
             /// </summary>
-            public int RequestId { get; }
+            public int RequestId => _requestId;
             /// <summary>
-            /// The ID of the item involved in the request
+            /// The path of the item in the request
             /// </summary>
-            public string ItemId { get; }
+            public string Path { get; }
             /// <summary>
             /// The current status of the request
             /// </summary>
-            public RequestStatus Status { get; }
+            public RequestStatus Status { get; set; }
             /// <summary>
             /// If <see cref="Status"/> is <see cref="RequestStatus.Failure"/>, this will tell why
             /// </summary>
-            public string ErrorMessage { get; }
+            public string ErrorMessage { get; set; }
             /// <summary>
             /// The type of the request
             /// </summary>
@@ -69,30 +122,53 @@ namespace MyOneDriveClient
             /// <summary>
             /// The progress from 0 to 1.0 of the request if applicable
             /// </summary>
-            public float Progress { get; }
+            public float Progress { get; set; }
+
+            public IRemoteFileStoreRequestExtraData ExtraData { get; }
         }
 
         public class RemoteItemDelta : ItemDelta
         {
+            public RemoteItemDelta(int requestId)
+            {
+                RequestId = requestId;
+            }
             /// <summary>
             /// The request Id of the item if <see cref="Type"/> is <see cref="DeltaType.ModifiedOrCreated"/>
             /// </summary>
             public int RequestId { get; }
         }
 
-
+        #region Private Fields
+        private IRemoteFileStoreConnection _remote;
+        private RemoteItemMetadataCache _metadata = new RemoteItemMetadataCache();
+        private ConcurrentQueue<RemoteFileStoreRequest> _requests = new ConcurrentQueue<RemoteFileStoreRequest>();
+        private int _requestId;//TODO: should this be volatile
+        #endregion
 
         public BufferedRemoteFileStoreInterface(IRemoteFileStoreConnection remote, string metadataCache)
         {
-
+            _remote = remote;
+            _metadata.Deserialize(metadataCache);
         }
 
+        #region Private Methods
+        private int EnqueueRequest(RemoteFileStoreRequest request)
+        {
+            _requests.Enqueue(request);
+            return request.RequestId;
+        }
+        #endregion
 
-        #region Public Methods
+
+        #region Public Properties
         /// <summary>
         /// The JSon text of the metadata cache to be saved locally
         /// </summary>
-        public string MetadataCache { get; }
+        public string MetadataCache => _metadata.Serialize();
+        #endregion
+        
+        #region Public Methods
         /// <summary>
         /// Upload a file to the remote
         /// </summary>
@@ -100,7 +176,8 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestUpload(IItemHandle item)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Upload, item.Path,
+                new RequestUploadExtraData(item)));
         }
         /// <summary>
         /// Download a file from the remote
@@ -109,9 +186,10 @@ namespace MyOneDriveClient
         /// <param name="streamTo">where to stream the download to</param>
         /// <returns>the request id</returns>
         /// <remarks><see cref="streamTo"/> gets disposed in this method</remarks>
-        public int RequestFileDownload(string path, Stream streamTo)
+        public int RequestFileDownload(string path, ILocalItemHandle streamTo)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Download, path,
+                new RequestDownloadExtraData(streamTo)));
         }
         /// <summary>
         /// Create a remote folder
@@ -120,7 +198,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestFolderCreate(string path)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Create, path, null));
         }
         /// <summary>
         /// Deletes a remote item and its children
@@ -129,7 +207,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestDelete(string path)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Delete, path, null));
         }
         /// <summary>
         /// Renames a remote item
@@ -139,17 +217,35 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestRename(string path, string newName)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Rename, path,
+                new RequestRenameExtraData(newName)));
         }
         /// <summary>
         /// Moves a remote item
         /// </summary>
         /// <param name="path">the previous path of the item</param>
-        /// <param name="newPath">the new path of the item</param>
+        /// <param name="newParentPath">the folder the item is moved to</param>
         /// <returns>the request id</returns>
-        public int RequestMove(string path, string newPath)
+        public int RequestMove(string path, string newParentPath)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Move, path,
+                new RequestMoveExtraData(newParentPath)));
+        }
+
+        public bool TryGetRequest(int requestId, out RemoteFileStoreRequest? request)
+        {
+            var reqs = _requests.Where(item => item.RequestId == requestId);
+            if (!reqs.Any())
+            {
+                request = null;
+                return false;
+            }
+            else
+            {
+                request = reqs.First();
+                return true;
+            }
+
         }
         /// <summary>
         /// Enumerates the currently active requests
@@ -157,7 +253,8 @@ namespace MyOneDriveClient
         /// <returns></returns>
         public IEnumerable<RemoteFileStoreRequest> EnumerateActiveRequests()
         {
-            throw new NotImplementedException();
+            //this creates a copy
+            return new List<RemoteFileStoreRequest>(_requests);
         }
         /// <summary>
         /// When an existing request's progress changes
@@ -175,7 +272,7 @@ namespace MyOneDriveClient
         /// Requests the remote deltas since the previous request
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<RemoteItemDelta> RequestDeltas()
+        public async Task<IEnumerable<RemoteItemDelta>> RequestDeltasAsync()
         {
             throw new NotImplementedException();
         }

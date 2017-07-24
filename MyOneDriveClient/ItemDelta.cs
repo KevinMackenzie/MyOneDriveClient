@@ -19,18 +19,18 @@ namespace MyOneDriveClient
         /// <summary>
         /// If the item is a folder
         /// </summary>
-        public bool IsFolder { get; }
+        public bool IsFolder { get; set; }
         /// <summary>
         /// The type of delta
         /// </summary>
-        public DeltaType Type { get; }
+        public DeltaType Type { get; set; }
         /// <summary>
         /// The path of the item
         /// </summary>
-        public string Path { get; }
+        public string Path { get; set; }
         /// <summary>
         /// The old path of the item if <see cref="Type"/> is <see cref="DeltaType.Renamed"/> or <see cref="DeltaType.Moved"/>
         /// </summary>
-        public string OldPath { get; }
+        public string OldPath { get; set; }
     }
 }
