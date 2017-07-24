@@ -33,12 +33,11 @@ namespace MyOneDriveClient
         void LogUserOut();
 
         /// <summary>
-        /// Pulls a page of the latest deltas.  If <paramref name="deltaLink"/> is blank or null, it pulls all files
+        /// Pulls all of remote deltas
         /// </summary>
         /// <param name="deltaLink">the delta link from the previous page</param>
         /// <returns>The next page of deltas since the last check for deltas</returns>
-        Task<DeltaPage> GetDeltasPageAsync(string deltaLink);
-        Task<DeltaPage> GetDeltasPageAsync(DeltaPage prevPage);
+        Task<DeltaPage> GetDeltasAsync(string deltaLink);
         
         /// <summary>
         /// Gets item metadata with a given path.  Can be used to check if an item exists

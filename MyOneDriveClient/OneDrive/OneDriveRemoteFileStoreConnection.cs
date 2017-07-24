@@ -61,7 +61,30 @@ namespace MyOneDriveClient.OneDrive
         //    _deltaUrl = data;
         //}
         //public event Events.EventDelegates.RemoteFileStoreConnectionUpdateHandler OnUpdate;
-        
+
+        public async Task<DeltaPage> GetDeltasAsync(string deltaLink)
+        {
+            List<IRemoteItemUpdate> allDeltas = new List<IRemoteItemUpdate>();
+            var nextPage = deltaLink;
+            DeltaPage deltaPage = null;
+            do
+            {
+                //get the delta page
+                deltaPage = await GetDeltasPageAsync(nextPage);
+
+                //copy its contents to our list
+                allDeltas.AddRange(deltaPage);
+
+                //set the next page equal to this next page
+                nextPage = deltaPage.NextPage;
+
+            } while (nextPage != null);
+
+            //TODO: I'd like to avoid this copying
+            var ret = new DeltaPage(null, deltaPage.DeltaLink);
+            ret.AddRange(allDeltas);
+            return ret;
+        }
         public async Task<DeltaPage> GetDeltasPageAsync(string deltaLink)
         {
             string downloadUrl = "";
@@ -78,7 +101,7 @@ namespace MyOneDriveClient.OneDrive
         public async Task<DeltaPage> GetDeltasPageAsync(DeltaPage prevPage)
         {
             if (prevPage == null)
-                return await GetDeltasPageAsync("");
+                return await GetDeltasAsync("");
 
             return await GetDeltasPageInternalAsync(prevPage.NextPage ?? prevPage.DeltaLink);
         }
