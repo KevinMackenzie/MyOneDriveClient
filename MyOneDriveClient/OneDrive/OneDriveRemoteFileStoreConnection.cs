@@ -279,8 +279,10 @@ namespace MyOneDriveClient.OneDrive
             else //use regular upload
             {
                 var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Put, data);
-                string json = await ReadResponseAsStringAsync(httpResponse);
-                var metadataObj = (JObject)JsonConvert.DeserializeObject(json);
+                if (!httpResponse.IsSuccessStatusCode) return null;
+
+                var json = await ReadResponseAsStringAsync(httpResponse);
+                var metadataObj = (JObject) JsonConvert.DeserializeObject(json);
                 ret = new OneDriveRemoteFileHandle(this, metadataObj);
             }
             return ret;
@@ -339,6 +341,7 @@ namespace MyOneDriveClient.OneDrive
                 //DisplayBasicTokenInfo(authResult);
                 //this.SignOutButton.Visibility = Visibility.Visible;
                 _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _authResult.AccessToken);
+                _httpClient.Timeout = new TimeSpan(0, 0, 0, 30);
             }
         }
         public void LogUserOut()
@@ -545,6 +548,13 @@ namespace MyOneDriveClient.OneDrive
         {
             var stream = new StreamReader(await message.Content.ReadAsStreamAsync());
             return await stream.ReadToEndAsync();
+        }
+
+        public async Task<bool> HasNetworkConnection()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "http://clients3.google.com/generate_204");
+            var response = await _httpClient.SendAsync(request);
+            return response.StatusCode == HttpStatusCode.NoContent;
         }
     }
 }

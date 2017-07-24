@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -85,7 +86,7 @@ namespace MyOneDriveClient
         }
         #endregion
 
-        public struct RemoteFileStoreRequest
+        public class RemoteFileStoreRequest
         {
             private int _requestId;
             public RemoteFileStoreRequest(ref int id, RequestType type, string path, IRemoteFileStoreRequestExtraData extraData)
@@ -134,7 +135,7 @@ namespace MyOneDriveClient
                 RequestId = requestId;
             }
             /// <summary>
-            /// The request Id of the item if <see cref="Type"/> is <see cref="DeltaType.ModifiedOrCreated"/>
+            /// The request Id of the item if <see cref="Type"/> is <see cref="ItemDelta.DeltaType.ModifiedOrCreated"/>
             /// </summary>
             public int RequestId { get; }
         }
@@ -143,6 +144,10 @@ namespace MyOneDriveClient
         private IRemoteFileStoreConnection _remote;
         private RemoteItemMetadataCache _metadata = new RemoteItemMetadataCache();
         private ConcurrentQueue<RemoteFileStoreRequest> _requests = new ConcurrentQueue<RemoteFileStoreRequest>();
+        /// <summary>
+        /// Requests that failed for reasons other than network connection
+        /// </summary>
+        private ConcurrentDictionary<int, RemoteFileStoreRequest> _failedRequests = new ConcurrentDictionary<int, RemoteFileStoreRequest>();
         private int _requestId;//TODO: should this be volatile
         #endregion
 
@@ -157,6 +162,96 @@ namespace MyOneDriveClient
         {
             _requests.Enqueue(request);
             return request.RequestId;
+        }
+        private async Task UploadFileWithProgress(string parentId, IItemHandle item, RemoteFileStoreRequest request)
+        {
+            throw new NotImplementedException();
+            //var data = await _remote.UploadFileByIdAsync(parentId, item.Name, await item.GetFileDataAsync());
+        }
+        private async Task DownloadFileWithProgress(string itemId, ILocalItemHandle item, RemoteFileStoreRequest request)
+        {
+            throw new NotImplementedException();
+        }
+        private async Task RenameItem(string itemId, string newName, RemoteFileStoreRequest request)
+        {
+            throw new NotImplementedException();
+        }
+        private async Task MoveItem(string itemId, string newParentId, RemoteFileStoreRequest request)
+        {
+            throw new NotImplementedException();
+        }
+        private async Task CreateItem(string parentId, string name, RemoteFileStoreRequest request)
+        {
+            throw new NotImplementedException();
+        }
+        private async Task DeleteItem(string parentId, string name, RemoteFileStoreRequest request)
+        {
+            throw new NotImplementedException();
+        }
+        private async Task ProcessQueue(CancellationToken ct)
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                if (_requests.TryPeek(out RemoteFileStoreRequest request))
+                {
+                    //since only this class has access to the queue, we have good confidence that 
+                    //the appropriate extra data will be with the appropriate request type
+                    switch (request.Type)
+                    {
+                        case RequestType.Upload:
+                            var data = request.ExtraData as RequestUploadExtraData;
+                            if (data != null)
+                            {
+                                //try to get the item metadata
+                                var itemMetadata = _metadata.GetItemMetadata(request.Path);
+                                if (itemMetadata == null)
+                                {
+                                    //this is a new item, so get it's parent metadata
+                                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                                    
+                                    if (parentMetadata == null)
+                                    {
+                                        //no parent item, so we have issues.  This could be resolved by creating the directory path
+                                        request.Status = RequestStatus.Failure;
+                                        request.ErrorMessage =
+                                            $"Could not find parent of file {request.Path} to upload";
+                                        _failedRequests[request.RequestId] = request;
+                                    }
+                                    else
+                                    {
+                                        //We found the parent, so upload this child to it
+                                        await UploadFileWithProgress(parentMetadata.Id,
+                                            data.ItemHandle, request);
+                                    }
+                                }
+                                else
+                                {
+                                    //the item already exists, so upload a new version
+                                    await UploadFileWithProgress(itemMetadata.ParentId, data.ItemHandle, request);
+                                }
+
+                            }
+                            else
+                            {
+                                Debug.WriteLine("Upload request was called without appropriate extra data");
+                            }
+                            break;
+                        case RequestType.Download:
+                            break;
+                        case RequestType.Rename:
+                            break;
+                        case RequestType.Move:
+                            break;
+                        case RequestType.Create:
+                            break;
+                        case RequestType.Delete:
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+                }
+                await Task.Delay(100, ct);
+            }
         }
         #endregion
 
@@ -232,7 +327,7 @@ namespace MyOneDriveClient
                 new RequestMoveExtraData(newParentPath)));
         }
 
-        public bool TryGetRequest(int requestId, out RemoteFileStoreRequest? request)
+        public bool TryGetRequest(int requestId, out RemoteFileStoreRequest request)
         {
             var reqs = _requests.Where(item => item.RequestId == requestId);
             if (!reqs.Any())
@@ -281,7 +376,6 @@ namespace MyOneDriveClient
             var filteredDeltas = new List<ItemDelta>();
             foreach (var delta in deltas)
             {
-                //TODO: go through all deltas and determine what should be done with them
                 if (delta.Deleted)
                 {
                     filteredDeltas.Add(new ItemDelta
@@ -315,10 +409,41 @@ namespace MyOneDriveClient
                             //... with the same name ...
                             if (itemMetadata.RemoteLastModified == delta.ItemHandle.LastModified)
                             {
-                                //... with the same last modified so do nothing
+                                //... with the same last modified ...
+                                if (itemMetadata.ParentId == delta.ItemHandle.ParentId)
+                                {
+                                    //... with the same parent so do nothing
+                                    //TODO: when does this happen
+                                    Debug.WriteLine("Delta found with same name, location, and timestamp");
+                                }
+                                else
+                                {
+                                    //... with a different parent so move it
+                                    filteredDeltas.Add(new ItemDelta
+                                    {
+                                        IsFolder = delta.ItemHandle.IsFolder,
+                                        Path = delta.ItemHandle.Path,
+                                        OldPath = itemMetadata.Path,
+                                        Type = ItemDelta.DeltaType.Moved
+                                    });
+
+                                    //and update the metadata
+                                    _metadata.UpdateItemMetadata(delta.ItemHandle);
+                                }
                             }
                             else
                             {
+                                //... with a different last modified so download it
+                                filteredDeltas.Add(new ItemDelta
+                                {
+                                    IsFolder = delta.ItemHandle.IsFolder,
+                                    Path = delta.ItemHandle.Path,
+                                    Type = ItemDelta.DeltaType.ModifiedOrCreated
+                                });
+
+                                //and update the metadata
+                                _metadata.UpdateItemMetadata(delta.ItemHandle);
+
                                 //TODO: if an item has been modified in remote and local, but the network connection has problems and in between so local is waiting to push remote changes and remote is waiting to pull changes, but the local changes aren't the ones that are wanted.  In this case, the local item should be renamed, removed from the queue, and requested as a regular upload
                                 //TODO: how do we tell the local to rename the file? -- through "status" and "error message"
                             }
@@ -333,6 +458,9 @@ namespace MyOneDriveClient
                                 OldPath = itemMetadata.Path,
                                 Type = ItemDelta.DeltaType.Renamed
                             });
+
+                            //and update the metadata
+                            _metadata.UpdateItemMetadata(delta.ItemHandle);
                         }
 
                     }

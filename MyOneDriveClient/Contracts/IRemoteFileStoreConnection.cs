@@ -44,7 +44,7 @@ namespace MyOneDriveClient
         /// </summary>
         /// <param name="remotePath">the remote path of the item</param>
         /// <returns>the item metadata at the remote path.  Null if it doesn't exist</returns>
-        Task<string> GetItemMetadataAsync(string remotePath);
+        Task<HttpResult<string>> GetItemMetadataAsync(string remotePath);
         /// <summary>
         /// Retrieves an item handle from the remote with the given remote path
         /// </summary>
@@ -53,35 +53,35 @@ namespace MyOneDriveClient
         /// <remarks>
         /// This should seldom be used
         /// </remarks>
-        Task<IRemoteItemHandle> GetItemHandleAsync(string remotePath);
+        Task<HttpResult<IRemoteItemHandle>> GetItemHandleAsync(string remotePath);
         /// <summary>
         /// Uploads a given file with a remote file path
         /// </summary>
         /// <param name="remotePath">the remote path of the uploaded item</param>
         /// <param name="data">the data contents of the file</param>
         /// <returns>the item handle of the created item</returns>
-        Task<IRemoteItemHandle> UploadFileAsync(string remotePath, Stream data);
+        Task<HttpResult<IRemoteItemHandle>> UploadFileAsync(string remotePath, Stream data);
         /// <summary>
         /// Creates a folder with the given remote path
         /// </summary>
         /// <param name="remotePath">the remote path of the folder</param>
         /// <returns>the id of the created folder.  if the folder already exists, returns id of existing folder</returns>
-        Task<IRemoteItemHandle> CreateFolderAsync(string remotePath);
-        Task<bool> DeleteItemAsync(string remotePath);
-        Task<IRemoteItemHandle> UpdateItemAsync(string remotePath, string json);
+        Task<HttpResult<IRemoteItemHandle>> CreateFolderAsync(string remotePath);
+        Task<HttpResult<bool>> DeleteItemAsync(string remotePath);
+        Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json);
 
         /// <summary>
         /// Gets item metadata with a given id
         /// </summary>
         /// <param name="id">the id of the item</param>
         /// <returns>the metadata of the item.  Null if the item doesn't exist</returns>
-        Task<string> GetItemMetadataByIdAsync(string id);
+        Task<HttpResult<string>> GetItemMetadataByIdAsync(string id);
         /// <summary>
         /// Retrieves an item handle from the remote with the given ID
         /// </summary>
         /// <param name="id"></param>
         /// <returns>the remote item handle with the given id</returns>
-        Task<IRemoteItemHandle> GetItemHandleByIdAsync(string id);
+        Task<HttpResult<IRemoteItemHandle>> GetItemHandleByIdAsync(string id);
         /// <summary>
         /// Uploads a given file with a given parent id
         /// </summary>
@@ -92,7 +92,7 @@ namespace MyOneDriveClient
         /// <remarks>
         /// This does not check to see if the file already exists.  There should be an option to keep both or overwrite
         /// </remarks>
-        Task<IRemoteItemHandle> UploadFileByIdAsync(string parentId, string fileName, Stream data);
+        Task<HttpResult<IRemoteItemHandle>> UploadFileByIdAsync(string parentId, string fileName, Stream data);
         /// <summary>
         /// Create a remote folder as a child of the given parent id and name
         /// </summary>
@@ -102,9 +102,9 @@ namespace MyOneDriveClient
         /// <remarks>
         /// This will return the id of the existing folder if one already exists with the given name and parent id
         /// </remarks>
-        Task<IRemoteItemHandle> CreateFolderByIdAsync(string parentId, string name);
-        Task<bool> DeleteItemByIdAsync(string id);
-        Task<IRemoteItemHandle> UpdateItemByIdAsync(string id, string json);
+        Task<HttpResult<IRemoteItemHandle>> CreateFolderByIdAsync(string parentId, string name);
+        Task<HttpResult<bool>> DeleteItemByIdAsync(string id);
+        Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json);
 
         /// <summary>
         /// When important settings change that need to be cached to the disk to be used on startup

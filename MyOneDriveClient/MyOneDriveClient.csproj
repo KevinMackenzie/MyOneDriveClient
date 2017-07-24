@@ -108,6 +108,7 @@
     <Compile Include="GraphConnection.cs" />
     <Compile Include="Contracts\ILocalFileStore.cs" />
     <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />
+    <Compile Include="HttpResult.cs" />
     <Compile Include="ItemDelta.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="RemoteItemMetadataCache.cs" />
