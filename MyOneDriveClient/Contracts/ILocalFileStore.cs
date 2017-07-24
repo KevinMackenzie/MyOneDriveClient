@@ -15,17 +15,18 @@ namespace MyOneDriveClient
         /// relative to this path
         /// </summary>
         string PathRoot { get; }
-        Task SaveFileAsync(string localPath, DateTime lastModified, Stream data);
-        //changes to hidden files will not be propagated through the OnUpdate event
-        Task SaveFileAsync(string localPath, DateTime lastModified, Stream data, FileAttributes attributes);
-        Task SetItemLastModifiedAsync(string localPath, DateTime lastModified);
-        Task<IItemHandle> GetFileHandleAsync(string localPath);
+        void SetItemLastModified(string localPath, DateTime lastModified);
+        void SetItemAttributes(string localPath, FileAttributes attributes);
+
+        ILocalItemHandle GetFileHandle(string localPath);
         bool CreateLocalFolder(string localPath, DateTime lastModified);
-        Task<string> GetLocalSHA1Async(string localPath);
-        Task<bool> DeleteLocalItemAsync(string localPath);
-        Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath);        
+        bool DeleteLocalItem(string localPath);
+        bool MoveLocalItem(string localPath, string newLocalPath);     
+        
         bool ItemExists(string localPath);
-        Task<IEnumerable<IItemHandle>> EnumerateItemsAsync(string localPath);
-        event EventDelegates.LocalFileStoreUpdateHandler OnUpdate;
+
+        Task<IEnumerable<ILocalItemHandle>> EnumerateItemsAsync(string localPath);
+
+        event EventDelegates.LocalFileStoreChangedHandler OnChanged;
     }
 }

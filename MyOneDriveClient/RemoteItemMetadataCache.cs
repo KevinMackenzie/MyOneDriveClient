@@ -11,16 +11,16 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public class LocalFileStoreMetadata
+    public class RemoteItemMetadataCache
     {
-        private class LocalFileStoreMetadataData
+        private class RemoteItemMetadataData
         {
             public ConcurrentDictionary<string, RemoteItemMetadata> LocalItems { get; set; } = new ConcurrentDictionary<string, RemoteItemMetadata>();
             public string DeltaLink { get; set; } = "";
 
         }
 
-        private LocalFileStoreMetadataData _data = new LocalFileStoreMetadataData();
+        private RemoteItemMetadataData _data = new RemoteItemMetadataData();
         //private AsyncLock _lock = new AsyncLock();
 
         public string DeltaLink
@@ -46,7 +46,7 @@ namespace MyOneDriveClient
         public void Deserialize(string json)
         {
             _data.LocalItems.Clear();
-            _data = JsonConvert.DeserializeObject<LocalFileStoreMetadataData>(json);
+            _data = JsonConvert.DeserializeObject<RemoteItemMetadataData>(json);
             foreach (var data in _data.LocalItems)
             {
                 data.Value.Metadata = this;
@@ -204,7 +204,7 @@ namespace MyOneDriveClient
         public class RemoteItemMetadata
         {
             [JsonIgnore]
-            public LocalFileStoreMetadata Metadata { get; set; }
+            public RemoteItemMetadataCache Metadata { get; set; }
             [JsonIgnore]
             public string Path
             {

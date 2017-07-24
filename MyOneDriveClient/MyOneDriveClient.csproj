@@ -86,10 +86,14 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="ActiveSyncFileStore.cs" />
+    <Compile Include="ActiveSyncFileStore_old.cs" />
     <Compile Include="AsyncLock.cs" />
     <Compile Include="Contracts\IItemHandle.cs" />
+    <Compile Include="Contracts\ILocalItemHandle.cs" />
+    <Compile Include="Contracts\ILocalFileStoreInterface.cs" />
+    <Compile Include="Contracts\ILocalItemUpdate.cs" />
     <Compile Include="Contracts\IRemoteFileStoreDownload.cs" />
+    <Compile Include="BufferedRemoteFileStoreInterface.cs" />
     <Compile Include="Contracts\IRemoteItemHandle.cs" />
     <Compile Include="Contracts\IRemoteItemUpdate.cs" />
     <Compile Include="DeltaPage.cs" />
@@ -97,11 +101,16 @@
     <Compile Include="Events\EventDelegates.cs" />
     <Compile Include="Events\LocalFileStoreEventArgs.cs" />
     <Compile Include="Events\RemoteFileStoreDataChanged.cs" />
+    <Compile Include="Events\RemoteRequestProgressChangedEventArgs.cs" />
+    <Compile Include="Events\RequestStatusChangedEventArgs.cs" />
     <Compile Include="FileData.cs" />
+    <Compile Include="FileStoreBridge.cs" />
     <Compile Include="GraphConnection.cs" />
     <Compile Include="Contracts\ILocalFileStore.cs" />
     <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />
-    <Compile Include="LocalFileStoreMetadata.cs" />
+    <Compile Include="ItemDelta.cs" />
+    <Compile Include="LocalFileStoreInterface.cs" />
+    <Compile Include="RemoteItemMetadataCache.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
     <Compile Include="PathUtils.cs" />
     <Compile Include="RemoteItemUpdate.cs" />

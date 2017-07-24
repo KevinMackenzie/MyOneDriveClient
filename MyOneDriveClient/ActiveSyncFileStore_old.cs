@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public class ActiveSyncFileStore : IDisposable
+    public class ActiveSyncFileStore_old : IDisposable
     {
         private Task _syncTask = null;
         private CancellationTokenSource _cts = new CancellationTokenSource();
@@ -37,7 +37,7 @@ namespace MyOneDriveClient
         /// <param name="pathRoot">the root path to store files</param>
         /// <param name="blacklist">the list of files that should not be synchronized</param>
         /// <param name="syncPeriod">the time duration in ms between sync attempts</param>
-        public ActiveSyncFileStore(IEnumerable<string> blacklist, ILocalFileStore local, IRemoteFileStoreConnection remote, int syncPeriod = 300000)
+        public ActiveSyncFileStore_old(IEnumerable<string> blacklist, ILocalFileStore local, IRemoteFileStoreConnection remote, int syncPeriod = 300000)
         {
             //_itemIdPathMap = JsonConvert.DeserializeObject<Dictionary<string, string>>(itemIdMapJson);
             _syncPeriod = syncPeriod;
@@ -69,7 +69,7 @@ namespace MyOneDriveClient
 
         #region Metadata
         private static string _localItemDataDB = "ItemMetadata";
-        private LocalFileStoreMetadata _metadata = new LocalFileStoreMetadata();
+        private RemoteItemMetadataCache _metadata = new RemoteItemMetadataCache();
         private async Task LoadLocalItemDataAsync()
         {
             if (_local.ItemExists(_localItemDataDB))
@@ -210,7 +210,7 @@ namespace MyOneDriveClient
                     return true;
 
 
-                LocalFileStoreMetadata.RemoteItemMetadata metadata;
+                RemoteItemMetadataCache.RemoteItemMetadata metadata;
                 try
                 {
                     metadata = _metadata.GetItemMetadata(e.LocalPath);
@@ -378,7 +378,7 @@ namespace MyOneDriveClient
                     {
                         var localRoot = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
                         if (localRoot == null)
-                            _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
+                            _metadata.AddItemMetadata(new RemoteItemMetadataCache.RemoteItemMetadata()
                             {
                                 Id = delta.ItemHandle.Id,
                                 ParentId = "",
@@ -494,7 +494,7 @@ namespace MyOneDriveClient
                                     //move the old one
                                     await _local.MoveLocalItemAsync(localName, newPath);
                                     //add this to the metadata
-                                    _metadata.AddItemMetadata(new LocalFileStoreMetadata.RemoteItemMetadata()
+                                    _metadata.AddItemMetadata(new RemoteItemMetadataCache.RemoteItemMetadata()
                                     {
                                         Id = "gen",
                                         IsFolder = false,

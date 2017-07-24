@@ -101,8 +101,19 @@ namespace MyOneDriveClient
                 return false;
             }
         }
+        private async Task<string> GetLocalSHA1Async(string localPath)
+        {
+            using (var fs = GetLocalFileStream(localPath))
+            {
+                using (var cryptoProvider = new SHA1CryptoServiceProvider())
+                {
+                    return await Task.Run(
+                        () => BitConverter.ToString(cryptoProvider.ComputeHash(fs)));
+                }
+            }
+        }
 
-        private void EnumerateItemsRecursive(ref List<IItemHandle> items, string fqp)
+        private void EnumerateItemsRecursive(ref List<ILocalItemHandle> items, string fqp)
         {
             var directories = Directory.EnumerateDirectories(fqp);
             foreach (var directory in directories)
@@ -119,7 +130,7 @@ namespace MyOneDriveClient
                 if((info.Attributes & FileAttributes.Hidden) != 0)
                     continue;// do not enumerate hidden files
 
-                items.Add(GetFileHandleAsync(filePath).Result);
+                items.Add(GetFileHandle(filePath));
             }
         }
         #endregion
@@ -139,7 +150,7 @@ namespace MyOneDriveClient
                 return false;
             }
         }
-        public async Task<bool> DeleteLocalItemAsync(string localPath)
+        public bool DeleteLocalItem(string localPath)
         {
             try
             {
@@ -152,36 +163,16 @@ namespace MyOneDriveClient
                 return false;
             }
         }
-        public async Task<string> GetLocalSHA1Async(string localPath)
-        {
-            using (var fs = GetLocalFileStream(localPath))
-            {
-                using (var cryptoProvider = new SHA1CryptoServiceProvider())
-                {
-                    return await Task.Run(
-                        () => BitConverter.ToString(cryptoProvider.ComputeHash(fs)));
-                }
-            }
-        }
-        public async Task<IItemHandle> GetFileHandleAsync(string localPath)
+        public ILocalItemHandle GetFileHandle(string localPath)
         {
             return ItemExists(localPath) ? new DownloadedFileHandle(this, localPath) : null;
         }
-        public async Task SaveFileAsync(string localPath, DateTime lastModified, Stream data)
+        public void SetItemAttributes(string localPath, FileAttributes attributes)
         {
-            await SaveFileAsync(localPath, lastModified, data, FileAttributes.Normal);
-        }
-        public async Task SaveFileAsync(string localPath, DateTime lastModified, Stream data, FileAttributes attributes)
-        {
-            string fqp = BuildPath(localPath);
-            using (var localStream = new FileStream(fqp, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
-            {
-                await data.CopyToStreamAsync(localStream);
-            }
-            File.SetLastWriteTimeUtc(fqp, lastModified);
+            var fqp = BuildPath(localPath);
             File.SetAttributes(fqp, attributes);
         }
-        public async Task SetItemLastModifiedAsync(string localPath, DateTime lastModified)
+        public void SetItemLastModified(string localPath, DateTime lastModified)
         {
             string fqp = BuildPath(localPath);
             if (File.Exists(fqp))
@@ -193,7 +184,7 @@ namespace MyOneDriveClient
                 Directory.SetLastWriteTimeUtc(fqp, lastModified);
             }
         }
-        public async Task<bool> MoveLocalItemAsync(string localPath, string newLocalPath)
+        public bool MoveLocalItem(string localPath, string newLocalPath)
         {
             try
             {
@@ -222,18 +213,18 @@ namespace MyOneDriveClient
             string fqp = BuildPath(localPath);
             return Directory.Exists(fqp) || File.Exists(fqp);
         }
-        public async Task<IEnumerable<IItemHandle>> EnumerateItemsAsync(string localPath)
+        public async Task<IEnumerable<ILocalItemHandle>> EnumerateItemsAsync(string localPath)
         {
             string fqp = BuildPath(localPath);
             if (!Directory.Exists(fqp))
                 return null;
 
-            List<IItemHandle> ret = new List<IItemHandle>();
+            List<ILocalItemHandle> ret = new List<ILocalItemHandle>();
             ret.Add(new DownloadedFileHandle(this, localPath));//add the root item of the request
             await Task.Run(() => EnumerateItemsRecursive(ref ret, fqp));
             return ret;
         }
-        public event EventDelegates.LocalFileStoreUpdateHandler OnUpdate;
+        public event EventDelegates.LocalFileStoreChangedHandler OnChanged;
         #endregion
 
         #region Local Change Events
@@ -263,7 +254,7 @@ namespace MyOneDriveClient
                 return;
 
             //Will we get this when we check for deltas?
-            var invoke = OnUpdate?.Invoke(this,
+            var invoke = OnChanged?.Invoke(this,
                 new LocalFileStoreEventArgs(e.ChangeType, UnBuildPath(e.FullPath), UnBuildPath(e.OldFullPath)));
             if (invoke != null)
                 await invoke;
@@ -275,13 +266,13 @@ namespace MyOneDriveClient
 
             var localPath = UnBuildPath(e.FullPath);
             //Will we get this when we check for deltas?
-            var invoke = OnUpdate?.Invoke(this, new LocalFileStoreEventArgs(e.ChangeType, localPath));
+            var invoke = OnChanged?.Invoke(this, new LocalFileStoreEventArgs(e.ChangeType, localPath));
             if (invoke != null)
                 await invoke;
         }
         #endregion
 
-        private class DownloadedFileHandle : IItemHandle
+        private class DownloadedFileHandle : ILocalItemHandle
         {
             private string _path;
             private DownloadedFileStore _fs;
@@ -301,6 +292,10 @@ namespace MyOneDriveClient
 
             #region IRemoteItemHandle
             public string Path => _path;
+            public Stream GetWritableStream()
+            {
+                return new FileStream(_fs.BuildPath(_path), FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+            }
 
             public bool IsFolder
             {
