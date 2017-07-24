@@ -272,9 +272,74 @@ namespace MyOneDriveClient
         /// Requests the remote deltas since the previous request
         /// </summary>
         /// <returns></returns>
-        public async Task<IEnumerable<RemoteItemDelta>> RequestDeltasAsync()
+        public async Task<IEnumerable<ItemDelta>> RequestDeltasAsync()
         {
-            throw new NotImplementedException();
+            //TODO: this should pause the processing of the queue
+            var deltas = await _remote.GetDeltasAsync(_metadata.DeltaLink);
+            _metadata.DeltaLink = deltas.DeltaLink;
+
+            var filteredDeltas = new List<ItemDelta>();
+            foreach (var delta in deltas)
+            {
+                //TODO: go through all deltas and determine what should be done with them
+                if (delta.Deleted)
+                {
+                    filteredDeltas.Add(new ItemDelta
+                    {
+                        IsFolder = delta.ItemHandle.IsFolder,
+                        Path = delta.ItemHandle.Path,
+                        Type = ItemDelta.DeltaType.Deleted
+                    });
+                }
+                else
+                {
+                    var itemMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
+                    if (itemMetadata == null)
+                    {
+                        //new item
+                        filteredDeltas.Add(new ItemDelta
+                        {
+                            IsFolder = delta.ItemHandle.IsFolder,
+                            Path = delta.ItemHandle.Path,
+                            Type = ItemDelta.DeltaType.ModifiedOrCreated
+                        });
+
+                        //new item, so add it
+                        _metadata.AddItemMetadata(delta.ItemHandle);
+                    }
+                    else
+                    {
+                        //existing item ...
+                        if (itemMetadata.Name == delta.ItemHandle.Name)
+                        {
+                            //... with the same name ...
+                            if (itemMetadata.RemoteLastModified == delta.ItemHandle.LastModified)
+                            {
+                                //... with the same last modified so do nothing
+                            }
+                            else
+                            {
+                                //TODO: if an item has been modified in remote and local, but the network connection has problems and in between so local is waiting to push remote changes and remote is waiting to pull changes, but the local changes aren't the ones that are wanted.  In this case, the local item should be renamed, removed from the queue, and requested as a regular upload
+                                //TODO: how do we tell the local to rename the file? -- through "status" and "error message"
+                            }
+                        }
+                        else
+                        {
+                            //... with a different name so rename it
+                            filteredDeltas.Add(new ItemDelta
+                            {
+                                IsFolder = delta.ItemHandle.IsFolder,
+                                Path = delta.ItemHandle.Path,
+                                OldPath = itemMetadata.Path,
+                                Type = ItemDelta.DeltaType.Renamed
+                            });
+                        }
+
+                    }
+                }
+            }
+
+            return filteredDeltas;
         }
         #endregion
 

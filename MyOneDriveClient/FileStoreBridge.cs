@@ -104,9 +104,9 @@ namespace MyOneDriveClient
                         }
                         else
                         {
-                            if (_local.TryGetWritableStream(delta.Path, out Stream writableStream))
+                            if (_local.TryGetItemHandle(delta.Path, out ILocalItemHandle itemhandle))
                             {
-                                _remote.RequestFileDownload(delta.Path, writableStream);
+                                _remote.RequestFileDownload(delta.Path, itemhandle);
                             }
                             else
                             {

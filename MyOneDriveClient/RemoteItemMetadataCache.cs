@@ -56,21 +56,7 @@ namespace MyOneDriveClient
         {
             return JsonConvert.SerializeObject(_data);
         }
-
-        /// <summary>
-        /// Deletes all metadata with <see cref="RemoteItemMetadata.HasValidId"/> as false
-        /// </summary>
-        public void ClearLocalMetadata()
-        {
-            var items = (from localItem in _data.LocalItems
-                         where !localItem.Value.HasValidId
-                         select localItem.Value);
-            foreach (var item in items)
-            {
-                RemoveItemMetadataById(item.Id);
-            }
-        }
-
+        
         /// <summary>
         /// Deletes all metadata whose parents have been deleted (<see cref="RemoteItemMetadata.Path"/> throws an exception)
         /// </summary>
@@ -108,6 +94,10 @@ namespace MyOneDriveClient
             //if (items.Count > 1) ;//???
             return items.First().Value;
         }
+        public RemoteItemMetadata GetItemMetadataById(string id)
+        {
+            return _data.LocalItems.TryGetValue(id, out RemoteItemMetadata ret) ? ret : null;
+        }
 
         public RemoteItemMetadata GetParentItemMetadata(string localPath)
         {
@@ -125,69 +115,36 @@ namespace MyOneDriveClient
                 where item.Value.ParentId == parentId
                 select item.Value);
         }
-        public RemoteItemMetadata GetItemMetadataById(string id)
-        {
-            if (_data.LocalItems.TryGetValue(id, out RemoteItemMetadata ret))
-            {
-                return ret;
-            }
-            else
-            {
-                return null;
-            }
-        }
+
         public bool AddItemMetadata(IRemoteItemHandle handle)
         {
-            return AddItemMetadata(new RemoteItemMetadata()
+            if (_data.LocalItems.ContainsKey(handle.Id))
+                return false;
+
+            return AddOrUpdateItemMetadata(handle);
+        }
+
+        public bool UpdateItemMetadata(IRemoteItemHandle handle)
+        {
+            if (!_data.LocalItems.ContainsKey(handle.Id))
+                return false;
+
+            return AddOrUpdateItemMetadata(handle);
+        }
+
+        private bool AddOrUpdateItemMetadata(IRemoteItemHandle handle)
+        {
+            return _data.LocalItems.TryAdd(handle.Id, new RemoteItemMetadata
             {
                 IsFolder = handle.IsFolder,
                 Id = handle.Id,
                 ParentId = handle.ParentId,
                 Name = handle.Name,
-                RemoteLastModified = handle.LastModified
+                RemoteLastModified = handle.LastModified,
+                Metadata = this
             });
         }
-        public bool AddItemMetadata(IItemHandle localHandle)
-        {
-            var metadata = GetItemMetadata(localHandle.Path);
-            string id;
-            string parentId;
-            if (metadata == null)
-            {
-                id = "gen";
-                var parentItem = GetParentItemMetadata(localHandle.Path);
-                if (parentItem == null)
-                {
-                    //TODO: this should never happen
-                    parentId = "-1";
-                    Debug.WriteLine($"Failed to get parent item metadata with item path \"{localHandle.Path}\"");
-                }
-                else
-                {
-                    parentId = parentItem.Id;
-                }
-            }
-            else
-            {
-                id = metadata.Id;
-                parentId = metadata.ParentId;
-            }
-            return AddItemMetadata(new RemoteItemMetadata()
-            {
-                IsFolder = localHandle.IsFolder,
-                Id = id,
-                ParentId = parentId,
-                Name = localHandle.Name,
-                RemoteLastModified = DateTime.MinValue
-            });
-        }
-        public bool AddItemMetadata(RemoteItemMetadata metadata)
-        {
-            if (metadata.Id == "gen")
-                metadata.Id = GetUniqueId();
-            metadata.Metadata = this;
-            return _data.LocalItems.TryAdd(metadata.Id, metadata);
-        }
+
         public bool RemoveItemMetadata(string localPath)
         {
             var metadata = GetItemMetadata(localPath);
@@ -218,8 +175,8 @@ namespace MyOneDriveClient
                     return $"{parentItemMetadata.Path}/{Name}";
                 }
             }
-            [JsonIgnore]
-            public bool HasValidId => (Id?.Length ?? 0) > 9;
+            //[JsonIgnore]
+            //public bool HasValidId => (Id?.Length ?? 0) > 9;
 
             public bool IsFolder { get; set; }
             public DateTime RemoteLastModified { get; set; }
