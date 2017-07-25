@@ -7,77 +7,84 @@ using System.Threading.Tasks;
 using MyOneDriveClient.Events;
 using System.Threading;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace MyOneDriveClient
 {
     public class LocalFileStoreInterface
     {
-        public enum RequestStatus
+        private class DeletedItemHandle : IItemHandle
         {
-            /// <summary>
-            /// Request was successfuly completed
-            /// </summary>
-            Success,
-            /// <summary>
-            /// Request is in queue/await network connection
-            /// </summary>
-            Pending,
-            /// <summary>
-            /// Request did not successfully complete
-            /// </summary>
-            Failure,
-            /// <summary>
-            /// Request was cancelled
-            /// </summary>
-            Cancelled
-        }
-
-        public enum RequestType
-        {
-            Rename,
-            Move,
-            Create,
-            Delete
-        }
-
-        public class RemoteFileStoreRequest
-        {
-            private int _requestId;
-            public RemoteFileStoreRequest(ref int id, RequestType type, string path)
+            public DeletedItemHandle(ItemMetadataCache.ItemMetadata metadata)
             {
-                _requestId = Interlocked.Increment(ref id);
-
-                Path = path;
-                Status = RequestStatus.Pending;
-                ErrorMessage = null;
-                Type = type;
+                IsFolder = metadata.IsFolder;
+                Path = metadata.Path;
+                Name = metadata.Name;
+                LastModified = metadata.LastModified;
             }
-            /// <summary>
-            /// The ID of the request
-            /// </summary>
-            public int RequestId => _requestId;
-            /// <summary>
-            /// The path of the item in the request
-            /// </summary>
+            /// <inheritdoc />
+            public bool IsFolder { get; }
+            /// <inheritdoc />
             public string Path { get; }
-            /// <summary>
-            /// The current status of the request
-            /// </summary>
-            public RequestStatus Status { get; set; }
-            /// <summary>
-            /// If <see cref="Status"/> is <see cref="RequestStatus.Failure"/>, this will tell why
-            /// </summary>
-            public string ErrorMessage { get; set; }
-            /// <summary>
-            /// The type of the request
-            /// </summary>
-            public RequestType Type { get; }
+            /// <inheritdoc />
+            public string Name { get; }
+            /// <inheritdoc />
+            public long Size => throw new NotSupportedException();
+            /// <inheritdoc />
+            public string SHA1Hash => throw new NotSupportedException();
+            /// <inheritdoc />
+            public DateTime LastModified { get; }
+            /// <inheritdoc />
+            public Task<Stream> GetFileDataAsync()
+            {
+                throw new NotSupportedException();
+            }
+        }
+        private class LocalRemoteItemHandle : IRemoteItemHandle
+        {
+            private IItemHandle _handle;
+            public LocalRemoteItemHandle(IItemHandle handle, string id, string parentId)
+            {
+                _handle = handle;
+                Id = id;
+                ParentId = parentId;
+            }
+
+
+            /// <inheritdoc />
+            public bool IsFolder => _handle.IsFolder;
+            /// <inheritdoc />
+            public string Path => _handle.Path;
+            /// <inheritdoc />
+            public string Name => _handle.Name;
+            /// <inheritdoc />
+            public long Size => _handle.Size;
+            /// <inheritdoc />
+            public string SHA1Hash => _handle.SHA1Hash;
+            /// <inheritdoc />
+            public DateTime LastModified => _handle.LastModified;
+            /// <inheritdoc />
+            public Task<Stream> GetFileDataAsync()
+            {
+                throw new NotSupportedException();
+            }
+            /// <inheritdoc />
+            public string Id { get; }
+            /// <inheritdoc />
+            public string ParentId { get; }
+            /// <inheritdoc />
+            public Task<HttpResult<Stream>> TryGetFileDataAsync()
+            {
+                throw new NotSupportedException();
+            }
         }
 
         #region Private Fields
         private ILocalFileStore _local;
-        private ConcurrentQueue<RemoteFileStoreRequest> _requests = new ConcurrentQueue<RemoteFileStoreRequest>();
-        private ConcurrentDictionary<int, RemoteFileStoreRequest> _limboRequests = new ConcurrentDictionary<int, RemoteFileStoreRequest>();
+        private ConcurrentQueue<ItemDelta> _localDeltas = new ConcurrentQueue<ItemDelta>();
+        private LocalItemMetadataCache _metadata = new LocalItemMetadataCache();
+        private ConcurrentQueue<FileStoreRequest> _requests = new ConcurrentQueue<FileStoreRequest>();
+        private ConcurrentDictionary<int, FileStoreRequest> _limboRequests = new ConcurrentDictionary<int, FileStoreRequest>();
         private ConcurrentDictionary<int, object> _cancelledRequests = new ConcurrentDictionary<int, object>();
         private int _requestId;//TODO: should this be volatile
         #endregion
@@ -85,21 +92,180 @@ namespace MyOneDriveClient
         public LocalFileStoreInterface(ILocalFileStore local)
         {
             _local = local;
+            _local.OnChanged += LocalOnChanged;
         }
 
+        #region Private Methods
+        private int EnqueueRequest(FileStoreRequest request)
+        {
+            _requests.Enqueue(request);
+            return request.RequestId;
+        }
+        private async Task LocalOnChanged(object sender, LocalFileStoreEventArgs e)
+        {
+            var itemMetadata = _metadata.GetItemMetadata(e.LocalPath);
+            ILocalItemHandle itemHandle;
+            switch (e.ChangeType)
+            {
+                case WatcherChangeTypes.Created:
+                    if (TryGetItemHandle(e.LocalPath, out itemHandle))
+                    {
+                        //item exists ... 
+                        var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
+                        if (parentMetadata == null)
+                        {
+                            //... but doesn't have a parent
+                            //TODO: will this ever happen?
+                            Debug.WriteLine($"Failed to find parent item of created item \"{e.LocalPath}\"");
+                        }
+                        else
+                        {
+                            //... with a parent, so add the item metadata ...
+                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
+                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+
+                            //... and add the delta
+                            _localDeltas.Enqueue(new ItemDelta()
+                            {
+                                Type = ItemDelta.DeltaType.Created,
+                                Handle = itemHandle
+                            });
+                        }
+                    }
+                    else
+                    {
+                        //an item was created/changed, but it doesn't exist anymore?  the user must have moved or deleted it... so do nothing
+                    }
+                    break;
+                case WatcherChangeTypes.Deleted:
+                    if (TryGetItemHandle(e.LocalPath, out itemHandle))
+                    {
+                        //the deleted item exists, so at some point the user created a new one ... so wait for that event and do nothing
+                    }
+                    else
+                    {
+                        //item doesn't exist ...
+                        if (itemMetadata == null)
+                        {
+                            //... and also doesn't exist in metadata, so it's as if it never existed ... so do nothing
+                        }
+                        else
+                        {
+                            //... but does exist in metadata, so remove it ...
+                            _metadata.RemoveItemMetadataById(itemMetadata.Id);
+
+                            //... and add the delta
+                            _localDeltas.Enqueue(new ItemDelta()
+                            {
+                                Type = ItemDelta.DeltaType.Deleted,
+                                Handle = new DeletedItemHandle(itemMetadata),
+                                OldPath = e.LocalPath
+                            });
+                        }
+                    }
+                    break;
+                case WatcherChangeTypes.Changed:
+                    if (TryGetItemHandle(e.LocalPath, out itemHandle))
+                    {
+                        //item exists ... 
+                        if (itemMetadata == null)
+                        {
+                            //... without metadata ... TODO: what do we do here?
+                        }
+                        else
+                        {
+                            //... with metadata ...
+                            if (itemHandle.IsFolder)
+                            {
+                                //... but the item is a folder, and we don't sync folder contents changes
+                            }
+                            else
+                            {
+                                //... and is a file ...
+                                var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
+                                if (parentMetadata == null)
+                                {
+                                    //... but doesn't have a parent
+                                    //TODO: will this ever happen?
+                                    Debug.WriteLine($"Failed to find parent item of created item \"{e.LocalPath}\"");
+                                }
+                                else
+                                {
+                                    //... with a parent, so update the item metadata ...
+                                    _metadata.AddOrUpdateItemMetadata(itemMetadata);
+
+                                    //... and add the delta
+                                    _localDeltas.Enqueue(new ItemDelta()
+                                    {
+                                        Type = ItemDelta.DeltaType.Modified,
+                                        Handle = itemHandle
+                                    });
+                                }
+                            }
+
+                        }
+                    }
+                    else
+                    {
+                        //an item was created/changed, but it doesn't exist anymore?  the user must have moved or deleted it... so do nothing
+                    }
+                    break;
+                case WatcherChangeTypes.Renamed:
+                    if (TryGetItemHandle(e.OldLocalPath, out itemHandle))
+                    {
+                        //item exists ... 
+                        var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
+                        if (parentMetadata == null)
+                        {
+                            //... but doesn't have a parent
+                            //TODO: will this ever happen?
+                            Debug.WriteLine($"Failed to find parent item of renamed item \"{e.LocalPath}\"");
+                        }
+                        else
+                        {
+                            //... with a parent, so add the item metadata ...
+                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
+                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+
+                            //... and add the delta
+                            _localDeltas.Enqueue(new ItemDelta()
+                            {
+                                Type = ItemDelta.DeltaType.Renamed,
+                                Handle = itemHandle
+                            });
+                        }
+                    }
+                    else
+                    {
+                        //an item was created/changed, but it doesn't exist anymore?  the user must have moved or deleted it... so do nothing
+                    }
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+        #endregion
+
         #region Public Properties
-        public string MetadataCache { get; }
+        public string MetadataCache
+        {
+            get => _metadata.Serialize();
+            set => _metadata.Deserialize(value);
+        }
         #endregion
 
         #region Public Methods
+        /// <summary>
+        /// Attempts to get an item handle
+        /// </summary>
+        /// <param name="path">the path of the handle to get</param>
+        /// <param name="itemHandle">the handle to the item, whether it exists or not</param>
+        /// <returns>whether the item exists</returns>
         public bool TryGetItemHandle(string path, out ILocalItemHandle itemHandle)
         {
             throw new NotImplementedException();
         }
-        public bool TryGetWritableStream(string path, out Stream writableStream)
-        {
-            throw new NotImplementedException();
-        }
+        //TODO: should this be a request?
         public bool TrySetItemLastModified(string path, DateTime lastModified)
         {
             throw new NotImplementedException();
@@ -109,48 +275,117 @@ namespace MyOneDriveClient
             throw new NotImplementedException();
         }
 
-        public IEnumerable<ItemDelta> GetDeltas()
+        public Task<IEnumerable<ItemDelta>> GetDeltasAsync()
         {
-            throw new NotImplementedException();
+            return Task.Run(() =>
+            {
+                List<ItemDelta> filteredDeltas = new List<ItemDelta>();
+                while (_localDeltas.TryDequeue(out ItemDelta result))
+                {
+                    switch (result.Type)
+                    {
+                        case ItemDelta.DeltaType.Created:
+                            break;
+                        case ItemDelta.DeltaType.Deleted:
+                            //deleted item ...
+                            if (_localDeltas.TryPeek(out ItemDelta next))
+                            {
+                                if (next.Type == ItemDelta.DeltaType.Created)
+                                {
+                                    //... with a creation immediately following ...
+                                    if (next.Handle.LastModified == result.Handle.LastModified)
+                                    {
+                                        //... with the same last modified ...
+                                        if (_localDeltas.TryDequeue(out ItemDelta nextDelta))
+                                        {
+                                            //... so merge the two into a "moved" delta
+                                            filteredDeltas.Add(new ItemDelta()
+                                            {
+                                                Handle = nextDelta.Handle,
+                                                OldPath = result.OldPath,
+                                                Type = ItemDelta.DeltaType.Moved
+                                            });
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        case ItemDelta.DeltaType.Renamed:
+                            break;
+                        case ItemDelta.DeltaType.Modified:
+                            break;
+                        case ItemDelta.DeltaType.Moved:
+                            break;
+                        //TODO: detect item "moves"
+                    }
+
+                    //if there are no objections ("continue") then let the request through
+                    filteredDeltas.Add(result);
+                }
+                return (IEnumerable<ItemDelta>) filteredDeltas;
+            });
         }
 
+        /// <summary>
+            /// Deletes a local item and its children
+            /// </summary>
+            /// <param name="path">the path of the item to delete</param>
+            /// <returns>the request id</returns>
         public int RequestDeleteItem(string path)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
         }
+        /// <summary>
+        /// Creates a local folder
+        /// </summary>
+        /// <param name="path">the path of the folder to create</param>
+        /// <returns>the request id</returns>
         public int RequestFolderCreate(string path)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path, null));
         }
-        public int RequestMoveItem(string path, string newPath)
+        /// <summary>
+        /// Moves a local item
+        /// </summary>
+        /// <param name="path">the current path of the item</param>
+        /// <param name="newParentPath">the new location of the item post-move</param>
+        /// <returns>the request id</returns>
+        public int RequestMoveItem(string path, string newParentPath)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
+                new RequestMoveExtraData(newParentPath)));
         }
+        /// <summary>
+        /// Renames a local item
+        /// </summary>
+        /// <param name="path">the current path of the item</param>
+        /// <param name="newName">the new name of the item</param>
+        /// <returns>the request id</returns>
         public int RequestRenameItem(string path, string newName)
         {
-            throw new NotImplementedException();
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
+                new RequestRenameExtraData(newName)));
         }
 
         public async Task SaveNonSyncFile(string path, string content)
         {
-            if (TryGetWritableStream(path, out Stream writableStream))
+            TryGetItemHandle(path, out ILocalItemHandle itemHandle);
+            using (var writableStream = itemHandle.GetWritableStream())
             {
-                using (writableStream)
+                using (var contentStream = content.ToStream(Encoding.UTF8))
                 {
-                    using (var contentStream = content.ToStream(Encoding.UTF8))
-                    {
-                        await contentStream.CopyToStreamAsync(writableStream);
-                    }
+                    await contentStream.CopyToStreamAsync(writableStream);
                 }
-                _local.SetItemAttributes(path, FileAttributes.Hidden);
             }
+            _local.SetItemAttributes(path, FileAttributes.Hidden);
         }
         #endregion
 
         #region Public Events
         /// <summary>
         /// When the status of an existing request changes or a new request is started.  Note
-        /// that if the status has been changed to <see cref="BufferedRemoteFileStoreInterface.RequestStatus.Success"/>, there
+        /// that if the status has been changed to <see cref="FileStoreRequest.RequestStatus.Success"/>, there
         /// is no guarantee that the request still exists.
         /// </summary>
         public event EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;//TODO: local status' are a bit different, because there is a rename/merge option

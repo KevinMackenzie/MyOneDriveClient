@@ -19,6 +19,11 @@ namespace MyOneDriveClient
             return stream;
         }
 
+        public static async Task<string> ReadAllToStringAsync(this Stream source, Encoding encoding)
+        {
+            return await (new StreamReader(source, encoding)).ReadToEndAsync();
+        }
+
         /// <summary>
         /// Copies one stream to another stream in a safe, asynchronous way
         /// </summary>

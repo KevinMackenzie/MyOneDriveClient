@@ -93,7 +93,6 @@
     <Compile Include="Contracts\ILocalItemHandle.cs" />
     <Compile Include="Contracts\ILocalFileStoreInterface.cs" />
     <Compile Include="Contracts\ILocalItemUpdate.cs" />
-    <Compile Include="Contracts\IRemoteFileStoreDownload.cs" />
     <Compile Include="BufferedRemoteFileStoreInterface.cs" />
     <Compile Include="Contracts\IRemoteItemHandle.cs" />
     <Compile Include="Contracts\IRemoteItemUpdate.cs" />
@@ -106,6 +105,7 @@
     <Compile Include="Events\RequestStatusChangedEventArgs.cs" />
     <Compile Include="FileData.cs" />
     <Compile Include="FileStoreBridge.cs" />
+    <Compile Include="FileStoreRequest.cs" />
     <Compile Include="GraphConnection.cs" />
     <Compile Include="Contracts\ILocalFileStore.cs" />
     <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />

@@ -146,7 +146,7 @@ namespace MyOneDriveClient
         private async void DownloadFileButton_Click(object sender, RoutedEventArgs e)
         {
             await App.OneDriveConnection.PromptUserLoginAsync();
-            IRemoteItemHandle file = await App.OneDriveConnection.GetItemHandleAsync(RemoteFilePath.Text);
+            IRemoteItemHandle file = (await App.OneDriveConnection.GetItemHandleAsync(RemoteFilePath.Text)).Value;
 
             //DisplayFileMetadata(file.Metadata);
 
@@ -200,7 +200,7 @@ namespace MyOneDriveClient
         private async void GetDeltasButton_Click(object sender, RoutedEventArgs e)
         {
             await App.OneDriveConnection.PromptUserLoginAsync();
-            await App.FileStore.ApplyAllDeltas();
+            await App.FileStore.ApplyRemoteChangesAsync();
             //_deltaPage = await App.OneDriveConnection.GetDeltasPageAsync(_deltaPage);
 
             //IEnumerable<string> ids = (from delta in _deltaPage
@@ -223,7 +223,7 @@ namespace MyOneDriveClient
         private async void ScanForChangesButton_OnClick(object sender, RoutedEventArgs e)
         {
             await App.OneDriveConnection.PromptUserLoginAsync();
-            await App.FileStore.ScanForLocalItemMetadataAsync(false);
+            await App.FileStore.ApplyLocalChangesAsync();
         }
 
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)

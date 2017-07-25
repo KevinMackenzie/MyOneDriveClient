@@ -8,13 +8,13 @@ namespace MyOneDriveClient.Events
 {
     public class RequestStatusChangedEventArgs : EventArgs
     {
-        public RequestStatusChangedEventArgs(int requestId, BufferedRemoteFileStoreInterface.RequestStatus newStatus)
+        public RequestStatusChangedEventArgs(int requestId, FileStoreRequest.RequestStatus newStatus)
         {
             RequestId = requestId;
             NewStatus = newStatus;
         }
 
         public int RequestId { get; }
-        public BufferedRemoteFileStoreInterface.RequestStatus NewStatus { get; }
+        public FileStoreRequest.RequestStatus NewStatus { get; }
     }
 }

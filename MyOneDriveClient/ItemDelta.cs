@@ -10,8 +10,9 @@ namespace MyOneDriveClient
     {
         public enum DeltaType
         {
-            ModifiedOrCreated,
+            Created,
             Deleted,
+            Modified,
             Renamed,
             Moved
         }

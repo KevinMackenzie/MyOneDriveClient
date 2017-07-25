@@ -19,45 +19,8 @@ namespace MyOneDriveClient
     /// </summary>
     public class BufferedRemoteFileStoreInterface
     {
-        public enum RequestStatus
-        {
-            /// <summary>
-            /// Request was successfuly completed
-            /// </summary>
-            Success,
-            /// <summary>
-            /// Request is in queue/await network connection
-            /// </summary>
-            Pending,
-            /// <summary>
-            /// Request is being processed
-            /// </summary>
-            InProgress,
-            /// <summary>
-            /// Request did not successfully complete
-            /// </summary>
-            Failure,
-            /// <summary>
-            /// Request was cancelled
-            /// </summary>
-            Cancelled
-        }
-
-        public enum RequestType
-        {
-            Upload,
-            Download,
-            Rename,
-            Move,
-            Create,
-            Delete
-        }
-
-        public interface IRemoteFileStoreRequestExtraData
-        { }
-
-        #region Request Extra Datas
-        private class RequestUploadExtraData : IRemoteFileStoreRequestExtraData
+        #region Extra Datas
+        public class RequestUploadExtraData : IFileStoreRequestExtraData
         {
             public RequestUploadExtraData(IItemHandle itemHandle)
             {
@@ -65,7 +28,7 @@ namespace MyOneDriveClient
             }
             public IItemHandle ItemHandle { get; }
         }
-        private class RequestDownloadExtraData : IRemoteFileStoreRequestExtraData
+        public class RequestDownloadExtraData : IFileStoreRequestExtraData
         {
             public RequestDownloadExtraData(ILocalItemHandle itemHandle)
             {
@@ -73,60 +36,7 @@ namespace MyOneDriveClient
             }
             public ILocalItemHandle ItemHandle { get; }
         }
-        private class RequestRenameExtraData : IRemoteFileStoreRequestExtraData
-        {
-            public RequestRenameExtraData(string newName)
-            {
-                NewName = newName;
-            }
-            public string NewName { get; }
-        }
-        private class RequestMoveExtraData : IRemoteFileStoreRequestExtraData
-        {
-            public RequestMoveExtraData(string newParentPath)
-            {
-                NewParentPath = newParentPath;
-            }
-            public string NewParentPath { get; }
-        }
         #endregion
-
-        public class RemoteFileStoreRequest
-        {
-            private int _requestId;
-            public RemoteFileStoreRequest(ref int id, RequestType type, string path, IRemoteFileStoreRequestExtraData extraData)
-            {
-                _requestId = Interlocked.Increment(ref id);
-
-                Path = path;
-                Status = RequestStatus.Pending;
-                ErrorMessage = null;
-                Type = type;
-                ExtraData = extraData;
-            }
-            /// <summary>
-            /// The ID of the request
-            /// </summary>
-            public int RequestId => _requestId;
-            /// <summary>
-            /// The path of the item in the request
-            /// </summary>
-            public string Path { get; }
-            /// <summary>
-            /// The current status of the request
-            /// </summary>
-            public RequestStatus Status { get; set; }
-            /// <summary>
-            /// If <see cref="Status"/> is <see cref="RequestStatus.Failure"/>, this will tell why
-            /// </summary>
-            public string ErrorMessage { get; set; }
-            /// <summary>
-            /// The type of the request
-            /// </summary>
-            public RequestType Type { get; }
-
-            public IRemoteFileStoreRequestExtraData ExtraData { get; }
-        }
 
         public class RemoteItemDelta : ItemDelta
         {
@@ -143,32 +53,31 @@ namespace MyOneDriveClient
         #region Private Fields
         private IRemoteFileStoreConnection _remote;
         private RemoteItemMetadataCache _metadata = new RemoteItemMetadataCache();
-        private ConcurrentQueue<RemoteFileStoreRequest> _requests = new ConcurrentQueue<RemoteFileStoreRequest>();
+        private ConcurrentQueue<FileStoreRequest> _requests = new ConcurrentQueue<FileStoreRequest>();
         /// <summary>
         /// Requests that failed for reasons other than network connection
         /// </summary>
-        private ConcurrentDictionary<int, RemoteFileStoreRequest> _limboRequests = new ConcurrentDictionary<int, RemoteFileStoreRequest>();
+        private ConcurrentDictionary<int, FileStoreRequest> _limboRequests = new ConcurrentDictionary<int, FileStoreRequest>();
         private ConcurrentDictionary<int, object> _cancelledRequests = new ConcurrentDictionary<int, object>();
         private int _requestId;//TODO: should this be volatile
         #endregion
 
-        public BufferedRemoteFileStoreInterface(IRemoteFileStoreConnection remote, string metadataCache)
+        public BufferedRemoteFileStoreInterface(IRemoteFileStoreConnection remote)
         {
             _remote = remote;
-            _metadata.Deserialize(metadataCache);
         }
 
         #region Private Methods
-        private void SetStatusFromHttpResponse(RemoteFileStoreRequest request, HttpResponseMessage result)
+        private void SetStatusFromHttpResponse(FileStoreRequest request, HttpResponseMessage result)
         {
             if (result == null)
             {
                 //didn't fail, but no network connection...
                 var oldStatus = request.Status;
-                request.Status = RequestStatus.Pending;
+                request.Status = FileStoreRequest.RequestStatus.Pending;
 
                 //if we started something, make sure we let the listeners know that we stopped!
-                if(oldStatus != RequestStatus.Pending)
+                if(oldStatus != FileStoreRequest.RequestStatus.Pending)
                     InvokeStatusChanged(request);
             }
             else
@@ -176,36 +85,42 @@ namespace MyOneDriveClient
                 if (result.IsSuccessStatusCode)
                 {
                     //success!
-                    request.Status = RequestStatus.Success;
+                    request.Status = FileStoreRequest.RequestStatus.Success;
                 }
                 else
                 {
                     //failure...
-                    request.Status = RequestStatus.Failure;
+                    request.Status = FileStoreRequest.RequestStatus.Failure;
                     request.ErrorMessage =
                         $"Http Error \"{result.StatusCode}\" because: \"{result.ReasonPhrase}\"";
                 }
                 InvokeStatusChanged(request);
             }
         }
-        private void InvokeStatusChanged(RemoteFileStoreRequest request)
+        private void InvokeStatusChanged(FileStoreRequest request)
         {
             OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request.RequestId, request.Status));
         }
-        private void FailRequest(RemoteFileStoreRequest request, string errorMessage)
+        private void FailRequest(FileStoreRequest request, string errorMessage)
         {
-            request.Status = RequestStatus.Failure;
+            request.Status = FileStoreRequest.RequestStatus.Failure;
             request.ErrorMessage = errorMessage;
             _limboRequests[request.RequestId] = request;
             InvokeStatusChanged(request);
         }
-        private int EnqueueRequest(RemoteFileStoreRequest request)
+        private void RequestAwaitUser(FileStoreRequest request)
+        {
+            request.Status = FileStoreRequest.RequestStatus.WaitForUser;
+            _limboRequests[request.RequestId] = request;
+            InvokeStatusChanged(request);
+        }
+        private int EnqueueRequest(FileStoreRequest request)
         {
             _requests.Enqueue(request);
             return request.RequestId;
         }
 
-        private async Task<bool> UploadFileWithProgressAsync(string parentId, bool isNew, IItemHandle item, RemoteFileStoreRequest request)
+        private async Task<bool> UploadFileWithProgressAsync(string parentId, bool isNew, IItemHandle item, FileStoreRequest request)
         {
             HttpResult<IRemoteItemHandle> uploadResult; 
             //wrap the local stream to track read progress of local file
@@ -216,7 +131,7 @@ namespace MyOneDriveClient
                     new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
 
                 //request is in progress now
-                request.Status = RequestStatus.InProgress;
+                request.Status = FileStoreRequest.RequestStatus.InProgress;
                 InvokeStatusChanged(request);
 
                 //make the upload request
@@ -226,7 +141,7 @@ namespace MyOneDriveClient
             //set the request status and error
             SetStatusFromHttpResponse(request, uploadResult.HttpMessage);
 
-            var success = request.Status == RequestStatus.Success;
+            var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
             //if we were successful, update the metadata
             if(success)
@@ -234,7 +149,7 @@ namespace MyOneDriveClient
 
             return success;
         }
-        private async Task<bool> DownloadFileWithProgressAsync(string itemId, ILocalItemHandle item, RemoteFileStoreRequest request)
+        private async Task<bool> DownloadFileWithProgressAsync(string itemId, ILocalItemHandle item, FileStoreRequest request)
         {
             var getHandleRequest = await _remote.GetItemHandleByIdAsync(itemId);
             if (!getHandleRequest.Success)
@@ -255,23 +170,38 @@ namespace MyOneDriveClient
                 return false;
             }
             
-            //request is in progress now
-            request.Status = RequestStatus.InProgress;
-            InvokeStatusChanged(request);
 
-            //start trying to stream item
-            using (var stream =  getDataRequest.Value)
+            //get the write stream
+            var writeStream = item.GetWritableStream();
+            if (writeStream != null)
             {
-                var wrapper = new ProgressableStreamWrapper(stream, remoteItem.Size);
-                wrapper.OnReadProgressChanged += (sender, args) => OnRequestProgressChanged?.Invoke(this,
-                    new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
-
-                using (var writeStream = item.GetWritableStream())
+                //write stream isn't null, so start trying to stream item
+                using (var stream = getDataRequest.Value)
                 {
-                    await wrapper.CopyToAsync(writeStream);
+                    //request is in progress now
+                    request.Status = FileStoreRequest.RequestStatus.InProgress;
+                    InvokeStatusChanged(request);
+
+                    //wrap the read stream around the progress notifier
+                    var wrapper = new ProgressableStreamWrapper(stream, remoteItem.Size);
+                    wrapper.OnReadProgressChanged += (sender, args) => OnRequestProgressChanged?.Invoke(this,
+                        new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
+                    
+                    using (writeStream)
+                    {
+                        await wrapper.CopyToAsync(writeStream);
+                    }
+                    //successfully completed stream
+                    request.Status = FileStoreRequest.RequestStatus.Success;
+                    InvokeStatusChanged(request);
                 }
             }
-            var success = request.Status == RequestStatus.Success;
+            else
+            {
+                //write stream is null, which means the file cannot be opened at this time, so put in limbo
+                RequestAwaitUser(request);
+            }
+            var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -279,11 +209,11 @@ namespace MyOneDriveClient
 
             return success;
         }
-        private async Task<bool> RenameItemAsync(string itemId, string newName, RemoteFileStoreRequest request)
+        private async Task<bool> RenameItemAsync(string itemId, string newName, FileStoreRequest request)
         {
             var response = await _remote.RenameItemByIdAsync(itemId, newName);
             SetStatusFromHttpResponse(request, response.HttpMessage);
-            var success = request.Status == RequestStatus.Success;
+            var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -291,11 +221,11 @@ namespace MyOneDriveClient
 
             return success;
         }
-        private async Task<bool> MoveItemAsync(string itemId, string newParentId, RemoteFileStoreRequest request)
+        private async Task<bool> MoveItemAsync(string itemId, string newParentId, FileStoreRequest request)
         {
             var response = await _remote.MoveItemByIdAsync(itemId, newParentId);
             SetStatusFromHttpResponse(request, response.HttpMessage);
-            var success = request.Status == RequestStatus.Success;
+            var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -303,11 +233,11 @@ namespace MyOneDriveClient
 
             return success;
         }
-        private async Task<bool> CreateItemAsync(string parentId, string name, RemoteFileStoreRequest request)
+        private async Task<bool> CreateItemAsync(string parentId, string name, FileStoreRequest request)
         {
             var response = await _remote.CreateFolderByIdAsync(parentId, name);
             SetStatusFromHttpResponse(request, response.HttpMessage);
-            var success = request.Status == RequestStatus.Success;
+            var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -315,11 +245,11 @@ namespace MyOneDriveClient
 
             return success;
         }
-        private async Task<bool> DeleteItemAsync(string itemId, RemoteFileStoreRequest request)
+        private async Task<bool> DeleteItemAsync(string itemId, FileStoreRequest request)
         {
             var response = await _remote.DeleteItemByIdAsync(itemId);
             SetStatusFromHttpResponse(request, response.HttpMessage);
-            var success = request.Status == RequestStatus.Success;
+            var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -332,15 +262,15 @@ namespace MyOneDriveClient
         {
             while (!ct.IsCancellationRequested)
             {
-                if (_requests.TryPeek(out RemoteFileStoreRequest request))
+                if (_requests.TryPeek(out FileStoreRequest request))
                 {
                     //was this request cancelled?
                     if (_cancelledRequests.ContainsKey(request.RequestId))
                     {
                         //if so, dequeue it and move on
-                        _requests.TryDequeue(out RemoteFileStoreRequest result);
+                        _requests.TryDequeue(out FileStoreRequest result);
                         _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
-                        request.Status = RequestStatus.Cancelled;
+                        request.Status = FileStoreRequest.RequestStatus.Cancelled;
                         InvokeStatusChanged(request);
                         continue;
                     }
@@ -351,7 +281,7 @@ namespace MyOneDriveClient
                     //the appropriate extra data will be with the appropriate request type
                     switch (request.Type)
                     {
-                        case RequestType.Upload:
+                        case FileStoreRequest.RequestType.Write: //(upload)
                         {
                             var data = request.ExtraData as RequestUploadExtraData;
                             if (data != null)
@@ -390,7 +320,7 @@ namespace MyOneDriveClient
                             }
                         }
                             break;
-                        case RequestType.Download:
+                        case FileStoreRequest.RequestType.Read: // (Download)
                         {
                             var data = request.ExtraData as RequestDownloadExtraData;
                             if (data != null)
@@ -415,7 +345,7 @@ namespace MyOneDriveClient
                             }
                         }
                             break;
-                        case RequestType.Rename:
+                        case FileStoreRequest.RequestType.Rename:
                         {
                             var data = request.ExtraData as RequestRenameExtraData;
                             if (data != null)
@@ -439,7 +369,7 @@ namespace MyOneDriveClient
                             }
                         }
                             break;
-                        case RequestType.Move:
+                        case FileStoreRequest.RequestType.Move:
                         {
                             var data = request.ExtraData as RequestMoveExtraData;
                             if (data != null)
@@ -474,7 +404,7 @@ namespace MyOneDriveClient
                             }
                         }
                             break;
-                        case RequestType.Create:
+                        case FileStoreRequest.RequestType.Create:
                         {
                             var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
                             if (parentMetadata == null)
@@ -491,7 +421,7 @@ namespace MyOneDriveClient
                             }
                         }
                             break;
-                        case RequestType.Delete:
+                        case FileStoreRequest.RequestType.Delete:
                         {
                             if (itemMetadata == null)
                             {
@@ -513,7 +443,7 @@ namespace MyOneDriveClient
                     if (dequeue)
                     {
                         //yes
-                        _requests.TryDequeue(out RemoteFileStoreRequest result);
+                        _requests.TryDequeue(out FileStoreRequest result);
                     }
                     else
                     {
@@ -531,7 +461,11 @@ namespace MyOneDriveClient
         /// <summary>
         /// The JSon text of the metadata cache to be saved locally
         /// </summary>
-        public string MetadataCache => _metadata.Serialize();
+        public string MetadataCache
+        {
+            get => _metadata.Serialize();
+            set => _metadata.Deserialize(value);
+        }
         #endregion
         
         #region Public Methods
@@ -542,7 +476,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestUpload(IItemHandle item)
         {
-            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Upload, item.Path,
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, item.Path,
                 new RequestUploadExtraData(item)));
         }
         /// <summary>
@@ -554,7 +488,7 @@ namespace MyOneDriveClient
         /// <remarks><see cref="streamTo"/> gets disposed in this method</remarks>
         public int RequestFileDownload(string path, ILocalItemHandle streamTo)
         {
-            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Download, path,
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
                 new RequestDownloadExtraData(streamTo)));
         }
         /// <summary>
@@ -564,7 +498,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestFolderCreate(string path)
         {
-            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Create, path, null));
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path, null));
         }
         /// <summary>
         /// Deletes a remote item and its children
@@ -573,7 +507,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestDelete(string path)
         {
-            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Delete, path, null));
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
         }
         /// <summary>
         /// Renames a remote item
@@ -583,7 +517,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestRename(string path, string newName)
         {
-            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Rename, path,
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
                 new RequestRenameExtraData(newName)));
         }
         /// <summary>
@@ -594,18 +528,18 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestMove(string path, string newParentPath)
         {
-            return EnqueueRequest(new RemoteFileStoreRequest(ref _requestId, RequestType.Move, path,
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
 
-        public bool TryGetRequest(int requestId, out RemoteFileStoreRequest request)
+        public bool TryGetRequest(int requestId, out FileStoreRequest request)
         {
             //are there any queue items?
             var reqs = _requests.Where(item => item.RequestId == requestId);
             if (!reqs.Any())
             {
                 //no queue items... let's check limbo
-                if(_limboRequests.TryGetValue(requestId, out RemoteFileStoreRequest limboReq))
+                if(_limboRequests.TryGetValue(requestId, out FileStoreRequest limboReq))
                 {
                     //there is a limbo request
                     request = limboReq;
@@ -632,7 +566,7 @@ namespace MyOneDriveClient
             if (!reqs.Any())
             {
                 //no queue items... let's check limbo (but we don't care if it fails
-                _limboRequests.TryRemove(requestId, out RemoteFileStoreRequest value);
+                _limboRequests.TryRemove(requestId, out FileStoreRequest value);
             }
             else
             {
@@ -644,10 +578,10 @@ namespace MyOneDriveClient
         /// Enumerates the currently active requests
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<RemoteFileStoreRequest> EnumerateActiveRequests()
+        public IEnumerable<FileStoreRequest> EnumerateActiveRequests()
         {
             //this creates a copy
-            return new List<RemoteFileStoreRequest>(_requests);
+            return new List<FileStoreRequest>(_requests);
         }
         /// <summary>
         /// When an existing request's progress changes
@@ -655,7 +589,7 @@ namespace MyOneDriveClient
         public EventDelegates.RemoteRequestProgressChangedHandler OnRequestProgressChanged;
         /// <summary>
         /// When the status of an existing request changes or a new request is started.  Note
-        /// that if the status has been changed to <see cref="RequestStatus.Success"/>, there
+        /// that if the status has been changed to <see cref="FileStoreRequest.RequestStatus.Success"/>, there
         /// is no guarantee that the request still exists.
         /// </summary>
         public EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;
@@ -691,7 +625,7 @@ namespace MyOneDriveClient
                         filteredDeltas.Add(new ItemDelta
                         {
                             Handle = delta.ItemHandle,
-                            Type = ItemDelta.DeltaType.ModifiedOrCreated
+                            Type = ItemDelta.DeltaType.Created
                         });
 
                         //new item, so add it
@@ -732,7 +666,7 @@ namespace MyOneDriveClient
                                 filteredDeltas.Add(new ItemDelta
                                 {
                                     Handle = delta.ItemHandle,
-                                    Type = ItemDelta.DeltaType.ModifiedOrCreated
+                                    Type = ItemDelta.DeltaType.Modified
                                 });
 
                                 //and update the metadata

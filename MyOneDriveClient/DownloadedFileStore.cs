@@ -71,7 +71,14 @@ namespace MyOneDriveClient
         }
         private Stream GetLocalFileStream(string localPath)
         {
-            return new FileStream(BuildPath(localPath), FileMode.Open, FileAccess.Read, FileShare.None);
+            try
+            {
+                return new FileStream(BuildPath(localPath), FileMode.Open, FileAccess.Read, FileShare.None);
+            }
+            catch (Exception e)
+            {
+                return null;
+            }
         }
         [Obsolete]
         private bool CopyLocalItem(string localPath, string newLocalPath)
@@ -282,6 +289,8 @@ namespace MyOneDriveClient
             private string _sha1Hash;
             private bool _lmInitialized = false;
             private DateTime _lastModified;
+            private bool _sizeInitialized = false;
+            private long _size;
 
 
             public DownloadedFileHandle(DownloadedFileStore fs, string path)
@@ -342,6 +351,29 @@ namespace MyOneDriveClient
                     return _lastModified;
                 }
             }
+            public long Size
+            {
+                get
+                {
+                    if (!_sizeInitialized)
+                    {
+                        var info = _fs.GetItemInfo(Path);
+                        var fileInfo = info as FileInfo;
+                        if (fileInfo != null)
+                        {
+                            _size = fileInfo.Length;
+                        }
+                        else
+                        {
+                            _size = 0;
+                        }
+                        _sizeInitialized = true;
+                    }
+                    return _size;
+                }
+                
+            }
+
             public async Task<Stream> GetFileDataAsync()
             {
                 return _fs.GetLocalFileStream(_path);

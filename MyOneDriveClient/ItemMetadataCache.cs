@@ -105,7 +105,8 @@ namespace MyOneDriveClient
             if (_data.LocalItems.ContainsKey(handle.Id))
                 return false;
 
-            return AddOrUpdateItemMetadata(handle);
+            AddOrUpdateItemMetadata(handle);
+            return true;
         }
 
         public bool UpdateItemMetadata(IRemoteItemHandle handle)
@@ -113,12 +114,13 @@ namespace MyOneDriveClient
             if (!_data.LocalItems.ContainsKey(handle.Id))
                 return false;
 
-            return AddOrUpdateItemMetadata(handle);
+            AddOrUpdateItemMetadata(handle);
+            return true;
         }
 
-        public bool AddOrUpdateItemMetadata(IRemoteItemHandle handle)
+        public void AddOrUpdateItemMetadata(IRemoteItemHandle handle)
         {
-            return _data.LocalItems.TryAdd(handle.Id, new ItemMetadata
+            AddOrUpdateItemMetadata(new ItemMetadata
             {
                 IsFolder = handle.IsFolder,
                 Id = handle.Id,
@@ -127,6 +129,10 @@ namespace MyOneDriveClient
                 LastModified = handle.LastModified,
                 Metadata = this
             });
+        }
+        public void AddOrUpdateItemMetadata(ItemMetadata metadata)
+        {
+            _data.LocalItems[metadata.Id] = metadata;
         }
 
         public bool RemoveItemMetadata(string localPath)
