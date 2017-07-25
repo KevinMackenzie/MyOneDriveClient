@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,7 +36,11 @@ namespace MyOneDriveClient
             /// <summary>
             /// Request did not successfully complete
             /// </summary>
-            Failure
+            Failure,
+            /// <summary>
+            /// Request was cancelled
+            /// </summary>
+            Cancelled
         }
 
         public enum RequestType
@@ -121,23 +126,6 @@ namespace MyOneDriveClient
             public RequestType Type { get; }
 
             public IRemoteFileStoreRequestExtraData ExtraData { get; }
-
-
-            public void SetStatusFromHttpResponse(HttpResult result)
-            {
-                if (result.HttpMessage.IsSuccessStatusCode)
-                {
-                    //success!
-                    Status = RequestStatus.Success;
-                }
-                else
-                {
-                    //failure...
-                    Status = RequestStatus.Failure;
-                    ErrorMessage =
-                        $"Http Error \"{result.HttpMessage.StatusCode}\" because: \"{result.HttpMessage.ReasonPhrase}\"";
-                }
-            }
         }
 
         public class RemoteItemDelta : ItemDelta
@@ -159,7 +147,8 @@ namespace MyOneDriveClient
         /// <summary>
         /// Requests that failed for reasons other than network connection
         /// </summary>
-        private ConcurrentDictionary<int, RemoteFileStoreRequest> _failedRequests = new ConcurrentDictionary<int, RemoteFileStoreRequest>();
+        private ConcurrentDictionary<int, RemoteFileStoreRequest> _limboRequests = new ConcurrentDictionary<int, RemoteFileStoreRequest>();
+        private ConcurrentDictionary<int, object> _cancelledRequests = new ConcurrentDictionary<int, object>();
         private int _requestId;//TODO: should this be volatile
         #endregion
 
@@ -170,6 +159,35 @@ namespace MyOneDriveClient
         }
 
         #region Private Methods
+        private void SetStatusFromHttpResponse(RemoteFileStoreRequest request, HttpResponseMessage result)
+        {
+            if (result == null)
+            {
+                //didn't fail, but no network connection...
+                var oldStatus = request.Status;
+                request.Status = RequestStatus.Pending;
+
+                //if we started something, make sure we let the listeners know that we stopped!
+                if(oldStatus != RequestStatus.Pending)
+                    InvokeStatusChanged(request);
+            }
+            else
+            {
+                if (result.IsSuccessStatusCode)
+                {
+                    //success!
+                    request.Status = RequestStatus.Success;
+                }
+                else
+                {
+                    //failure...
+                    request.Status = RequestStatus.Failure;
+                    request.ErrorMessage =
+                        $"Http Error \"{result.StatusCode}\" because: \"{result.ReasonPhrase}\"";
+                }
+                InvokeStatusChanged(request);
+            }
+        }
         private void InvokeStatusChanged(RemoteFileStoreRequest request)
         {
             OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request.RequestId, request.Status));
@@ -178,7 +196,7 @@ namespace MyOneDriveClient
         {
             request.Status = RequestStatus.Failure;
             request.ErrorMessage = errorMessage;
-            _failedRequests[request.RequestId] = request;
+            _limboRequests[request.RequestId] = request;
             InvokeStatusChanged(request);
         }
         private int EnqueueRequest(RemoteFileStoreRequest request)
@@ -206,10 +224,7 @@ namespace MyOneDriveClient
             }
 
             //set the request status and error
-            request.SetStatusFromHttpResponse(uploadResult);
-            
-            //set the request status change
-            InvokeStatusChanged(request);
+            SetStatusFromHttpResponse(request, uploadResult.HttpMessage);
 
             var success = request.Status == RequestStatus.Success;
 
@@ -222,10 +237,9 @@ namespace MyOneDriveClient
         private async Task<bool> DownloadFileWithProgressAsync(string itemId, ILocalItemHandle item, RemoteFileStoreRequest request)
         {
             var getHandleRequest = await _remote.GetItemHandleByIdAsync(itemId);
-            if (!getHandleRequest.HttpMessage.IsSuccessStatusCode)
+            if (!getHandleRequest.Success)
             {
-                request.SetStatusFromHttpResponse(getHandleRequest);
-                InvokeStatusChanged(request);
+                SetStatusFromHttpResponse(request, getHandleRequest.HttpMessage);
                 return false;
             }
 
@@ -234,13 +248,16 @@ namespace MyOneDriveClient
 
             //try to get the item
             var getDataRequest = await remoteItem.TryGetFileDataAsync();
-            if (!getDataRequest.HttpMessage.IsSuccessStatusCode)
+            if (!getDataRequest.Success)
             {
                 //if we failed, then that's what the request should say
-                request.SetStatusFromHttpResponse(getDataRequest);
-                InvokeStatusChanged(request);
+                SetStatusFromHttpResponse(request, getDataRequest.HttpMessage);
                 return false;
             }
+            
+            //request is in progress now
+            request.Status = RequestStatus.InProgress;
+            InvokeStatusChanged(request);
 
             //start trying to stream item
             using (var stream =  getDataRequest.Value)
@@ -265,8 +282,7 @@ namespace MyOneDriveClient
         private async Task<bool> RenameItemAsync(string itemId, string newName, RemoteFileStoreRequest request)
         {
             var response = await _remote.RenameItemByIdAsync(itemId, newName);
-            request.SetStatusFromHttpResponse(response);
-            InvokeStatusChanged(request);
+            SetStatusFromHttpResponse(request, response.HttpMessage);
             var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
@@ -278,8 +294,7 @@ namespace MyOneDriveClient
         private async Task<bool> MoveItemAsync(string itemId, string newParentId, RemoteFileStoreRequest request)
         {
             var response = await _remote.MoveItemByIdAsync(itemId, newParentId);
-            request.SetStatusFromHttpResponse(response);
-            InvokeStatusChanged(request);
+            SetStatusFromHttpResponse(request, response.HttpMessage);
             var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
@@ -291,8 +306,7 @@ namespace MyOneDriveClient
         private async Task<bool> CreateItemAsync(string parentId, string name, RemoteFileStoreRequest request)
         {
             var response = await _remote.CreateFolderByIdAsync(parentId, name);
-            request.SetStatusFromHttpResponse(response);
-            InvokeStatusChanged(request);
+            SetStatusFromHttpResponse(request, response.HttpMessage);
             var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
@@ -304,8 +318,7 @@ namespace MyOneDriveClient
         private async Task<bool> DeleteItemAsync(string itemId, RemoteFileStoreRequest request)
         {
             var response = await _remote.DeleteItemByIdAsync(itemId);
-            request.SetStatusFromHttpResponse(response);
-            InvokeStatusChanged(request);
+            SetStatusFromHttpResponse(request, response.HttpMessage);
             var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
@@ -321,6 +334,17 @@ namespace MyOneDriveClient
             {
                 if (_requests.TryPeek(out RemoteFileStoreRequest request))
                 {
+                    //was this request cancelled?
+                    if (_cancelledRequests.ContainsKey(request.RequestId))
+                    {
+                        //if so, dequeue it and move on
+                        _requests.TryDequeue(out RemoteFileStoreRequest result);
+                        _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
+                        request.Status = RequestStatus.Cancelled;
+                        InvokeStatusChanged(request);
+                        continue;
+                    }
+
                     bool dequeue = false;
                     var itemMetadata = _metadata.GetItemMetadata(request.Path);
                     //since only this class has access to the queue, we have good confidence that 
@@ -576,18 +600,45 @@ namespace MyOneDriveClient
 
         public bool TryGetRequest(int requestId, out RemoteFileStoreRequest request)
         {
+            //are there any queue items?
             var reqs = _requests.Where(item => item.RequestId == requestId);
             if (!reqs.Any())
             {
-                request = null;
-                return false;
+                //no queue items... let's check limbo
+                if(_limboRequests.TryGetValue(requestId, out RemoteFileStoreRequest limboReq))
+                {
+                    //there is a limbo request
+                    request = limboReq;
+                    return true;
+                }
+                else
+                {
+                    //nope, no request found
+                    request = null;
+                    return false;
+                }
             }
             else
             {
+                //there is a queue item!
                 request = reqs.First();
                 return true;
             }
-
+        }
+        public void CancelRequest(int requestId)
+        {
+            //are there any queue items?
+            var reqs = _requests.Where(item => item.RequestId == requestId);
+            if (!reqs.Any())
+            {
+                //no queue items... let's check limbo (but we don't care if it fails
+                _limboRequests.TryRemove(requestId, out RemoteFileStoreRequest value);
+            }
+            else
+            {
+                //there is a queue item, so add it to the cancellation bag
+                _cancelledRequests.TryAdd(requestId, null);
+            }
         }
         /// <summary>
         /// Enumerates the currently active requests

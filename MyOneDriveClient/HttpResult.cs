@@ -20,6 +20,10 @@ namespace MyOneDriveClient
         /// </summary>
         public HttpResponseMessage HttpMessage => _responseMessage;
 
+        /// <summary>
+        /// Whether the response was successful
+        /// </summary>
+        public bool Success => HttpMessage != null && HttpMessage.IsSuccessStatusCode;
 
         /// <inheritdoc />
         public virtual void Dispose()

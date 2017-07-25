@@ -80,7 +80,7 @@ namespace MyOneDriveClient
         /// that if the status has been changed to <see cref="BufferedRemoteFileStoreInterface.RequestStatus.Success"/>, there
         /// is no guarantee that the request still exists.
         /// </summary>
-        public event EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;
+        public event EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;//TODO: local status' are a bit different, because there is a rename/merge option
         #endregion
     }
 }
