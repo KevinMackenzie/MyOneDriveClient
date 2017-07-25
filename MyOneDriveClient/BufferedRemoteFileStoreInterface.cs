@@ -186,7 +186,8 @@ namespace MyOneDriveClient
             _requests.Enqueue(request);
             return request.RequestId;
         }
-        private async Task<bool> UploadFileWithProgressAsync(string parentId, IItemHandle item, RemoteFileStoreRequest request)
+
+        private async Task<bool> UploadFileWithProgressAsync(string parentId, bool isNew, IItemHandle item, RemoteFileStoreRequest request)
         {
             HttpResult<IRemoteItemHandle> uploadResult; 
             //wrap the local stream to track read progress of local file
@@ -210,7 +211,13 @@ namespace MyOneDriveClient
             //set the request status change
             InvokeStatusChanged(request);
 
-            return request.Status == RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
+
+            //if we were successful, update the metadata
+            if(success)
+                _metadata.AddOrUpdateItemMetadata(uploadResult.Value);
+
+            return success;
         }
         private async Task<bool> DownloadFileWithProgressAsync(string itemId, ILocalItemHandle item, RemoteFileStoreRequest request)
         {
@@ -247,36 +254,67 @@ namespace MyOneDriveClient
                     await wrapper.CopyToAsync(writeStream);
                 }
             }
-            return request.Status == RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
+
+            //if we were successful, update the metadata
+            if (success)
+                _metadata.AddOrUpdateItemMetadata(getHandleRequest.Value);
+
+            return success;
         }
         private async Task<bool> RenameItemAsync(string itemId, string newName, RemoteFileStoreRequest request)
         {
             var response = await _remote.RenameItemByIdAsync(itemId, newName);
             request.SetStatusFromHttpResponse(response);
             InvokeStatusChanged(request);
-            return request.Status == RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
+
+            //if we were successful, update the metadata
+            if (success)
+                _metadata.UpdateItemMetadata(response.Value);
+
+            return success;
         }
         private async Task<bool> MoveItemAsync(string itemId, string newParentId, RemoteFileStoreRequest request)
         {
             var response = await _remote.MoveItemByIdAsync(itemId, newParentId);
             request.SetStatusFromHttpResponse(response);
             InvokeStatusChanged(request);
-            return request.Status == RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
+
+            //if we were successful, update the metadata
+            if (success)
+                _metadata.UpdateItemMetadata(response.Value);
+
+            return success;
         }
         private async Task<bool> CreateItemAsync(string parentId, string name, RemoteFileStoreRequest request)
         {
             var response = await _remote.CreateFolderByIdAsync(parentId, name);
             request.SetStatusFromHttpResponse(response);
             InvokeStatusChanged(request);
-            return request.Status == RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
+
+            //if we were successful, update the metadata
+            if (success)
+                _metadata.AddItemMetadata(response.Value);
+
+            return success;
         }
         private async Task<bool> DeleteItemAsync(string itemId, RemoteFileStoreRequest request)
         {
             var response = await _remote.DeleteItemByIdAsync(itemId);
             request.SetStatusFromHttpResponse(response);
             InvokeStatusChanged(request);
-            return request.Status == RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
+
+            //if we were successful, update the metadata
+            if (success)
+                _metadata.RemoveItemMetadataById(itemId);
+
+            return success;
         }
+
         private async Task ProcessQueue(CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
@@ -310,14 +348,15 @@ namespace MyOneDriveClient
                                     else
                                     {
                                         //We found the parent, so upload this child to it
-                                        dequeue = await UploadFileWithProgressAsync(parentMetadata.Id,
+                                        dequeue = await UploadFileWithProgressAsync(parentMetadata.Id, true,
                                             data.ItemHandle, request);
                                     }
                                 }
                                 else
                                 {
                                     //the item already exists, so upload a new version
-                                    dequeue = await UploadFileWithProgressAsync(itemMetadata.ParentId, data.ItemHandle, request);
+                                    dequeue = await UploadFileWithProgressAsync(itemMetadata.ParentId, false,
+                                        data.ItemHandle, request);
                                 }
 
                             }

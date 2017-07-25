@@ -132,7 +132,7 @@ namespace MyOneDriveClient
             return AddOrUpdateItemMetadata(handle);
         }
 
-        private bool AddOrUpdateItemMetadata(IRemoteItemHandle handle)
+        public bool AddOrUpdateItemMetadata(IRemoteItemHandle handle)
         {
             return _data.LocalItems.TryAdd(handle.Id, new RemoteItemMetadata
             {
