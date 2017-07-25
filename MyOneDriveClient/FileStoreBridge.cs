@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MyOneDriveClient.Events;
 
 namespace MyOneDriveClient
 {
@@ -16,6 +18,7 @@ namespace MyOneDriveClient
         private BufferedRemoteFileStoreInterface _remote;
         private const string RemoteMetadataCachePath = ".remotemetadata";
         private const string LocalMetadataCachePath = ".localmetadata";
+        private ConcurrentDictionary<int, IItemHandle> _downloadRequests = new ConcurrentDictionary<int, IItemHandle>();
         #endregion
 
         public FileStoreBridge(IEnumerable<string> blacklist, LocalFileStoreInterface local,
@@ -24,9 +27,26 @@ namespace MyOneDriveClient
             _blacklist = blacklist;
             _local = local;
             _remote = remote;
+
+            _remote.OnRequestStatusChanged += OnRequestStatusChanged;
         }
 
         #region Private Methods
+        private async Task OnRequestStatusChanged(object sender, RequestStatusChangedEventArgs requestStatusChangedEventArgs)
+        {
+            if (requestStatusChangedEventArgs.NewStatus == FileStoreRequest.RequestStatus.Success)
+            {
+                //downloaded file maybe
+                if (_downloadRequests.TryGetValue(requestStatusChangedEventArgs.RequestId, out IItemHandle value))
+                {
+                    //yes, so set the local last modified
+                    _local.TrySetItemLastModified(value.Path, value.LastModified);
+
+                    //and remove it from the download list
+                    _downloadRequests.TryRemove(requestStatusChangedEventArgs.RequestId, out var other);
+                }
+            }
+        }
         private bool IsBlacklisted(string path)
         {
             var len = path.Length;
@@ -136,13 +156,13 @@ namespace MyOneDriveClient
                         else
                         {
                             //item is file...
-                            if (!_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemhandle))
+                            if (!_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
                             {
                                 //... that doesn't exist, so download it
-                                _remote.RequestFileDownload(delta.Handle.Path, itemhandle);
+                                var requestId = _remote.RequestFileDownload(delta.Handle.Path, itemHandle);
 
-                                //TODO: this needs to occur AFTER the download has finished !!!
-                                _local.TrySetItemLastModified(delta.Handle.Path, delta.Handle.LastModified);
+                                //and add it to the downloading items list
+                                _downloadRequests[requestId] = delta.Handle;
                             }
                             else
                             {
@@ -162,13 +182,18 @@ namespace MyOneDriveClient
                         else
                         {
                             //item is a file ...
-                            _local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle);
+                            if (_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
+                            {
+                                //item exists, so... TODO: item exists!!! but needs to be modified!!! determine if we should rename local!!!
+                                
+                                //blah blah ... itemHandle = get non-conflicting item handle (delta.Handle.LastModified)
+                            }
 
                             //trying to modify and item that doesn't exist... so download it...
-                            _remote.RequestFileDownload(delta.Handle.Path, itemHandle);
+                            var requestId = _remote.RequestFileDownload(delta.Handle.Path, itemHandle);
 
-                            //TODO: this needs to occur AFTER the download has finished !!!
-                            _local.TrySetItemLastModified(delta.Handle.Path, delta.Handle.LastModified);
+                            //and add it to the downloading items list
+                            _downloadRequests[requestId] = delta.Handle;
                         }
                         break;
                     case ItemDelta.DeltaType.Renamed:

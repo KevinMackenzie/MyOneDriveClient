@@ -120,9 +120,9 @@ namespace MyOneDriveClient
                         }
                         else
                         {
-                            //... with a parent, so add the item metadata ...
-                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
-                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                            //... with a parent, so add the item metadata ... (this happens when filtering instead now)
+                            //_metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
+                            //    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
 
                             //... and add the delta
                             _localDeltas.Enqueue(new ItemDelta()
@@ -151,8 +151,8 @@ namespace MyOneDriveClient
                         }
                         else
                         {
-                            //... but does exist in metadata, so remove it ...
-                            _metadata.RemoveItemMetadataById(itemMetadata.Id);
+                            //... but does exist in metadata, so remove it ... (this happens when filtering instead now)
+                            //_metadata.RemoveItemMetadataById(itemMetadata.Id);
 
                             //... and add the delta
                             _localDeltas.Enqueue(new ItemDelta()
@@ -285,6 +285,17 @@ namespace MyOneDriveClient
                     switch (result.Type)
                     {
                         case ItemDelta.DeltaType.Created:
+                            var parentMetadata = _metadata.GetParentItemMetadata(result.Handle.Path);
+                            if (parentMetadata != null)
+                            {
+                                _metadata.AddItemMetadata(new LocalRemoteItemHandle(result.Handle,
+                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                            }
+                            else
+                            {
+                                Debug.WriteLine("Created item has no valid parent when filtering delta queue");
+                                continue;//we need to get ourselves together here
+                            }
                             break;
                         case ItemDelta.DeltaType.Deleted:
                             //deleted item ...
@@ -298,7 +309,30 @@ namespace MyOneDriveClient
                                         //... with the same last modified ...
                                         if (_localDeltas.TryDequeue(out ItemDelta nextDelta))
                                         {
-                                            //... so merge the two into a "moved" delta
+                                            //... so update the metadata accordingly ... 
+                                            var itemMetadata = _metadata.GetItemMetadata(result.Handle.Path);
+                                            if (itemMetadata != null)
+                                            {
+                                                var newParentItemMetadata =
+                                                    _metadata.GetParentItemMetadata(nextDelta.Handle.Path);
+                                                if (newParentItemMetadata != null)
+                                                {
+                                                    itemMetadata.ParentId = newParentItemMetadata.Id;
+                                                    _metadata.AddOrUpdateItemMetadata(itemMetadata);
+                                                }
+                                                else
+                                                {
+                                                    Debug.WriteLine("Moved item has no valid parent when filtering delta queue");
+                                                    continue;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                Debug.WriteLine("Moved item has no valid initial metadata");
+                                                continue;
+                                            }
+
+                                            //... and merge the two into a "moved" delta ...
                                             filteredDeltas.Add(new ItemDelta()
                                             {
                                                 Handle = nextDelta.Handle,
@@ -309,6 +343,11 @@ namespace MyOneDriveClient
                                         }
                                     }
                                 }
+                            }
+                            else
+                            {
+                                //remove from metadata ONLY if there is no corresponding "create" call 
+                                _metadata.RemoveItemMetadata(result.OldPath);
                             }
                             break;
                         case ItemDelta.DeltaType.Renamed:
