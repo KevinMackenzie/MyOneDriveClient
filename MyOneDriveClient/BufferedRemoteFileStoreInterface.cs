@@ -703,7 +703,7 @@ namespace MyOneDriveClient
                         if (itemMetadata.Name == delta.ItemHandle.Name)
                         {
                             //... with the same name ...
-                            if (itemMetadata.RemoteLastModified == delta.ItemHandle.LastModified)
+                            if (itemMetadata.LastModified == delta.ItemHandle.LastModified)
                             {
                                 //... with the same last modified ...
                                 if (itemMetadata.ParentId == delta.ItemHandle.ParentId)
