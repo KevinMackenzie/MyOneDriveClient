@@ -47,17 +47,17 @@ namespace MyOneDriveClient
             var localDeltas = _local.GetDeltas();
             foreach (var delta in localDeltas)
             {
-                if(IsBlacklisted(delta.Path))
+                if(IsBlacklisted(delta.Handle.Path))
                     continue;
 
                 switch (delta.Type)
                 {
                     case ItemDelta.DeltaType.ModifiedOrCreated:
-                        if (_local.TryGetItemHandle(delta.Path, out ILocalItemHandle itemHandle))
+                        if (_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
                         {
                             if (itemHandle.IsFolder)
                             {
-                                _remote.RequestFolderCreate(delta.Path);
+                                _remote.RequestFolderCreate(delta.Handle.Path);
                             }
                             else
                             {
@@ -71,42 +71,44 @@ namespace MyOneDriveClient
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
-                        _remote.RequestDelete(delta.Path);
+                        _remote.RequestDelete(delta.Handle.Path);
                         break;
                     case ItemDelta.DeltaType.Renamed:
-                        _remote.RequestRename(delta.OldPath, PathUtils.GetItemName(delta.Path));
+                        _remote.RequestRename(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        _remote.RequestMove(delta.OldPath, delta.Path);
+                        _remote.RequestMove(delta.OldPath, delta.Handle.Path);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
             }
         }
-        public void ApplyRemoteChanges()
+        public async Task ApplyRemoteChangesAsync()
         {
-            var remoteDeltas = _remote.RequestDeltas();
+            var remoteDeltas = await _remote.RequestDeltasAsync();
             foreach (var delta in remoteDeltas)
             {
-                if (IsBlacklisted(delta.Path))
+                if (IsBlacklisted(delta.Handle.Path))
                     continue;
 
                 switch (delta.Type)
                 {
                     case ItemDelta.DeltaType.ModifiedOrCreated:
-                        if (delta.IsFolder)
+                        if (delta.Handle.IsFolder)
                         {
-                            if (!_local.TryGetItemHandle(delta.Path, out ILocalItemHandle itemHandle))
+                            if (!_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
                             {
-                                _local.RequestFolderCreate(delta.Path);
+                                _local.RequestFolderCreate(delta.Handle.Path);
+                                _local.TrySetItemLastModified(delta.Handle.Path, delta.Handle.LastModified);
                             }
                         }
                         else
                         {
-                            if (_local.TryGetItemHandle(delta.Path, out ILocalItemHandle itemhandle))
+                            if (_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemhandle))
                             {
-                                _remote.RequestFileDownload(delta.Path, itemhandle);
+                                _remote.RequestFileDownload(delta.Handle.Path, itemhandle);
+                                _local.TrySetItemLastModified(delta.Handle.Path, delta.Handle.LastModified);
                             }
                             else
                             {
@@ -115,13 +117,13 @@ namespace MyOneDriveClient
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
-                        _local.RequestDeleteItem(delta.Path);
+                        _local.RequestDeleteItem(delta.Handle.Path);
                         break;
                     case ItemDelta.DeltaType.Renamed:
-                        _local.RequestMoveItem(delta.OldPath, delta.Path);
+                        _local.RequestMoveItem(delta.OldPath, delta.Handle.Path);
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        _local.RequestMoveItem(delta.OldPath, delta.Path);
+                        _local.RequestRenameItem(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();

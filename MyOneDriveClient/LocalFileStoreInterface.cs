@@ -5,13 +5,81 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MyOneDriveClient.Events;
+using System.Threading;
+using System.Collections.Concurrent;
 
 namespace MyOneDriveClient
 {
     public class LocalFileStoreInterface
     {
+        public enum RequestStatus
+        {
+            /// <summary>
+            /// Request was successfuly completed
+            /// </summary>
+            Success,
+            /// <summary>
+            /// Request is in queue/await network connection
+            /// </summary>
+            Pending,
+            /// <summary>
+            /// Request did not successfully complete
+            /// </summary>
+            Failure,
+            /// <summary>
+            /// Request was cancelled
+            /// </summary>
+            Cancelled
+        }
+
+        public enum RequestType
+        {
+            Rename,
+            Move,
+            Create,
+            Delete
+        }
+
+        public class RemoteFileStoreRequest
+        {
+            private int _requestId;
+            public RemoteFileStoreRequest(ref int id, RequestType type, string path)
+            {
+                _requestId = Interlocked.Increment(ref id);
+
+                Path = path;
+                Status = RequestStatus.Pending;
+                ErrorMessage = null;
+                Type = type;
+            }
+            /// <summary>
+            /// The ID of the request
+            /// </summary>
+            public int RequestId => _requestId;
+            /// <summary>
+            /// The path of the item in the request
+            /// </summary>
+            public string Path { get; }
+            /// <summary>
+            /// The current status of the request
+            /// </summary>
+            public RequestStatus Status { get; set; }
+            /// <summary>
+            /// If <see cref="Status"/> is <see cref="RequestStatus.Failure"/>, this will tell why
+            /// </summary>
+            public string ErrorMessage { get; set; }
+            /// <summary>
+            /// The type of the request
+            /// </summary>
+            public RequestType Type { get; }
+        }
+
         #region Private Fields
         private ILocalFileStore _local;
+        private ConcurrentQueue<RemoteFileStoreRequest> _requests = new ConcurrentQueue<RemoteFileStoreRequest>();
+        private ConcurrentDictionary<int, RemoteFileStoreRequest> _limboRequests = new ConcurrentDictionary<int, RemoteFileStoreRequest>();
+        private ConcurrentDictionary<int, object> _cancelledRequests = new ConcurrentDictionary<int, object>();
+        private int _requestId;//TODO: should this be volatile
         #endregion
 
         public LocalFileStoreInterface(ILocalFileStore local)
@@ -40,6 +108,7 @@ namespace MyOneDriveClient
         {
             throw new NotImplementedException();
         }
+
         public IEnumerable<ItemDelta> GetDeltas()
         {
             throw new NotImplementedException();
@@ -54,6 +123,10 @@ namespace MyOneDriveClient
             throw new NotImplementedException();
         }
         public int RequestMoveItem(string path, string newPath)
+        {
+            throw new NotImplementedException();
+        }
+        public int RequestRenameItem(string path, string newName)
         {
             throw new NotImplementedException();
         }

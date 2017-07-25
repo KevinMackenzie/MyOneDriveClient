@@ -678,8 +678,7 @@ namespace MyOneDriveClient
                 {
                     filteredDeltas.Add(new ItemDelta
                     {
-                        IsFolder = delta.ItemHandle.IsFolder,
-                        Path = delta.ItemHandle.Path,
+                        Handle = delta.ItemHandle,
                         Type = ItemDelta.DeltaType.Deleted
                     });
                 }
@@ -691,8 +690,7 @@ namespace MyOneDriveClient
                         //new item
                         filteredDeltas.Add(new ItemDelta
                         {
-                            IsFolder = delta.ItemHandle.IsFolder,
-                            Path = delta.ItemHandle.Path,
+                            Handle = delta.ItemHandle,
                             Type = ItemDelta.DeltaType.ModifiedOrCreated
                         });
 
@@ -719,8 +717,7 @@ namespace MyOneDriveClient
                                     //... with a different parent so move it
                                     filteredDeltas.Add(new ItemDelta
                                     {
-                                        IsFolder = delta.ItemHandle.IsFolder,
-                                        Path = delta.ItemHandle.Path,
+                                        Handle = delta.ItemHandle,
                                         OldPath = itemMetadata.Path,
                                         Type = ItemDelta.DeltaType.Moved
                                     });
@@ -734,8 +731,7 @@ namespace MyOneDriveClient
                                 //... with a different last modified so download it
                                 filteredDeltas.Add(new ItemDelta
                                 {
-                                    IsFolder = delta.ItemHandle.IsFolder,
-                                    Path = delta.ItemHandle.Path,
+                                    Handle = delta.ItemHandle,
                                     Type = ItemDelta.DeltaType.ModifiedOrCreated
                                 });
 
@@ -751,8 +747,7 @@ namespace MyOneDriveClient
                             //... with a different name so rename it
                             filteredDeltas.Add(new ItemDelta
                             {
-                                IsFolder = delta.ItemHandle.IsFolder,
-                                Path = delta.ItemHandle.Path,
+                                Handle = delta.ItemHandle,
                                 OldPath = itemMetadata.Path,
                                 Type = ItemDelta.DeltaType.Renamed
                             });
