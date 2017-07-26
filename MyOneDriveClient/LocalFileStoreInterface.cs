@@ -270,6 +270,28 @@ namespace MyOneDriveClient
         {
             throw new NotImplementedException();
         }
+        /// <summary>
+        /// Gets an item handle for a local item, renaming conflicts as required
+        /// </summary>
+        /// <param name="path">the path of the item to steal</param>
+        /// <param name="sha1">the local file will be renamed if this does not match the existing item's sha1</param>
+        /// <param name="itemHandle">the item handle (with write access) at the given path</param>
+        /// <returns>whether the retrieved item can be modified</returns>
+        /// <remarks>if returns false, then the user will have to intervene (choosing to keep local/remote, prompting to close application, etc)</remarks>
+        public bool TryStealItemHandle(string path, string sha1, out ILocalItemHandle itemHandle)
+        {
+            /*
+             * If we rename the local file automatically when the sha1 sums don't match up, then there is no way for the user to intervene.
+             * If the item cannot be opened due to it being currently opened by another editor/otherwise being blocked, then the stream will
+             *      be null, but there is currently no other way to signal to the BufferedRemoteFileStore that the item should not be immediately
+             *      overwritten.  
+             *      
+             *      So there must be some way to signal the remote with at least the capibilities to distinguish the difference between:
+             *          -A file that has been modified locally since the downloading of updates
+             *          -A file that currently cannot be opened for writing because it is being blocked
+             */
+            throw new NotImplementedException();
+        }
         public bool ItemExists(string path)
         {
             throw new NotImplementedException();

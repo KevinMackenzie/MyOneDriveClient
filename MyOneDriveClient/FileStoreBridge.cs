@@ -155,6 +155,9 @@ namespace MyOneDriveClient
                         }
                         else
                         {
+                            ///////// CODE UNDER MAINTINENCE
+
+
                             //item is file...
                             if (!_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
                             {
@@ -166,8 +169,10 @@ namespace MyOneDriveClient
                             }
                             else
                             {
-                                //TODO: item exists!!! but is trying to be created!!! rename local!!!
+                                //TODO: see comments around TryStealItemHandle for more details
                             }
+
+                            ////////// END CODE UNDER MAINTINANCE
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
@@ -181,12 +186,13 @@ namespace MyOneDriveClient
                         }
                         else
                         {
+                            ///////// CODE UNDER MAINTINENCE
+
+
                             //item is a file ...
                             if (_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
                             {
-                                //item exists, so... TODO: item exists!!! but needs to be modified!!! determine if we should rename local!!!
-                                
-                                //blah blah ... itemHandle = get non-conflicting item handle (delta.Handle.LastModified)
+                                //TODO: see comments around TryStealItemHandle for more details
                             }
 
                             //trying to modify and item that doesn't exist... so download it...
@@ -194,6 +200,8 @@ namespace MyOneDriveClient
 
                             //and add it to the downloading items list
                             _downloadRequests[requestId] = delta.Handle;
+
+                            ////////// END CODE UNDER MAINTINANCE
                         }
                         break;
                     case ItemDelta.DeltaType.Renamed:
