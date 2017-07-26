@@ -22,19 +22,19 @@ namespace MyOneDriveClient
         #region Extra Datas
         public class RequestUploadExtraData : IFileStoreRequestExtraData
         {
-            public RequestUploadExtraData(IItemHandle itemHandle)
+            public RequestUploadExtraData(Stream streamFrom)
             {
-                ItemHandle = itemHandle;
+                StreamFrom = streamFrom;
             }
-            public IItemHandle ItemHandle { get; }
+            public Stream StreamFrom { get; }
         }
         public class RequestDownloadExtraData : IFileStoreRequestExtraData
         {
-            public RequestDownloadExtraData(ILocalItemHandle itemHandle)
+            public RequestDownloadExtraData(Stream streamTo)
             {
-                ItemHandle = itemHandle;
+                StreamTo = streamTo;
             }
-            public ILocalItemHandle ItemHandle { get; }
+            public Stream StreamTo { get; }
         }
         #endregion
 
@@ -99,7 +99,7 @@ namespace MyOneDriveClient
         }
         private void InvokeStatusChanged(FileStoreRequest request)
         {
-            OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request.RequestId, request.Status));
+            OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
         }
         private void FailRequest(FileStoreRequest request, string errorMessage)
         {
@@ -120,13 +120,13 @@ namespace MyOneDriveClient
             return request.RequestId;
         }
 
-        private async Task<bool> UploadFileWithProgressAsync(string parentId, bool isNew, IItemHandle item, FileStoreRequest request)
+        private async Task<bool> UploadFileWithProgressAsync(string parentId, bool isNew, Stream readFrom, FileStoreRequest request)
         {
             HttpResult<IRemoteItemHandle> uploadResult; 
             //wrap the local stream to track read progress of local file
-            using (var stream = await item.GetFileDataAsync())
+            using (readFrom)
             {
-                var wrapper = new ProgressableStreamWrapper(stream);
+                var wrapper = new ProgressableStreamWrapper(readFrom);
                 wrapper.OnReadProgressChanged += (sender, args) => OnRequestProgressChanged?.Invoke(this,
                     new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
 
@@ -135,7 +135,7 @@ namespace MyOneDriveClient
                 InvokeStatusChanged(request);
 
                 //make the upload request
-                uploadResult = await _remote.UploadFileByIdAsync(parentId, item.Name, wrapper);
+                uploadResult = await _remote.UploadFileByIdAsync(parentId, PathUtils.GetItemName(request.Path), wrapper);
             }
 
             //set the request status and error
@@ -149,7 +149,7 @@ namespace MyOneDriveClient
 
             return success;
         }
-        private async Task<bool> DownloadFileWithProgressAsync(string itemId, ILocalItemHandle item, FileStoreRequest request)
+        private async Task<bool> DownloadFileWithProgressAsync(string itemId, Stream writeTo, FileStoreRequest request)
         {
             var getHandleRequest = await _remote.GetItemHandleByIdAsync(itemId);
             if (!getHandleRequest.Success)
@@ -172,9 +172,9 @@ namespace MyOneDriveClient
             
 
             //get the write stream
-            var writeStream = item.GetWritableStream();
-            if (writeStream != null)
-            {
+            //var writeStream = item.GetWritableStream();
+            //if (writeStream != null)
+            //{
                 //write stream isn't null, so start trying to stream item
                 using (var stream = getDataRequest.Value)
                 {
@@ -187,20 +187,20 @@ namespace MyOneDriveClient
                     wrapper.OnReadProgressChanged += (sender, args) => OnRequestProgressChanged?.Invoke(this,
                         new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
                     
-                    using (writeStream)
+                    using (writeTo)
                     {
-                        await wrapper.CopyToAsync(writeStream);
+                        await wrapper.CopyToAsync(writeTo);
                     }
                     //successfully completed stream
                     request.Status = FileStoreRequest.RequestStatus.Success;
                     InvokeStatusChanged(request);
                 }
-            }
-            else
-            {
+            //}
+            //else
+            //{
                 //write stream is null, which means the file cannot be opened at this time, so put in limbo
-                RequestAwaitUser(request);
-            }
+            //    RequestAwaitUser(request);
+            //}
             var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
             //if we were successful, update the metadata
@@ -303,14 +303,14 @@ namespace MyOneDriveClient
                                     {
                                         //We found the parent, so upload this child to it
                                         dequeue = await UploadFileWithProgressAsync(parentMetadata.Id, true,
-                                            data.ItemHandle, request);
+                                            data.StreamFrom, request);
                                     }
                                 }
                                 else
                                 {
                                     //the item already exists, so upload a new version
                                     dequeue = await UploadFileWithProgressAsync(itemMetadata.ParentId, false,
-                                        data.ItemHandle, request);
+                                        data.StreamFrom, request);
                                 }
 
                             }
@@ -329,7 +329,7 @@ namespace MyOneDriveClient
                                 if (itemMetadata != null)
                                 {
                                     //item exists already, so download it
-                                    dequeue = await DownloadFileWithProgressAsync(itemMetadata.Id, data.ItemHandle, request);
+                                    dequeue = await DownloadFileWithProgressAsync(itemMetadata.Id, data.StreamTo, request);
                                 }
                                 else
                                 {
@@ -467,17 +467,19 @@ namespace MyOneDriveClient
             set => _metadata.Deserialize(value);
         }
         #endregion
-        
+
         #region Public Methods
         /// <summary>
         /// Upload a file to the remote
         /// </summary>
-        /// <param name="item">the item handle to stream data from</param>
+        /// <param name="path">the path of the item to upload</param>
+        /// <param name="streamFrom">the stream to read data from</param>
         /// <returns>the request id</returns>
-        public int RequestUpload(IItemHandle item)
+        /// <remarks><see cref="streamFrom"/> gets disposed in this method</remarks>
+        public int RequestUpload(string path, Stream streamFrom)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, item.Path,
-                new RequestUploadExtraData(item)));
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path,
+                new RequestUploadExtraData(streamFrom)));
         }
         /// <summary>
         /// Download a file from the remote
@@ -486,7 +488,7 @@ namespace MyOneDriveClient
         /// <param name="streamTo">where to stream the download to</param>
         /// <returns>the request id</returns>
         /// <remarks><see cref="streamTo"/> gets disposed in this method</remarks>
-        public int RequestFileDownload(string path, ILocalItemHandle streamTo)
+        public int RequestFileDownload(string path, Stream streamTo)
         {
             return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
                 new RequestDownloadExtraData(streamTo)));

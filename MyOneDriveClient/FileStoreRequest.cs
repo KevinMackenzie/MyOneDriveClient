@@ -101,6 +101,6 @@ namespace MyOneDriveClient
         /// </summary>
         public RequestType Type { get; }
 
-        public IFileStoreRequestExtraData ExtraData { get; }
+        public IFileStoreRequestExtraData ExtraData { get; set; }
     }
 }

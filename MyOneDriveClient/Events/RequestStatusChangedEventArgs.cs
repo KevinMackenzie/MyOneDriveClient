@@ -8,13 +8,37 @@ namespace MyOneDriveClient.Events
 {
     public class RequestStatusChangedEventArgs : EventArgs
     {
-        public RequestStatusChangedEventArgs(int requestId, FileStoreRequest.RequestStatus newStatus)
+        public RequestStatusChangedEventArgs(FileStoreRequest request)
         {
-            RequestId = requestId;
-            NewStatus = newStatus;
+            RequestId = request.RequestId;
+            Path = request.Path;
+            Status = request.Status;
+            ErrorMessage = request.ErrorMessage;
+            Type = request.Type;
+            ExtraData = request.ExtraData;
         }
 
+        /// <summary>
+        /// The id of the request
+        /// </summary>
         public int RequestId { get; }
-        public FileStoreRequest.RequestStatus NewStatus { get; }
+        /// <summary>
+        /// The path of the item in the request
+        /// </summary>
+        public string Path { get; }
+        /// <summary>
+        /// The current status of the request
+        /// </summary>
+        public FileStoreRequest.RequestStatus Status { get; }
+        /// <summary>
+        /// If <see cref="Status"/> is <see cref="FileStoreRequest.RequestStatus.Failure"/>, this will tell why
+        /// </summary>
+        public string ErrorMessage { get; }
+        /// <summary>
+        /// The type of the request
+        /// </summary>
+        public FileStoreRequest.RequestType Type { get; }
+
+        public IFileStoreRequestExtraData ExtraData { get; }
     }
 }

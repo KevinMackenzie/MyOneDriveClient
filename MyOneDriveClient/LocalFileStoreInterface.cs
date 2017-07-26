@@ -79,6 +79,32 @@ namespace MyOneDriveClient
             }
         }
 
+        /// <summary>
+        /// Request data for getting a writable stream
+        /// </summary>
+        private class RequestWritableStreamExtraData : IFileStoreRequestExtraData
+        {
+            public RequestWritableStreamExtraData(string sha1)
+            {
+                Sha1 = sha1;
+            }
+            public string Sha1 { get; }
+        }
+        /// <summary>
+        /// Data returned from a request after getting the stream
+        /// </summary>
+        public class RequestStreamExtraData : IFileStoreRequestExtraData
+        {
+            public RequestStreamExtraData(Stream stream, bool writable)
+            {
+                Stream = stream;
+                Writable = writable;
+            }
+            public bool Writable { get; }
+            public Stream Stream { get; }
+        }
+
+
         #region Private Fields
         private ILocalFileStore _local;
         private ConcurrentQueue<ItemDelta> _localDeltas = new ConcurrentQueue<ItemDelta>();
@@ -256,7 +282,7 @@ namespace MyOneDriveClient
 
         #region Public Methods
         /// <summary>
-        /// Attempts to get an item handle
+        /// Attempts to get an item handle and bypasses the request system
         /// </summary>
         /// <param name="path">the path of the handle to get</param>
         /// <param name="itemHandle">the handle to the item, whether it exists or not</param>
@@ -289,6 +315,12 @@ namespace MyOneDriveClient
              *      So there must be some way to signal the remote with at least the capibilities to distinguish the difference between:
              *          -A file that has been modified locally since the downloading of updates
              *          -A file that currently cannot be opened for writing because it is being blocked
+             *          
+             *          
+             *          
+             *      Maybe, "RequestItemHandle" is a better option because it puts this class in the position of notifying the user for 
+             *          intervention before it gets to the remote request.  Or maybe requesting the stream is better because that
+             *          guarantees blocking of the file while we wait.
              */
             throw new NotImplementedException();
         }
@@ -389,6 +421,27 @@ namespace MyOneDriveClient
         }
 
         /// <summary>
+        /// Gets a writable stream.  To get the stream, use the <see cref="RequestStreamExtraData"/> of 
+        ///  the request after calling <see cref="AwaitRequest"/>
+        /// </summary>
+        /// <param name="path">the path of the stream to get</param>
+        /// <param name="sha1">the sha1 sum of the item to test against to determine conflicts.  leave blank/null to always overwrite local</param>
+        /// <returns>the request id</returns>
+        public int RequestWritableStream(string path, string sha1)
+        {
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, new RequestWritableStreamExtraData(sha1)));
+        }
+        /// <summary>
+        /// Gets a read-only stream.  To get the stream, use the <see cref="RequestStreamExtraData"/> of 
+        ///  the request after calling <see cref="AwaitRequest"/>
+        /// </summary>
+        /// <param name="path">the path of the stream to get</param>
+        /// <returns>the request id</returns>
+        public int RequestReadOnlyStream(string path)
+        {
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path, null));
+        }
+        /// <summary>
             /// Deletes a local item and its children
             /// </summary>
             /// <param name="path">the path of the item to delete</param>
@@ -440,6 +493,18 @@ namespace MyOneDriveClient
                 }
             }
             _local.SetItemAttributes(path, FileAttributes.Hidden);
+        }
+
+
+        /// <summary>
+        /// Waits for the given request status to be <see cref="FileStoreRequest.RequestStatus.Cancelled"/>
+        ///  or <see cref="FileStoreRequest.RequestStatus.Success"/>
+        /// </summary>
+        /// <param name="requestId">the id of the request to wait for</param>
+        /// <returns>the request with that id</returns>
+        public async Task<FileStoreRequest> AwaitRequest(int requestId)
+        {
+            throw new NotImplementedException();
         }
         #endregion
 
