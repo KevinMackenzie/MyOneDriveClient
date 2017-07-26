@@ -15,5 +15,7 @@ namespace MyOneDriveClient.Events
 
         public delegate Task RemoteRequestProgressChangedHandler(object sender, RemoteRequestProgressChangedEventArgs e);
         public delegate Task RequestStatusChangedHandler(object sender, RequestStatusChangedEventArgs e);
+
+        public delegate void NotifyStreamDisposedHandler(object sender);
     }
 }

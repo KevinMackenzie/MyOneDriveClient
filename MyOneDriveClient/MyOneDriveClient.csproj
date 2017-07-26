@@ -113,6 +113,7 @@
     <Compile Include="ItemDelta.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="LocalItemMetadataCache.cs" />
+    <Compile Include="NotifyDisposedStream.cs" />
     <Compile Include="ProgressableStreamWrapper.cs" />
     <Compile Include="ProgressChangedEventArgs.cs" />
     <Compile Include="ItemMetadataCache.cs" />

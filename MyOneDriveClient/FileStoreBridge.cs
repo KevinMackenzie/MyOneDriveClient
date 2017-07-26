@@ -18,7 +18,7 @@ namespace MyOneDriveClient
         private BufferedRemoteFileStoreInterface _remote;
         private const string RemoteMetadataCachePath = ".remotemetadata";
         private const string LocalMetadataCachePath = ".localmetadata";
-        private ConcurrentDictionary<int, IItemHandle> _downloadRequests = new ConcurrentDictionary<int, IItemHandle>();
+        private ConcurrentDictionary<int, IItemHandle> _uploadRequests = new ConcurrentDictionary<int, IItemHandle>();
         #endregion
 
         public FileStoreBridge(IEnumerable<string> blacklist, LocalFileStoreInterface local,
@@ -35,35 +35,12 @@ namespace MyOneDriveClient
         #region Private Methods
         private async Task OnRemoteRequestStatusChanged(object sender, RequestStatusChangedEventArgs requestStatusChangedEventArgs)
         {
-            switch (requestStatusChangedEventArgs.Status)
-            {
-                case FileStoreRequest.RequestStatus.Success:
-                    //downloaded file maybe
-                    if (_downloadRequests.TryGetValue(requestStatusChangedEventArgs.RequestId, out IItemHandle value))
-                    {
-                        //yes, so set the local last modified
-                        _local.TrySetItemLastModified(value.Path, value.LastModified);
-
-                        //and remove it from the download list
-                        _downloadRequests.TryRemove(requestStatusChangedEventArgs.RequestId, out var other);
-                    }
-                    break;
-            }
         }
         private async Task OnLocalRequestStatusChanged(object sender, RequestStatusChangedEventArgs e)
         {
             switch (e.Status)
             {
                 case FileStoreRequest.RequestStatus.Success:
-                    //folder created maybe
-                    if (_downloadRequests.TryGetValue(e.RequestId, out IItemHandle value))
-                    {
-                        //yes, so set the local last modified
-                        _local.TrySetItemLastModified(value.Path, value.LastModified);
-
-                        //and remove it from the download list
-                        _downloadRequests.TryRemove(e.RequestId, out var other);
-                    }
                     break;
                 case FileStoreRequest.RequestStatus.Pending:
                     break;
@@ -85,7 +62,7 @@ namespace MyOneDriveClient
 
         private async Task CreateOrDownloadFileAsync(ItemDelta delta)
         {
-            var streamRequest = await _local.AwaitRequest(_local.RequestWritableStream(delta.Handle.Path, delta.Handle.SHA1Hash));
+            var streamRequest = await _local.AwaitRequest(_local.RequestWritableStream(delta.Handle.Path, delta.Handle.SHA1Hash, delta.Handle.LastModified));
             if (streamRequest.Status == FileStoreRequest.RequestStatus.Cancelled)
             {
                 //cancelled request, so TODO KEEP LOCAL ...
@@ -96,8 +73,7 @@ namespace MyOneDriveClient
                 var extraData = streamRequest.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
                 if (extraData != null)
                 {
-                    _downloadRequests[_remote.RequestFileDownload(delta.Handle.Path, extraData.Stream)] =
-                        delta.Handle;
+                    _remote.RequestFileDownload(delta.Handle.Path, extraData.Stream);
                 }
                 else
                 {
@@ -232,7 +208,7 @@ namespace MyOneDriveClient
                             if (!_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
                             {
                                 //... that doesn't exist, so create it
-                                _local.RequestFolderCreate(delta.Handle.Path);
+                                _local.RequestFolderCreate(delta.Handle.Path, delta.Handle.LastModified);
                             }
                         }
                         else
@@ -269,7 +245,7 @@ namespace MyOneDriveClient
                         if (delta.Handle.IsFolder)
                         {
                             //item is a folder ... so set it's last modified
-                            _local.TrySetItemLastModified(delta.Handle.Path, delta.Handle.LastModified);
+                            //_local.TrySetItemLastModified(delta.Handle.Path, delta.Handle.LastModified);
                         }
                         else
                         {

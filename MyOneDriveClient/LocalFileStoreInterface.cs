@@ -13,6 +13,12 @@ namespace MyOneDriveClient
 {
     public class LocalFileStoreInterface
     {
+        public enum UserPrompts
+        {
+            KeepOverwriteOrRename,
+            CloseApplication
+        }
+
         private class DeletedItemHandle : IItemHandle
         {
             public DeletedItemHandle(ItemMetadataCache.ItemMetadata metadata)
@@ -79,16 +85,26 @@ namespace MyOneDriveClient
             }
         }
 
+        private class RequestCreateFolderExtraData : IFileStoreRequestExtraData
+        {
+            public RequestCreateFolderExtraData(DateTime lastModified)
+            {
+                LastModified = lastModified;
+            }
+            public DateTime LastModified { get; }
+        }
         /// <summary>
         /// Request data for getting a writable stream
         /// </summary>
         private class RequestWritableStreamExtraData : IFileStoreRequestExtraData
         {
-            public RequestWritableStreamExtraData(string sha1)
+            public RequestWritableStreamExtraData(string sha1, DateTime lastModified)
             {
                 Sha1 = sha1;
+                LastModified = lastModified;
             }
             public string Sha1 { get; }
+            public DateTime LastModified { get; }
         }
         /// <summary>
         /// Data returned from a request after getting the stream
@@ -125,6 +141,13 @@ namespace MyOneDriveClient
         }
 
         #region Private Methods
+        private void RequestAwaitUser(FileStoreRequest request, UserPrompts prompt)
+        {
+            request.Status = FileStoreRequest.RequestStatus.WaitForUser;
+            request.ErrorMessage = prompt.ToString();
+            _limboRequests[request.RequestId] = request;
+            InvokeStatusChanged(request);
+        }
         private void InvokeStatusChanged(FileStoreRequest request)
         {
             OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
@@ -284,8 +307,31 @@ namespace MyOneDriveClient
                     throw new ArgumentOutOfRangeException();
             }
         }
-        
 
+        private bool CreateWritableHandle(FileStoreRequest request, DateTime lastModified)
+        {
+            NotifyDisposedStream writeStream;
+            writeStream.OnDisposed +=
+                (sender) =>
+                {
+                    //after disposing, make sure that we set the last modified of the local and the metadata
+                    _local.SetItemLastModified(request.Path, lastModified);
+
+                    _metadata.GetItemMetadata(request.Path).LastModified = lastModified; //TODO: this is OK to do, change everywhere else!!!
+                };
+        }
+        private bool CreateReadOnlyHandle(FileStoreRequest request)
+        {
+            NotifyDisposedStream readStream;
+            readStream.OnDisposed +=
+                (sender) =>
+                {
+                    //after disposing, make sure that we set the last modified of the local and the metadata
+                    _local.SetItemLastModified(request.Path, lastModified);
+
+                    _metadata.GetItemMetadata(request.Path).LastModified = lastModified; //TODO: this is OK to do, change everywhere else!!!
+                };
+        }
         private bool RenameItem(string itemId, string newName, FileStoreRequest request)
         {
             
@@ -336,8 +382,123 @@ namespace MyOneDriveClient
                     switch (request.Type)
                     {
                         case FileStoreRequest.RequestType.Write: // get writable stream
+                        {
+                            var data = request.ExtraData as RequestWritableStreamExtraData;
+                            if (data != null)
+                            {
+                                //get the file handle
+                                var fileHandle = _local.GetFileHandle(request.Path);
+                                if (_local.ItemExists(request.Path) && fileHandle.IsFolder)
+                                {
+                                    FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for writing");
+                                }
+                                if (itemMetadata != null)
+                                {
+                                    if (!_local.ItemExists(request.Path))
+                                    {
+                                        //item has been synced before, but doesn't exist locally...  this is weird
+                                        FailRequest(request, $"Attempt to download previously synced file that no longer exists \"{request.Path}\"");
+                                    }
+                                    else
+                                    {
+                                        //item has been synced before
+                                        var lastSyncTime = itemMetadata.LastModified;
+
+                                        if (data.LastModified > lastSyncTime) //(this is pretty much a guarantee)
+                                        {
+                                            if (data.Sha1 == fileHandle.SHA1Hash)
+                                            {
+                                                //same sha1, just update metadata and file info
+                                                _local.SetItemLastModified(fileHandle.Path, data.LastModified);
+                                                itemMetadata.LastModified = data.LastModified;
+                                            }
+                                            if (fileHandle.LastModified > lastSyncTime)
+                                            {
+                                                //local item has also been modified since last sync
+                                                RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+                                                dequeue = true;//TODO: we must pause everything while requesting the user!!!
+                                            }
+                                            else
+                                            {
+                                                //local item has not been modified since last sync
+                                                dequeue = CreateWritableHandle(request, data.LastModified);
+                                            }
+                                        }
+                                        else
+                                        {
+                                            FailRequest(request, $"Attempt to download older version of \"{request.Path}\" than exists locally");
+                                            dequeue = true;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                        //item metadata doesn't exist, so get it's parent
+                                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                                    if (parentMetadata == null)
+                                    {
+                                        FailRequest(request, $"Attempted to get parent metadata of item \"{request.Path}\" that does not exist");
+                                        dequeue = true;
+                                    }
+                                    else
+                                    {
+                                            //add the new item to the metadata with the retrieved parent
+                                        _metadata.AddItemMetadata(new LocalRemoteItemHandle(fileHandle, _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                        if (_local.ItemExists(request.Path))
+                                        {
+                                            //item hasn't been synced before, so definitely ask the user ... 
+                                            RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+                                            dequeue = true;//TODO: we must pause everything while requesting the user!!!
+                                        }
+                                        else
+                                        {
+                                            //item has't been synced before, but doesn't exist locally, so just create the file
+                                            dequeue = CreateWritableHandle(request, data.LastModified);
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                Debug.Write("Write request was called without approprate extra data");
+                            }
+                        }
                             break;
                         case FileStoreRequest.RequestType.Read: // get read-only stream
+                        {
+                            if (!_local.ItemExists(request.Path))
+                            {
+                                FailRequest(request,
+                                    $"Attempt to open a local item that does not exist \"{request.Path}\"");
+                                dequeue = true;
+                            }
+                            else
+                            {
+                                var fileHandle = _local.GetFileHandle(request.Path);
+                                if (fileHandle.IsFolder)
+                                {
+                                    FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for reading");
+                                    dequeue = true;
+                                }
+                                if (itemMetadata == null)
+                                {
+                                    //item hasn't been synced before
+                                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                                    if (parentMetadata == null)
+                                    {
+                                        //the item exists locally, but something is messed up with the metadata
+                                        FailRequest(request, $"Attempt to open a file \"{request.Path}\" that has no parent metadata.  Check metadata cache state");
+                                        dequeue = true;
+                                    }
+                                    else
+                                    {
+                                        _metadata.AddItemMetadata(new LocalRemoteItemHandle(fileHandle,
+                                            _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                    }
+                                }
+                                dequeue = CreateReadOnlyHandle(request);
+                            }
+                        }
                             break;
                         case FileStoreRequest.RequestType.Rename:
                         {
@@ -465,11 +626,6 @@ namespace MyOneDriveClient
         {
             throw new NotImplementedException();
         }
-        //TODO: should this be a request?
-        public bool TrySetItemLastModified(string path, DateTime lastModified)
-        {
-            throw new NotImplementedException();
-        }
         /// <summary>
         /// Gets an item handle for a local item, renaming conflicts as required
         /// </summary>
@@ -502,6 +658,22 @@ namespace MyOneDriveClient
         {
             throw new NotImplementedException();
         }
+
+        //I would really like to not expose this method
+        /*public bool TrySetItemLastModified(string path, DateTime lastModified)
+        {
+            //this is bad
+            try
+            {
+                _local.SetItemLastModified(path, lastModified);
+                _metadata.GetItemMetadata(path).LastModified = lastModified;
+                return true;
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+        }*/
 
         public Task<IEnumerable<ItemDelta>> GetDeltasAsync()
         {
@@ -601,9 +773,9 @@ namespace MyOneDriveClient
         /// <param name="path">the path of the stream to get</param>
         /// <param name="sha1">the sha1 sum of the item to test against to determine conflicts.  leave blank/null to always overwrite local</param>
         /// <returns>the request id</returns>
-        public int RequestWritableStream(string path, string sha1)
+        public int RequestWritableStream(string path, string sha1, DateTime lastModified)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, new RequestWritableStreamExtraData(sha1)));
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, new RequestWritableStreamExtraData(sha1, lastModified)));
         }
         /// <summary>
         /// Gets a read-only stream.  To get the stream, use the <see cref="RequestStreamExtraData"/> of 
@@ -629,9 +801,10 @@ namespace MyOneDriveClient
         /// </summary>
         /// <param name="path">the path of the folder to create</param>
         /// <returns>the request id</returns>
-        public int RequestFolderCreate(string path)
+        public int RequestFolderCreate(string path, DateTime lastModified)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path, null));
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
+                new RequestCreateFolderExtraData(lastModified)));
         }
         /// <summary>
         /// Moves a local item
