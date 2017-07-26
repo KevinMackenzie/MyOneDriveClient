@@ -189,7 +189,7 @@ namespace MyOneDriveClient
                     
                     using (writeTo)
                     {
-                        await wrapper.CopyToAsync(writeTo);
+                        await wrapper.CopyToStreamAsync(writeTo);
                     }
                     //successfully completed stream
                     request.Status = FileStoreRequest.RequestStatus.Success;
