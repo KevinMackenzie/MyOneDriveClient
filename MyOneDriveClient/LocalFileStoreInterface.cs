@@ -49,11 +49,13 @@ namespace MyOneDriveClient
         private class LocalRemoteItemHandle : IRemoteItemHandle
         {
             private IItemHandle _handle;
-            public LocalRemoteItemHandle(IItemHandle handle, string id, string parentId)
+            private string _sha1;
+            public LocalRemoteItemHandle(IItemHandle handle, string id, string parentId, string sha1Hash = null)
             {
                 _handle = handle;
                 Id = id;
                 ParentId = parentId;
+                _sha1 = sha1Hash;
             }
 
 
@@ -66,7 +68,17 @@ namespace MyOneDriveClient
             /// <inheritdoc />
             public long Size => _handle.Size;
             /// <inheritdoc />
-            public string SHA1Hash => _handle.SHA1Hash;
+            public string SHA1Hash
+            {
+                get
+                {
+                    if (_sha1 == null)
+                    {
+                        _sha1 = _handle.SHA1Hash;
+                    }
+                    return _sha1;
+                }
+            }
             /// <inheritdoc />
             public DateTime LastModified => _handle.LastModified;
             /// <inheritdoc />
@@ -312,7 +324,7 @@ namespace MyOneDriveClient
         {
             NotifyDisposedStream writeStream;
             writeStream.OnDisposed +=
-                (sender, dontuse) =>
+                (sender) =>
                 {
                     //after disposing, make sure that we set the last modified of the local and the metadata
                     _local.SetItemLastModified(request.Path, lastModified);
@@ -322,15 +334,7 @@ namespace MyOneDriveClient
         }
         private bool CreateReadOnlyHandle(FileStoreRequest request)
         {
-            NotifyDisposedStream readStream;
-            readStream.OnDisposed +=
-                (sender, lastModified) =>
-                {
-                    //after disposing, make sure that we set the last modified of the local and the metadata
-                    _local.SetItemLastModified(request.Path, lastModified);
 
-                    _metadata.GetItemMetadata(request.Path).LastModified = lastModified; //TODO: this is OK to do, change everywhere else!!!
-                };
         }
         private bool RenameItem(string itemId, string newName, FileStoreRequest request)
         {
@@ -406,22 +410,44 @@ namespace MyOneDriveClient
 
                                         if (data.LastModified > lastSyncTime) //(this is pretty much a guarantee)
                                         {
-                                            if (data.Sha1 == fileHandle.SHA1Hash)
+                                            if (data.Sha1 == itemMetadata.Sha1)
                                             {
-                                                //same sha1, just update metadata and file info
+                                                //if we are receiving an update AND the sha1 of the remote is the same as the sha1 of
+                                                //  the previous sync, then this must mean that this request is caused by a delta
+                                                //  that originated from a local source, so just update the metadata so we have the
+                                                //  correct "last modified" and cancel the request
+
                                                 _local.SetItemLastModified(fileHandle.Path, data.LastModified);
                                                 itemMetadata.LastModified = data.LastModified;
-                                            }
-                                            if (fileHandle.LastModified > lastSyncTime)
-                                            {
-                                                //local item has also been modified since last sync
-                                                RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
-                                                dequeue = true;//TODO: we must pause everything while requesting the user!!!
+
+                                                request.Status = FileStoreRequest.RequestStatus.Cancelled;
+                                                InvokeStatusChanged(request);
+                                                dequeue = true;
                                             }
                                             else
                                             {
-                                                //local item has not been modified since last sync
-                                                dequeue = CreateWritableHandle(request, data.LastModified);
+                                                /*if (data.Sha1 == fileHandle.SHA1Hash)
+                                                {
+                                                    //TODO: is this a desirable option?
+                                                    //same sha1, just update metadata and file info
+                                                    _local.SetItemLastModified(fileHandle.Path, data.LastModified);
+                                                    itemMetadata.LastModified = data.LastModified;
+                                                }
+                                                else
+                                                {*/
+                                                    if (fileHandle.LastModified > lastSyncTime)
+                                                    {
+                                                        //local item has also been modified since last sync
+                                                        RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+                                                        dequeue =
+                                                            true; //TODO: we must pause everything while requesting the user!!!
+                                                    }
+                                                    else
+                                                    {
+                                                        //local item has not been modified since last sync
+                                                        dequeue = CreateWritableHandle(request, data.LastModified);
+                                                    }
+                                                //}
                                             }
                                         }
                                         else

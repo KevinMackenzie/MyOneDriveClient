@@ -139,21 +139,10 @@ namespace MyOneDriveClient
 
                 //make the upload request
                 uploadResult = await _remote.UploadFileByIdAsync(parentId, PathUtils.GetItemName(request.Path), wrapper);
-
-                //set the request status and error
-                SetStatusFromHttpResponse(request, uploadResult.HttpMessage);
-
-
-                if (uploadResult.Success)
-                {
-                    //TODO: this is a really bad way to do this... like hot water pipe through the livingroom bad...
-                    var notifiableStream = readFrom as NotifyDisposedStream;
-                    if (notifiableStream != null)
-                    {
-                        notifiableStream.LastModified = uploadResult.Value.LastModified;
-                    }
-                }
             }
+
+            //set the request status and error
+            SetStatusFromHttpResponse(request, uploadResult.HttpMessage);
 
             var success = request.Status == FileStoreRequest.RequestStatus.Success;
 

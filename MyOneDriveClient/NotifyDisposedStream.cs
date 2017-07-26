@@ -61,13 +61,8 @@ namespace MyOneDriveClient
         {
             if (!disposing) return;
             _innerStream.Dispose();
-            OnDisposed?.Invoke(this, LastModified);
+            OnDisposed?.Invoke(this);
         }
-
-        /// <summary>
-        /// I didn't really know where else to put this, so here it is...
-        /// </summary>
-        public DateTime LastModified { get; set; }
 
         public event EventDelegates.NotifyStreamDisposedHandler OnDisposed;
     }

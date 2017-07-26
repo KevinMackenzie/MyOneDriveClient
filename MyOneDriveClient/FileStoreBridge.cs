@@ -65,7 +65,7 @@ namespace MyOneDriveClient
             var streamRequest = await _local.AwaitRequest(_local.RequestWritableStream(delta.Handle.Path, delta.Handle.SHA1Hash, delta.Handle.LastModified));
             if (streamRequest.Status == FileStoreRequest.RequestStatus.Cancelled)
             {
-                //cancelled request, so TODO KEEP LOCAL ...
+                //cancelled request, so that mean's we'll skip this delta... (this can happen when the local and remote files are the same or if the user choses to keep the local)
             }
             else if (streamRequest.Status == FileStoreRequest.RequestStatus.Success)
             {

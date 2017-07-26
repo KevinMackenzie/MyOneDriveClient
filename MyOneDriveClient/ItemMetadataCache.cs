@@ -125,6 +125,7 @@ namespace MyOneDriveClient
                 IsFolder = handle.IsFolder,
                 Id = handle.Id,
                 ParentId = handle.ParentId,
+                Sha1 = handle.SHA1Hash,
                 Name = handle.Name,
                 LastModified = handle.LastModified,
                 Metadata = this
@@ -173,6 +174,7 @@ namespace MyOneDriveClient
             public string Id { get; set; }
             public string ParentId { get; set; }
             public string Name { get; set; }
+            public string Sha1 { get; set; }
         }
     }
 
