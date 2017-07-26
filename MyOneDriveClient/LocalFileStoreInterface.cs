@@ -322,35 +322,107 @@ namespace MyOneDriveClient
 
         private bool CreateWritableHandle(FileStoreRequest request, DateTime lastModified)
         {
-            NotifyDisposedStream writeStream;
-            writeStream.OnDisposed +=
-                (sender) =>
-                {
-                    //after disposing, make sure that we set the last modified of the local and the metadata
-                    _local.SetItemLastModified(request.Path, lastModified);
+            var itemHandle = _local.GetFileHandle(request.Path);
+            var stream = itemHandle.GetWritableStream();
+            if (stream == null)
+            {
+                //this means something is blocking the file from being written to...
+                RequestAwaitUser(request, UserPrompts.CloseApplication);
+            }
+            else
+            {
+                NotifyDisposedStream writeStream = new NotifyDisposedStream(stream);
+                writeStream.OnDisposed +=
+                    (sender) =>
+                    {
+                        //after disposing, make sure that we set the last modified of the local and the metadata
+                        _local.SetItemLastModified(request.Path, lastModified);
 
-                    _metadata.GetItemMetadata(request.Path).LastModified = lastModified; //TODO: this is OK to do, change everywhere else!!!
-                };
+                        _metadata.GetItemMetadata(request.Path).LastModified =
+                            lastModified; //TODO: this is OK to do, change everywhere else!!!
+                    };
+
+                request.ExtraData = new RequestStreamExtraData(writeStream, true);
+            }
+            return true;
         }
         private bool CreateReadOnlyHandle(FileStoreRequest request)
         {
+            var itemHandle = _local.GetFileHandle(request.Path);
+            var stream = itemHandle.GetFileDataAsync().Result;
+            if (stream == null)
+            {
+                //this means something is blocking the file from being read from...
+                RequestAwaitUser(request, UserPrompts.CloseApplication);
+            }
+            else
+            {
+                request.ExtraData = new RequestStreamExtraData(stream, false);
+            }
+            return true;
+        }
+        private bool RenameItem(ItemMetadataCache.ItemMetadata metadata, string newName, FileStoreRequest request)
+        {
+            var newPath = $"{PathUtils.GetParentItemPath(metadata.Path)}/{newName}";
+            if (_local.ItemExists(newPath))
+            {
+                //item exists at the new location, so prompt user
+                RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+            }
+            else
+            {
+                if (_local.MoveLocalItem(metadata.Path, newPath))
+                {
+                    //successful move
+                    metadata.Name = newName;
+                    request.Status = FileStoreRequest.RequestStatus.Success;
+                    InvokeStatusChanged(request);
+                }
+                else
+                {
+                    //TODO: when will this happen?
+                    RequestAwaitUser(request, UserPrompts.CloseApplication);
+                }
+            }
 
+            return true;
         }
-        private bool RenameItem(string itemId, string newName, FileStoreRequest request)
+        private bool MoveItem(ItemMetadataCache.ItemMetadata metadata, ItemMetadataCache.ItemMetadata newParentMetadata, FileStoreRequest request)
         {
-            
+            var newPath = $"{newParentMetadata.Path}/{metadata.Name}";
+            if (_local.ItemExists(newPath))
+            {
+                //item exists at the new location, so prompt user
+                RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+            }
+            else
+            {
+                if (_local.MoveLocalItem(metadata.Path, newPath))
+                {
+                    //successful move
+                    metadata.ParentId = newParentMetadata.Id;
+                    request.Status = FileStoreRequest.RequestStatus.Success;
+                    InvokeStatusChanged(request);
+                }
+                else
+                {
+                    //if the item doesn't exist already, when will this fail? (moving a folder with a item being modified in it?)
+                    RequestAwaitUser(request, UserPrompts.CloseApplication);
+                }
+            }
+            return true;
         }
-        private bool MoveItem(string itemId, string newParentId, FileStoreRequest request)
+        private bool CreateItem(string path, DateTime lastModified, FileStoreRequest request)
         {
-            
+            //TODO: should we do any checking?  or just ignore it if the request failed
+            _local.CreateLocalFolder(path, lastModified);
+            return true;
         }
-        private bool CreateItem(string parentId, string name, FileStoreRequest request)
+        private bool DeleteItem(string path, FileStoreRequest request)
         {
-            
-        }
-        private bool DeleteItem(string itemId, FileStoreRequest request)
-        {
-            
+            //TODO: should we do any checking?  or just ignore it if the request failed
+            _local.DeleteLocalItem(path);
+            return true;
         }
 
         private async Task ProcessQueue(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
@@ -540,7 +612,7 @@ namespace MyOneDriveClient
                                 else
                                 {
                                     //rename the file
-                                    dequeue = RenameItem(itemMetadata.Id, data.NewName, request);
+                                    dequeue = RenameItem(itemMetadata, data.NewName, request);
                                 }
                             }
                             else
@@ -573,7 +645,7 @@ namespace MyOneDriveClient
                                     else
                                     {
                                         //item exists, so move it
-                                        dequeue = MoveItem(itemMetadata.Id, parentMetadata.Id, request);
+                                        dequeue = MoveItem(itemMetadata, parentMetadata, request);
                                     }
                                 }
                             }
@@ -585,18 +657,40 @@ namespace MyOneDriveClient
                             break;
                         case FileStoreRequest.RequestType.Create:
                         {
-                            var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
-                            if (parentMetadata == null)
+                            var data = request.ExtraData as RequestCreateFolderExtraData;
+                            if (data != null)
                             {
-                                //new location doesn't exist TODO: should this be an error or should we create the new location?
-                                FailRequest(request, $"Could not create \"{request.Path}\" because parent location doesn't exist");
+                                var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                                if (parentMetadata == null)
+                                {
+                                    //new location doesn't exist TODO: should this be an error or should we create the new location?
+                                    FailRequest(request,
+                                        $"Could not create \"{request.Path}\" because parent location doesn't exist");
 
-                                dequeue = true;
+                                    dequeue = true;
+                                }
+                                else
+                                {
+                                    if (_local.ItemExists(request.Path))
+                                    {
+                                        var folderHandle = _local.GetFileHandle(request.Path);
+                                        //there's no point in creating a folder that already exists
+                                        if (itemMetadata == null)
+                                        {
+                                            //no metadata though, so add it
+                                            _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(folderHandle, _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                        }
+                                        dequeue = true;
+                                    }
+                                    else
+                                    {
+                                        dequeue = CreateItem(request.Path, data.LastModified, request);
+                                    }
+                                }
                             }
                             else
                             {
-                                dequeue = CreateItem(parentMetadata.Id, PathUtils.GetItemName(request.Path),
-                                    request);
+                                Debug.Write("Create folder was called without appropriate extra data");
                             }
                         }
                             break;
@@ -627,6 +721,14 @@ namespace MyOneDriveClient
                         //something failed, so we should wait a little bit before trying again
                         await Task.Delay(errorDelay, ct);
                     }
+                }
+
+                //while there are limbo'd requests, pause other requests
+                while(!_limboRequests.IsEmpty)
+                {
+                    await Task.Delay(errorDelay, ct);
+                    if (ct.IsCancellationRequested)
+                        break;
                 }
                 await Task.Delay(delay, ct);
             }

@@ -455,6 +455,14 @@ namespace MyOneDriveClient
                         await Task.Delay(errorDelay, ct);
                     }
                 }
+                
+                //while there are limbo'd requests, pause other requests
+                while (!_limboRequests.IsEmpty)
+                {
+                    await Task.Delay(errorDelay, ct);
+                    if (ct.IsCancellationRequested)
+                        break;
+                }
                 await Task.Delay(delay, ct);
             }
         }
