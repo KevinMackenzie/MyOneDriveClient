@@ -60,6 +60,9 @@ namespace MyOneDriveClient
         private ConcurrentDictionary<int, FileStoreRequest> _limboRequests = new ConcurrentDictionary<int, FileStoreRequest>();
         private ConcurrentDictionary<int, object> _cancelledRequests = new ConcurrentDictionary<int, object>();
         private int _requestId;//TODO: should this be volatile
+
+        private CancellationTokenSource _processQueueCancellationTokenSource;
+        private Task _processQueueTask;
         #endregion
 
         public BufferedRemoteFileStoreInterface(IRemoteFileStoreConnection remote)
@@ -189,6 +192,7 @@ namespace MyOneDriveClient
                     
                     using (writeTo)
                     {
+                    //TODO: there are a lot of exceptions to think about here...
                         await wrapper.CopyToStreamAsync(writeTo);
                     }
                     //successfully completed stream
@@ -258,7 +262,7 @@ namespace MyOneDriveClient
             return success;
         }
 
-        private async Task ProcessQueue(CancellationToken ct)
+        private async Task ProcessQueue(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
             {
@@ -448,10 +452,10 @@ namespace MyOneDriveClient
                     else
                     {
                         //something failed, so we should wait a little bit before trying again
-                        await Task.Delay(100, ct);
+                        await Task.Delay(errorDelay, ct);
                     }
                 }
-                await Task.Delay(100, ct);
+                await Task.Delay(delay, ct);
             }
         }
         #endregion
@@ -534,6 +538,26 @@ namespace MyOneDriveClient
                 new RequestMoveExtraData(newParentPath)));
         }
 
+        /// <summary>
+        /// Starts the processing of the request queue
+        /// </summary>
+        public void StartRequestProcessing()
+        {
+            if (_processQueueTask != null) return;
+            _processQueueCancellationTokenSource = new CancellationTokenSource();
+            _processQueueTask = ProcessQueue(TimeSpan.FromMilliseconds(5000), TimeSpan.FromMilliseconds(100), _processQueueCancellationTokenSource.Token);
+        }
+        /// <summary>
+        /// Stops the processing of the request queue
+        /// </summary>
+        /// <returns></returns>
+        public async Task StopRequestProcessingAsync()
+        {
+            if (_processQueueTask == null) return;
+            _processQueueCancellationTokenSource.Cancel();
+            await _processQueueTask;
+        }
+
         public bool TryGetRequest(int requestId, out FileStoreRequest request)
         {
             //are there any queue items?
@@ -595,8 +619,7 @@ namespace MyOneDriveClient
         /// is no guarantee that the request still exists.
         /// </summary>
         public EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;
-
-
+        
         /// <summary>
         /// Requests the remote deltas since the previous request
         /// </summary>
