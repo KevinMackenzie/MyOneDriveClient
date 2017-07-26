@@ -312,7 +312,7 @@ namespace MyOneDriveClient
         {
             NotifyDisposedStream writeStream;
             writeStream.OnDisposed +=
-                (sender) =>
+                (sender, dontuse) =>
                 {
                     //after disposing, make sure that we set the last modified of the local and the metadata
                     _local.SetItemLastModified(request.Path, lastModified);
@@ -324,7 +324,7 @@ namespace MyOneDriveClient
         {
             NotifyDisposedStream readStream;
             readStream.OnDisposed +=
-                (sender) =>
+                (sender, lastModified) =>
                 {
                     //after disposing, make sure that we set the last modified of the local and the metadata
                     _local.SetItemLastModified(request.Path, lastModified);
