@@ -566,6 +566,41 @@ namespace MyOneDriveClient
             await _processQueueTask;
         }
 
+        /// <summary>
+        /// Waits for the given request status to reach a conclusive statis
+        ///  (<see cref="FileStoreRequest.RequestStatus.Cancelled"/>
+        ///  or <see cref="FileStoreRequest.RequestStatus.Success"/>
+        ///  or <see cref="FileStoreRequest.RequestStatus.Failure"/>
+        /// </summary>
+        /// <param name="requestId">the id of the request to wait for</param>
+        /// <returns>the request with that id</returns>
+        public async Task<FileStoreRequest> AwaitRequest(int requestId)
+        {
+            if (TryGetRequest(requestId, out FileStoreRequest request))
+            {
+                var done = false;
+                OnRequestStatusChanged += async (sender, args) =>
+                {
+                    if (args.RequestId == requestId && (args.Status == FileStoreRequest.RequestStatus.Success ||
+                                                        args.Status == FileStoreRequest.RequestStatus.Cancelled ||
+                                                        args.Status == FileStoreRequest.RequestStatus.Failure))
+                        done = true;
+                };
+
+                var cts = new CancellationTokenSource();
+                while (!done)
+                {
+                    if (cts.IsCancellationRequested)
+                        break;
+                    await Task.Delay(50, cts.Token);
+                }
+                return request;
+            }
+            else
+            {
+                return null;
+            }
+        }
         public bool TryGetRequest(int requestId, out FileStoreRequest request)
         {
             //are there any queue items?
@@ -599,15 +634,21 @@ namespace MyOneDriveClient
             var reqs = _requests.Where(item => item.RequestId == requestId);
             if (!reqs.Any())
             {
-                //no queue items... let's check limbo (but we don't care if it fails
-                _limboRequests.TryRemove(requestId, out FileStoreRequest value);
+                //no queue items... let's check limbo
+                if (_limboRequests.TryRemove(requestId, out FileStoreRequest value))
+                {
+                    value.Status = FileStoreRequest.RequestStatus.Cancelled;
+                    InvokeStatusChanged(value);
+                }
             }
             else
             {
-                //there is a queue item, so add it to the cancellation bag
+                //there is a queue item, so add it to the cancellation dictionary
                 _cancelledRequests.TryAdd(requestId, null);
             }
         }
+
+
         /// <summary>
         /// Enumerates the currently active requests
         /// </summary>
@@ -617,6 +658,8 @@ namespace MyOneDriveClient
             //this creates a copy
             return new List<FileStoreRequest>(_requests);
         }
+
+
         /// <summary>
         /// When an existing request's progress changes
         /// </summary>

@@ -752,57 +752,18 @@ namespace MyOneDriveClient
         /// <returns>whether the item exists</returns>
         public bool TryGetItemHandle(string path, out ILocalItemHandle itemHandle)
         {
-            throw new NotImplementedException();
-        }
-        /// <summary>
-        /// Gets an item handle for a local item, renaming conflicts as required
-        /// </summary>
-        /// <param name="path">the path of the item to steal</param>
-        /// <param name="sha1">the local file will be renamed if this does not match the existing item's sha1</param>
-        /// <param name="itemHandle">the item handle (with write access) at the given path</param>
-        /// <returns>whether the retrieved item can be modified</returns>
-        /// <remarks>if returns false, then the user will have to intervene (choosing to keep local/remote, prompting to close application, etc)</remarks>
-        public bool TryStealItemHandle(string path, string sha1, out ILocalItemHandle itemHandle)
-        {
-            /*
-             * If we rename the local file automatically when the sha1 sums don't match up, then there is no way for the user to intervene.
-             * If the item cannot be opened due to it being currently opened by another editor/otherwise being blocked, then the stream will
-             *      be null, but there is currently no other way to signal to the BufferedRemoteFileStore that the item should not be immediately
-             *      overwritten.  
-             *      
-             *      So there must be some way to signal the remote with at least the capibilities to distinguish the difference between:
-             *          -A file that has been modified locally since the downloading of updates
-             *          -A file that currently cannot be opened for writing because it is being blocked
-             *          
-             *          
-             *          
-             *      Maybe, "RequestItemHandle" is a better option because it puts this class in the position of notifying the user for 
-             *          intervention before it gets to the remote request.  Or maybe requesting the stream is better because that
-             *          guarantees blocking of the file while we wait.
-             */
-            throw new NotImplementedException();
+            itemHandle = _local.GetFileHandle(path);
+            return _local.ItemExists(path);
         }
         public bool ItemExists(string path)
         {
-            throw new NotImplementedException();
+            return _local.ItemExists(path);
         }
-
-        //I would really like to not expose this method
-        /*public bool TrySetItemLastModified(string path, DateTime lastModified)
-        {
-            //this is bad
-            try
-            {
-                _local.SetItemLastModified(path, lastModified);
-                _metadata.GetItemMetadata(path).LastModified = lastModified;
-                return true;
-            }
-            catch (Exception e)
-            {
-                return false;
-            }
-        }*/
-
+        
+        /// <summary>
+        /// Gets all of the deltas since the previous check
+        /// </summary>
+        /// <returns>a structure of item deltas</returns>
         public Task<IEnumerable<ItemDelta>> GetDeltasAsync()
         {
             return Task.Run(() =>
@@ -978,9 +939,11 @@ namespace MyOneDriveClient
             await _processQueueTask;
         }
 
+        //TODO: the two methods below are REALLY bad b/c they do no null/exception checking
+
         public async Task SaveNonSyncFile(string path, string content)
         {
-            TryGetItemHandle(path, out ILocalItemHandle itemHandle);
+            var itemHandle = _local.GetFileHandle(path);
             using (var writableStream = itemHandle.GetWritableStream())
             {
                 using (var contentStream = content.ToStream(Encoding.UTF8))
@@ -990,17 +953,91 @@ namespace MyOneDriveClient
             }
             _local.SetItemAttributes(path, FileAttributes.Hidden);
         }
-
+        public async Task<string> ReadNonSyncFile(string path)
+        {
+            return await (await _local.GetFileHandle(path).GetFileDataAsync()).ReadAllToStringAsync(Encoding.UTF8);
+        }
 
         /// <summary>
-        /// Waits for the given request status to be <see cref="FileStoreRequest.RequestStatus.Cancelled"/>
+        /// Waits for the given request status to reach a conclusive statis
+        ///  (<see cref="FileStoreRequest.RequestStatus.Cancelled"/>
         ///  or <see cref="FileStoreRequest.RequestStatus.Success"/>
+        ///  or <see cref="FileStoreRequest.RequestStatus.Failure"/>
         /// </summary>
         /// <param name="requestId">the id of the request to wait for</param>
         /// <returns>the request with that id</returns>
         public async Task<FileStoreRequest> AwaitRequest(int requestId)
         {
-            throw new NotImplementedException();
+            if (TryGetRequest(requestId, out FileStoreRequest request))
+            {
+                var done = false;
+                OnRequestStatusChanged += async (sender, args) =>
+                {
+                    if (args.RequestId == requestId && (args.Status == FileStoreRequest.RequestStatus.Success ||
+                                                        args.Status == FileStoreRequest.RequestStatus.Cancelled ||
+                                                        args.Status == FileStoreRequest.RequestStatus.Failure))
+                        done = true;
+                };
+
+                var cts = new CancellationTokenSource();
+                while (!done)
+                {
+                    if (cts.IsCancellationRequested)
+                        break;
+                    await Task.Delay(50, cts.Token);
+                }
+                return request;
+            }
+            else
+            {
+                return null;
+            }
+        }
+        public bool TryGetRequest(int requestId, out FileStoreRequest request)
+        {
+            //are there any queue items?
+            var reqs = _requests.Where(item => item.RequestId == requestId);
+            if (!reqs.Any())
+            {
+                //no queue items... let's check limbo
+                if (_limboRequests.TryGetValue(requestId, out FileStoreRequest limboReq))
+                {
+                    //there is a limbo request
+                    request = limboReq;
+                    return true;
+                }
+                else
+                {
+                    //nope, no request found
+                    request = null;
+                    return false;
+                }
+            }
+            else
+            {
+                //there is a queue item!
+                request = reqs.First();
+                return true;
+            }
+        }
+        public void CancelRequest(int requestId)
+        {
+            //are there any queue items?
+            var reqs = _requests.Where(item => item.RequestId == requestId);
+            if (!reqs.Any())
+            {
+                //no queue items... let's check limbo
+                if (_limboRequests.TryRemove(requestId, out FileStoreRequest value))
+                {
+                    value.Status = FileStoreRequest.RequestStatus.Cancelled;
+                    InvokeStatusChanged(value);
+                }
+            }
+            else
+            {
+                //there is a queue item, so add it to the cancellation dictionary
+                _cancelledRequests.TryAdd(requestId, null);
+            }
         }
         #endregion
 

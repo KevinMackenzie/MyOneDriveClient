@@ -97,19 +97,19 @@ namespace MyOneDriveClient
         private async Task LoadRemoteItemMetadataCacheAsync()
         {
             //if the metadata doesn't exist, then it's a new install
-            if (_local.TryGetItemHandle(RemoteMetadataCachePath, out ILocalItemHandle itemHandle))
+            if (_local.ItemExists(RemoteMetadataCachePath))
             {
                 //TODO: this does NO exception handling
-                _remote.MetadataCache = await (await itemHandle.GetFileDataAsync()).ReadAllToStringAsync(Encoding.UTF8);
+                _remote.MetadataCache = await _local.ReadNonSyncFile(RemoteMetadataCachePath);
             }
         }
         private async Task LoadLocalItemMetadataCacheAsync()
         {
             //if the metadata doesn't exist, then it's a new install
-            if (_local.TryGetItemHandle(LocalMetadataCachePath, out ILocalItemHandle itemHandle))
+            if (_local.ItemExists(LocalMetadataCachePath))
             {
                 //TODO: this does NO exception handling
-                _local.MetadataCache = await (await itemHandle.GetFileDataAsync()).ReadAllToStringAsync(Encoding.UTF8);
+                _local.MetadataCache = await _local.ReadNonSyncFile(LocalMetadataCachePath);
             }
         }
         #endregion
@@ -205,7 +205,7 @@ namespace MyOneDriveClient
                         if (delta.Handle.IsFolder)
                         {
                             //item is folder...
-                            if (!_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
+                            if (_local.ItemExists(delta.Handle.Path))
                             {
                                 //... that doesn't exist, so create it
                                 _local.RequestFolderCreate(delta.Handle.Path, delta.Handle.LastModified);
