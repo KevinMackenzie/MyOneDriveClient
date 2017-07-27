@@ -86,7 +86,6 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="ActiveSyncFileStore_old.cs" />
     <Compile Include="AsyncLock.cs" />
     <Compile Include="Contracts\ICachedItemMetadata.cs" />
     <Compile Include="Contracts\IItemHandle.cs" />
