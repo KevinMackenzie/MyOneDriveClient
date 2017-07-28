@@ -342,7 +342,7 @@ namespace MyOneDriveClient
                 {
                     if(_sha1Hash == null)
                     {
-                        _sha1Hash = _fs.GetLocalSHA1Async(_path).Result;
+                        _sha1Hash = IsFolder ? "" : _fs.GetLocalSHA1Async(_path).Result;
                     }
                     return _sha1Hash;
                 }
