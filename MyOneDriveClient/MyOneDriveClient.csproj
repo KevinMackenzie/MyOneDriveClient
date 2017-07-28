@@ -104,6 +104,7 @@
     <Compile Include="Events\RequestStatusChangedEventArgs.cs" />
     <Compile Include="FileData.cs" />
     <Compile Include="FileStoreBridge.cs" />
+    <Compile Include="FileStoreInterface.cs" />
     <Compile Include="FileStoreRequest.cs" />
     <Compile Include="FileStoreRequestGraveyard.cs" />
     <Compile Include="GraphConnection.cs" />

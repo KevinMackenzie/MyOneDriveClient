@@ -11,14 +11,8 @@ using System.Diagnostics;
 
 namespace MyOneDriveClient
 {
-    public class LocalFileStoreInterface
+    public class LocalFileStoreInterface : FileStoreInterface
     {
-        public enum UserPrompts
-        {
-            KeepOverwriteOrRename,
-            CloseApplication
-        }
-
         private class DeletedItemHandle : IItemHandle
         {
             public DeletedItemHandle(ItemMetadataCache.ItemMetadata metadata)
@@ -137,14 +131,7 @@ namespace MyOneDriveClient
         private ILocalFileStore _local;
         private ConcurrentQueue<ItemDelta> _localDeltas = new ConcurrentQueue<ItemDelta>();
         private LocalItemMetadataCache _metadata = new LocalItemMetadataCache();
-        private ConcurrentQueue<FileStoreRequest> _requests = new ConcurrentQueue<FileStoreRequest>();
-        private FileStoreRequestGraveyard _completedRequests = new FileStoreRequestGraveyard(TimeSpan.FromMinutes(5));
-        private ConcurrentDictionary<int, FileStoreRequest> _limboRequests = new ConcurrentDictionary<int, FileStoreRequest>();
-        private ConcurrentDictionary<int, object> _cancelledRequests = new ConcurrentDictionary<int, object>();
         private int _requestId;//TODO: should this be volatile
-        
-        private CancellationTokenSource _processQueueCancellationTokenSource;
-        private Task _processQueueTask;
         #endregion
 
         public LocalFileStoreInterface(ILocalFileStore local)
@@ -154,36 +141,6 @@ namespace MyOneDriveClient
         }
 
         #region Private Methods
-        private void RequestAwaitUser(FileStoreRequest request, UserPrompts prompt)
-        {
-            request.Status = FileStoreRequest.RequestStatus.WaitForUser;
-            request.ErrorMessage = prompt.ToString();
-            _limboRequests[request.RequestId] = request;
-            InvokeStatusChanged(request);
-        }
-        private void InvokeStatusChanged(FileStoreRequest request)
-        {
-            OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
-            if (request.Complete)
-                _completedRequests.Add(request);
-        }
-        private void InvokeStatusChanged(FileStoreRequest request, FileStoreRequest.RequestStatus status)
-        {
-            request.Status = status;
-            InvokeStatusChanged(request);
-        }
-        private void FailRequest(FileStoreRequest request, string errorMessage)
-        {
-            request.Status = FileStoreRequest.RequestStatus.Failure;
-            request.ErrorMessage = errorMessage;
-            _limboRequests[request.RequestId] = request;
-            InvokeStatusChanged(request);
-        }
-        private int EnqueueRequest(FileStoreRequest request)
-        {
-            _requests.Enqueue(request);
-            return request.RequestId;
-        }
         private async Task LocalOnChanged(object sender, LocalFileStoreEventArgs e)
         {
             var itemMetadata = _metadata.GetItemMetadata(e.LocalPath);
@@ -483,7 +440,7 @@ namespace MyOneDriveClient
             return true;
         }
 
-        private async Task ProcessQueue(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
+        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct)
         {
             /*
              * 
@@ -494,321 +451,280 @@ namespace MyOneDriveClient
              *      exist et. al.
              * 
              */
-
             bool dequeue = false;
-            while (!ct.IsCancellationRequested)
+            var itemMetadata = _metadata.GetItemMetadata(request.Path);
+
+            switch (request.Type)
             {
-                while (_requests.TryPeek(out FileStoreRequest request))
+                case FileStoreRequest.RequestType.Write: // get writable stream
                 {
-                    if (ct.IsCancellationRequested)
-                        break;
-
-                    //was this request cancelled?
-                    if (_cancelledRequests.ContainsKey(request.RequestId))
+                    var data = request.ExtraData as RequestWritableStreamExtraData;
+                    if (data != null)
                     {
-                        //if so, dequeue it and move on
-                        _requests.TryDequeue(out FileStoreRequest result);
-                        _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
-                        InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
-                        continue;
-                    }
-
-                    var itemMetadata = _metadata.GetItemMetadata(request.Path);
-
-                    switch (request.Type)
-                    {
-                        case FileStoreRequest.RequestType.Write: // get writable stream
+                        //get the file handle
+                        var fileHandle = _local.GetFileHandle(request.Path);
+                        if (_local.ItemExists(request.Path) && fileHandle.IsFolder)
                         {
-                            var data = request.ExtraData as RequestWritableStreamExtraData;
-                            if (data != null)
-                            {
-                                //get the file handle
-                                var fileHandle = _local.GetFileHandle(request.Path);
-                                if (_local.ItemExists(request.Path) && fileHandle.IsFolder)
-                                {
-                                    FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for writing");
-                                }
-                                if (itemMetadata != null)
-                                {
-                                    if (!_local.ItemExists(request.Path))
-                                    {
-                                        //item has been synced before, but doesn't exist locally...  this is weird
-                                        FailRequest(request, $"Attempt to download previously synced file that no longer exists \"{request.Path}\"");
-                                    }
-                                    else
-                                    {
-                                        //item has been synced before
-                                        var lastSyncTime = itemMetadata.LastModified;
-
-                                        if (data.LastModified > lastSyncTime) //(this is pretty much a guarantee)
-                                        {
-                                            if (data.Sha1 == itemMetadata.Sha1) // REBOUND FILTER
-                                            {
-                                                //if we are receiving an update AND the sha1 of the remote is the same as the sha1 of
-                                                //  the previous sync, then this must mean that this request is caused by a delta
-                                                //  that originated from a local source, so just update the metadata so we have the
-                                                //  correct "last modified" and cancel the request
-
-                                                _local.SetItemLastModified(fileHandle.Path, data.LastModified);
-                                                itemMetadata.LastModified = data.LastModified;
-                                                    
-                                                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
-                                                dequeue = true;
-                                            }
-                                            else
-                                            {
-                                                /*if (data.Sha1 == fileHandle.SHA1Hash)
-                                                {
-                                                    //TODO: is this a desirable option?
-                                                    //same sha1, just update metadata and file info
-                                                    _local.SetItemLastModified(fileHandle.Path, data.LastModified);
-                                                    itemMetadata.LastModified = data.LastModified;
-                                                }
-                                                else
-                                                {*/
-                                                    if (fileHandle.LastModified > lastSyncTime)
-                                                    {
-                                                        //local item has also been modified since last sync
-                                                        RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
-                                                        dequeue =
-                                                            true; //TODO: we must pause everything while requesting the user!!!
-                                                    }
-                                                    else
-                                                    {
-                                                        //local item has not been modified since last sync
-                                                        dequeue = CreateWritableHandle(fileHandle, itemMetadata.ParentId, request, data.LastModified);
-                                                    }
-                                                //}
-                                            }
-                                        }
-                                        else
-                                        {
-                                            FailRequest(request, $"Attempt to download older version of \"{request.Path}\" than exists locally");
-                                            dequeue = true;
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                        //item metadata doesn't exist, so get it's parent
-                                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
-                                    if (parentMetadata == null)
-                                    {
-                                        FailRequest(request, $"Attempted to get parent metadata of item \"{request.Path}\" that does not exist");
-                                        dequeue = true;
-                                    }
-                                    else
-                                    {
-                                        if (_local.ItemExists(request.Path))
-                                        {
-                                            //item hasn't been synced before, so definitely ask the user ... 
-                                            RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
-                                            dequeue = true;//TODO: we must pause everything while requesting the user!!!
-                                        }
-                                        else
-                                        {
-                                            //item has't been synced before, but doesn't exist locally, so just create the file
-                                            dequeue = CreateWritableHandle(fileHandle, parentMetadata.Id, request, data.LastModified);
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                Debug.Write("Write request was called without approprate extra data");
-                            }
+                            FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for writing");
                         }
-                            break;
-                        case FileStoreRequest.RequestType.Read: // get read-only stream
+                        if (itemMetadata != null)
                         {
                             if (!_local.ItemExists(request.Path))
                             {
-                                FailRequest(request,
-                                    $"Attempt to open a local item that does not exist \"{request.Path}\"");
-                                dequeue = true;
+                                //item has been synced before, but doesn't exist locally...  this is weird
+                                FailRequest(request, $"Attempt to download previously synced file that no longer exists \"{request.Path}\"");
                             }
                             else
                             {
-                                var fileHandle = _local.GetFileHandle(request.Path);
-                                if (fileHandle.IsFolder)
-                                {
-                                    FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for reading");
-                                    dequeue = true;
-                                }
-                                if (itemMetadata == null)
-                                {
-                                    //item hasn't been synced before
-                                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
-                                    if (parentMetadata == null)
-                                    {
-                                        //the item exists locally, but something is messed up with the metadata
-                                        FailRequest(request, $"Attempt to open a file \"{request.Path}\" that has no parent metadata.  Check metadata cache state");
-                                        dequeue = true;
-                                    }
-                                    else
-                                    {
-                                        _metadata.AddItemMetadata(new LocalRemoteItemHandle(fileHandle,
-                                            _metadata.GetNextItemId().ToString(), parentMetadata.Id));
-                                    }
-                                }
-                                dequeue = CreateReadOnlyHandle(request);
-                            }
-                        }
-                            break;
-                        case FileStoreRequest.RequestType.Rename:
-                        {
-                            var data = request.ExtraData as RequestRenameExtraData;
-                            if (data != null)
-                            {
-                                if (itemMetadata == null)
-                                {
-                                    //item doesn't exist
-                                    itemMetadata =
-                                        _metadata.GetItemMetadata(PathUtils.GetRenamedPath(request.Path, data.NewName));
-                                    if (itemMetadata == null)
-                                    {
-                                        FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
-                                    }
-                                    else
-                                    {
-                                        //Rebounded request... but we can't update last modified...
-                                    }
-                                    dequeue = true;
-                                }
-                                else
-                                {
-                                    //rename the file
-                                    dequeue = RenameItem(itemMetadata, data.NewName, request);
-                                }
-                            }
-                            else
-                            {
-                                Debug.Write("Rename request was called without approprate extra data");
-                            }
-                        }
-                            break;
-                        case FileStoreRequest.RequestType.Move:
-                        {
-                            var data = request.ExtraData as RequestMoveExtraData;
-                            if (data != null)
-                            {
-                                if (itemMetadata == null)
-                                {
-                                    //item doesn't exist
-                                    FailRequest(request, $"Could not find file \"{request.Path}\" to move");
-                                    dequeue = true;
-                                }
-                                else
-                                {
-                                    var parentMetadata = _metadata.GetItemMetadata(data.NewParentPath);
-                                    if (parentMetadata == null)
-                                    {
-                                        //new location doesn't exist TODO: should this be an error or should we create the new location?
-                                        FailRequest(request, $"Could not find new location \"{data.NewParentPath}\" for \"{request.Path}\" to move to");
+                                //item has been synced before
+                                var lastSyncTime = itemMetadata.LastModified;
 
-                                        dequeue = true;
-                                    }
-                                    else
-                                    {
-                                        //item exists, so move it
-                                        dequeue = MoveItem(itemMetadata, parentMetadata, request);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                Debug.Write("Move request was called without approprate extra data");
-                            }
-                        }
-                            break;
-                        case FileStoreRequest.RequestType.Create:
-                        {
-                            var data = request.ExtraData as RequestCreateFolderExtraData;
-                            if (data != null)
-                            {
-                                var folderHandle = _local.GetFileHandle(request.Path);
-                                if (request.Path == "/")
+                                if (data.LastModified > lastSyncTime) //(this is pretty much a guarantee)
                                 {
-                                    //the root... it must already exist
-                                    dequeue = true;
-                                }
-                                else
-                                {
-                                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
-                                    if (parentMetadata == null)
+                                    if (data.Sha1 == itemMetadata.Sha1) // REBOUND FILTER
                                     {
-                                        //new location doesn't exist TODO: should this be an error or should we create the new location?
-                                        FailRequest(request,
-                                            $"Could not create \"{request.Path}\" because parent location doesn't exist");
+                                        //if we are receiving an update AND the sha1 of the remote is the same as the sha1 of
+                                        //  the previous sync, then this must mean that this request is caused by a delta
+                                        //  that originated from a local source, so just update the metadata so we have the
+                                        //  correct "last modified" and cancel the request
 
+                                        _local.SetItemLastModified(fileHandle.Path, data.LastModified);
+                                        itemMetadata.LastModified = data.LastModified;
+                                                    
+                                        InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
                                         dequeue = true;
                                     }
                                     else
                                     {
-                                        if (_local.ItemExists(request.Path))
+                                        /*if (data.Sha1 == fileHandle.SHA1Hash)
                                         {
-                                            //there's no point in creating a folder that already exists
-                                            dequeue = true;
+                                            //TODO: is this a desirable option?
+                                            //same sha1, just update metadata and file info
+                                            _local.SetItemLastModified(fileHandle.Path, data.LastModified);
+                                            itemMetadata.LastModified = data.LastModified;
                                         }
                                         else
-                                        {
-                                            dequeue = CreateItem(request.Path, data.LastModified, request);
-                                        }
-                                        if (itemMetadata == null)
-                                        {
-                                            //no metadata though, so add it
-                                            _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(
-                                                folderHandle, _metadata.GetNextItemId().ToString(),
-                                                parentMetadata.Id));
-                                        }
+                                        {*/
+                                            if (fileHandle.LastModified > lastSyncTime)
+                                            {
+                                                //local item has also been modified since last sync
+                                                RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+                                                dequeue =
+                                                    true; //TODO: we must pause everything while requesting the user!!!
+                                            }
+                                            else
+                                            {
+                                                //local item has not been modified since last sync
+                                                dequeue = CreateWritableHandle(fileHandle, itemMetadata.ParentId, request, data.LastModified);
+                                            }
+                                        //}
                                     }
                                 }
-                            }
-                            else
-                            {
-                                Debug.Write("Create folder was called without appropriate extra data");
+                                else
+                                {
+                                    FailRequest(request, $"Attempt to download older version of \"{request.Path}\" than exists locally");
+                                    dequeue = true;
+                                }
                             }
                         }
-                            break;
-                        case FileStoreRequest.RequestType.Delete:
+                        else
                         {
-                            if (itemMetadata == null)
+                                //item metadata doesn't exist, so get it's parent
+                            var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                            if (parentMetadata == null)
                             {
-                                //item doesn't exist.  Is this an issue?
-                                FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
+                                FailRequest(request, $"Attempted to get parent metadata of item \"{request.Path}\" that does not exist");
                                 dequeue = true;
                             }
                             else
                             {
-                                dequeue = DeleteItem(itemMetadata.Id, request);
+                                if (_local.ItemExists(request.Path))
+                                {
+                                    //item hasn't been synced before, so definitely ask the user ... 
+                                    RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+                                    dequeue = true;//TODO: we must pause everything while requesting the user!!!
+                                }
+                                else
+                                {
+                                    //item has't been synced before, but doesn't exist locally, so just create the file
+                                    dequeue = CreateWritableHandle(fileHandle, parentMetadata.Id, request, data.LastModified);
+                                }
                             }
                         }
-                            break;
-                    }
-
-                    //should we dequeue the item?
-                    if (dequeue)
-                    {
-                        //yes
-                        _requests.TryDequeue(out FileStoreRequest result);
                     }
                     else
                     {
-                        //something failed, so we should wait a little bit before trying again
-                        await Utils.DelayNoThrow(errorDelay, ct);
+                        Debug.Write("Write request was called without approprate extra data");
                     }
                 }
-
-                //while there are limbo'd requests, pause other requests
-                while(!_limboRequests.IsEmpty)
+                    break;
+                case FileStoreRequest.RequestType.Read: // get read-only stream
                 {
-                    await Utils.DelayNoThrow(errorDelay, ct);
-                    if (ct.IsCancellationRequested)
-                        break;
+                    if (!_local.ItemExists(request.Path))
+                    {
+                        FailRequest(request,
+                            $"Attempt to open a local item that does not exist \"{request.Path}\"");
+                        dequeue = true;
+                    }
+                    else
+                    {
+                        var fileHandle = _local.GetFileHandle(request.Path);
+                        if (fileHandle.IsFolder)
+                        {
+                            FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for reading");
+                            dequeue = true;
+                        }
+                        if (itemMetadata == null)
+                        {
+                            //item hasn't been synced before
+                            var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                            if (parentMetadata == null)
+                            {
+                                //the item exists locally, but something is messed up with the metadata
+                                FailRequest(request, $"Attempt to open a file \"{request.Path}\" that has no parent metadata.  Check metadata cache state");
+                                dequeue = true;
+                            }
+                            else
+                            {
+                                _metadata.AddItemMetadata(new LocalRemoteItemHandle(fileHandle,
+                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                            }
+                        }
+                        dequeue = CreateReadOnlyHandle(request);
+                    }
                 }
-                
-                await Utils.DelayNoThrow(delay, ct);
+                    break;
+                case FileStoreRequest.RequestType.Rename:
+                {
+                    var data = request.ExtraData as RequestRenameExtraData;
+                    if (data != null)
+                    {
+                        if (itemMetadata == null)
+                        {
+                            //item doesn't exist
+                            itemMetadata =
+                                _metadata.GetItemMetadata(PathUtils.GetRenamedPath(request.Path, data.NewName));
+                            if (itemMetadata == null)
+                            {
+                                FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
+                            }
+                            else
+                            {
+                                //Rebounded request... but we can't update last modified...
+                            }
+                            dequeue = true;
+                        }
+                        else
+                        {
+                            //rename the file
+                            dequeue = RenameItem(itemMetadata, data.NewName, request);
+                        }
+                    }
+                    else
+                    {
+                        Debug.Write("Rename request was called without approprate extra data");
+                    }
+                }
+                    break;
+                case FileStoreRequest.RequestType.Move:
+                {
+                    var data = request.ExtraData as RequestMoveExtraData;
+                    if (data != null)
+                    {
+                        if (itemMetadata == null)
+                        {
+                            //item doesn't exist
+                            FailRequest(request, $"Could not find file \"{request.Path}\" to move");
+                            dequeue = true;
+                        }
+                        else
+                        {
+                            var parentMetadata = _metadata.GetItemMetadata(data.NewParentPath);
+                            if (parentMetadata == null)
+                            {
+                                //new location doesn't exist TODO: should this be an error or should we create the new location?
+                                FailRequest(request, $"Could not find new location \"{data.NewParentPath}\" for \"{request.Path}\" to move to");
+
+                                dequeue = true;
+                            }
+                            else
+                            {
+                                //item exists, so move it
+                                dequeue = MoveItem(itemMetadata, parentMetadata, request);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.Write("Move request was called without approprate extra data");
+                    }
+                }
+                    break;
+                case FileStoreRequest.RequestType.Create:
+                {
+                    var data = request.ExtraData as RequestCreateFolderExtraData;
+                    if (data != null)
+                    {
+                        var folderHandle = _local.GetFileHandle(request.Path);
+                        if (request.Path == "/")
+                        {
+                            //the root... it must already exist
+                            dequeue = true;
+                        }
+                        else
+                        {
+                            var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                            if (parentMetadata == null)
+                            {
+                                //new location doesn't exist TODO: should this be an error or should we create the new location?
+                                FailRequest(request,
+                                    $"Could not create \"{request.Path}\" because parent location doesn't exist");
+
+                                dequeue = true;
+                            }
+                            else
+                            {
+                                if (_local.ItemExists(request.Path))
+                                {
+                                    //there's no point in creating a folder that already exists
+                                    dequeue = true;
+                                }
+                                else
+                                {
+                                    dequeue = CreateItem(request.Path, data.LastModified, request);
+                                }
+                                if (itemMetadata == null)
+                                {
+                                    //no metadata though, so add it
+                                    _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(
+                                        folderHandle, _metadata.GetNextItemId().ToString(),
+                                        parentMetadata.Id));
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.Write("Create folder was called without appropriate extra data");
+                    }
+                }
+                    break;
+                case FileStoreRequest.RequestType.Delete:
+                {
+                    if (itemMetadata == null)
+                    {
+                        //item doesn't exist.  Is this an issue?
+                        FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
+                        dequeue = true;
+                    }
+                    else
+                    {
+                        dequeue = DeleteItem(itemMetadata.Id, request);
+                    }
+                }
+                    break;
             }
+            return dequeue;
         }
 
         private IEnumerable<ItemDelta> GetEventDeltas()
@@ -1056,27 +972,7 @@ namespace MyOneDriveClient
                 new RequestRenameExtraData(newName)));
         }
 
-
-        /// <summary>
-        /// Starts the processing of the request queue
-        /// </summary>
-        public void StartRequestProcessing()
-        {
-            if (_processQueueTask != null) return;
-            _processQueueCancellationTokenSource = new CancellationTokenSource();
-            _processQueueTask = ProcessQueue(TimeSpan.FromMilliseconds(5000), TimeSpan.FromMilliseconds(100), _processQueueCancellationTokenSource.Token);
-        }
-        /// <summary>
-        /// Stops the processing of the request queue
-        /// </summary>
-        /// <returns></returns>
-        public async Task StopRequestProcessingAsync()
-        {
-            if (_processQueueTask == null) return;
-            _processQueueCancellationTokenSource.Cancel();
-            await _processQueueTask;
-        }
-
+        
         //TODO: the two methods below are REALLY bad b/c they do no null/exception checking
 
         public async Task SaveNonSyncFile(string path, string content)
@@ -1095,91 +991,7 @@ namespace MyOneDriveClient
         {
             return await (await _local.GetFileHandle(path).GetFileDataAsync()).ReadAllToStringAsync(Encoding.UTF8);
         }
-
-        /// <summary>
-        /// Waits for the given request status to reach a conclusive statis
-        ///  (<see cref="FileStoreRequest.RequestStatus.Cancelled"/>
-        ///  or <see cref="FileStoreRequest.RequestStatus.Success"/>
-        ///  or <see cref="FileStoreRequest.RequestStatus.Failure"/>
-        /// </summary>
-        /// <param name="requestId">the id of the request to wait for</param>
-        /// <returns>the request with that id</returns>
-        public async Task<FileStoreRequest> AwaitRequest(int requestId)
-        {
-            if (TryGetRequest(requestId, out FileStoreRequest request))
-            {
-                //check to see if it's already complete
-                if (request.Complete)
-                    return request;
-
-                var cts = new CancellationTokenSource();
-                OnRequestStatusChanged += async (sender, args) =>
-                {
-                    if (args.RequestId == requestId && args.Complete)
-                        cts.Cancel();
-                };
-                
-                while (!cts.IsCancellationRequested)
-                {
-                    if (request.Complete)//if the event handler didn't catch it
-                        break;
-                    await Utils.DelayNoThrow(TimeSpan.FromMilliseconds(50), cts.Token);
-                }
-
-                return request;
-            }
-            else
-            {
-                return null;
-            }
-        }
-        public bool TryGetRequest(int requestId, out FileStoreRequest request)
-        {
-            //are there any queue items?
-            var reqs = _requests.Where(item => item.RequestId == requestId);
-            if (!reqs.Any())
-            {
-                //no queue items... let's check limbo
-                if (_limboRequests.TryGetValue(requestId, out FileStoreRequest limboReq))
-                {
-                    //there is a limbo request
-                    request = limboReq;
-                    return true;
-                }
-                
-                //no limbo items... let's check completed ones
-                if (_completedRequests.TryGetItem(requestId, out FileStoreRequest completedRequest))
-                {
-                    request = completedRequest;
-                    return true;
-                }
-                //nope, no requests at all
-                request = null;
-                return false;
-            }
-            
-            //there is a queue item!
-            request = reqs.First();
-            return true;
-        }
-        public void CancelRequest(int requestId)
-        {
-            //are there any queue items?
-            var reqs = _requests.Where(item => item.RequestId == requestId);
-            if (!reqs.Any())
-            {
-                //no queue items... let's check limbo
-                if (_limboRequests.TryRemove(requestId, out FileStoreRequest value))
-                {
-                    InvokeStatusChanged(value, FileStoreRequest.RequestStatus.Cancelled);
-                }
-            }
-            else
-            {
-                //there is a queue item, so add it to the cancellation dictionary
-                _cancelledRequests.TryAdd(requestId, null);
-            }
-        }
+        
         #endregion
 
         #region Public Events

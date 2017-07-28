@@ -17,7 +17,7 @@ namespace MyOneDriveClient
     /// This is responsible for buffering requests to the server, recognizing when they fail, and notifying of conflicts while letting unaffected requests pass through
     /// This is also responsible for maintaining the local cache of the remote file metadata
     /// </summary>
-    public class BufferedRemoteFileStoreInterface
+    public class BufferedRemoteFileStoreInterface : FileStoreInterface
     {
         #region Extra Datas
         public class RequestUploadExtraData : IFileStoreRequestExtraData
@@ -53,17 +53,7 @@ namespace MyOneDriveClient
         #region Private Fields
         private IRemoteFileStoreConnection _remote;
         private RemoteItemMetadataCache _metadata = new RemoteItemMetadataCache();
-        private ConcurrentQueue<FileStoreRequest> _requests = new ConcurrentQueue<FileStoreRequest>();
-        private FileStoreRequestGraveyard _completedRequests = new FileStoreRequestGraveyard(TimeSpan.FromMinutes(5));
-        /// <summary>
-        /// Requests that failed for reasons other than network connection
-        /// </summary>
-        private ConcurrentDictionary<int, FileStoreRequest> _limboRequests = new ConcurrentDictionary<int, FileStoreRequest>();
-        private ConcurrentDictionary<int, object> _cancelledRequests = new ConcurrentDictionary<int, object>();
         private int _requestId;//TODO: should this be volatile
-
-        private CancellationTokenSource _processQueueCancellationTokenSource;
-        private Task _processQueueTask;
         #endregion
 
         public BufferedRemoteFileStoreInterface(IRemoteFileStoreConnection remote)
@@ -100,35 +90,6 @@ namespace MyOneDriveClient
                 }
                 InvokeStatusChanged(request);
             }
-        }
-        private void InvokeStatusChanged(FileStoreRequest request)
-        {
-            OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
-            if (request.Complete)
-                _completedRequests.Add(request);
-        }
-        private void InvokeStatusChanged(FileStoreRequest request, FileStoreRequest.RequestStatus status)
-        {
-            request.Status = status;
-            InvokeStatusChanged(request);
-        }
-        private void FailRequest(FileStoreRequest request, string errorMessage)
-        {
-            request.Status = FileStoreRequest.RequestStatus.Failure;
-            request.ErrorMessage = errorMessage;
-            _limboRequests[request.RequestId] = request;
-            InvokeStatusChanged(request);
-        }
-        private void RequestAwaitUser(FileStoreRequest request)
-        {
-            request.Status = FileStoreRequest.RequestStatus.WaitForUser;
-            _limboRequests[request.RequestId] = request;
-            InvokeStatusChanged(request);
-        }
-        private int EnqueueRequest(FileStoreRequest request)
-        {
-            _requests.Enqueue(request);
-            return request.RequestId;
         }
 
         private async Task<bool> UploadFileWithProgressAsync(string parentId, bool isNew, Stream readFrom, FileStoreRequest request)
@@ -270,212 +231,172 @@ namespace MyOneDriveClient
             return success;
         }
 
-        private async Task ProcessQueue(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
+        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct)
         {
-            while (!ct.IsCancellationRequested)
+            bool dequeue = false;
+            var itemMetadata = _metadata.GetItemMetadata(request.Path);
+            //since only this class has access to the queue, we have good confidence that 
+            //the appropriate extra data will be with the appropriate request type
+            switch (request.Type)
             {
-                while (_requests.TryPeek(out FileStoreRequest request))
+                case FileStoreRequest.RequestType.Write: //(upload)
                 {
-                    if (ct.IsCancellationRequested)
-                        break;
-
-                    //was this request cancelled?
-                    if (_cancelledRequests.ContainsKey(request.RequestId))
+                    var data = request.ExtraData as RequestUploadExtraData;
+                    if (data != null)
                     {
-                        //if so, dequeue it and move on
-                        _requests.TryDequeue(out FileStoreRequest result);
-                        _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
-                        request.Status = FileStoreRequest.RequestStatus.Cancelled;
-                        InvokeStatusChanged(request);
-                        continue;
-                    }
-
-                    bool dequeue = false;
-                    var itemMetadata = _metadata.GetItemMetadata(request.Path);
-                    //since only this class has access to the queue, we have good confidence that 
-                    //the appropriate extra data will be with the appropriate request type
-                    switch (request.Type)
-                    {
-                        case FileStoreRequest.RequestType.Write: //(upload)
+                        //try to get the item metadata
+                        if (itemMetadata == null)
                         {
-                            var data = request.ExtraData as RequestUploadExtraData;
-                            if (data != null)
-                            {
-                                //try to get the item metadata
-                                if (itemMetadata == null)
-                                {
-                                    //this is a new item, so get it's parent metadata
-                                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
-
-                                    if (parentMetadata == null)
-                                    {
-                                        //no parent item, so we have issues. TODO: This could be resolved by creating the directory path
-                                        FailRequest(request, $"Could not find parent of file \"{request.Path}\" to upload");
-
-                                        dequeue = true;
-                                    }
-                                    else
-                                    {
-                                        //We found the parent, so upload this child to it
-                                        dequeue = await UploadFileWithProgressAsync(parentMetadata.Id, true,
-                                            data.StreamFrom, request);
-                                    }
-                                }
-                                else
-                                {
-                                    //the item already exists, so upload a new version
-                                    dequeue = await UploadFileWithProgressAsync(itemMetadata.ParentId, false,
-                                        data.StreamFrom, request);
-                                }
-
-                            }
-                            else
-                            {
-                                Debug.WriteLine("Upload request was called without appropriate extra data");
-                            }
-                        }
-                            break;
-                        case FileStoreRequest.RequestType.Read: // (Download)
-                        {
-                            var data = request.ExtraData as RequestDownloadExtraData;
-                            if (data != null)
-                            {
-                                //try to get item metadata
-                                if (itemMetadata != null)
-                                {
-                                    //item exists already, so download it
-                                    dequeue = await DownloadFileWithProgressAsync(itemMetadata.Id, data.StreamTo, request);
-                                }
-                                else
-                                {
-                                    //item doesn't exist
-                                    FailRequest(request, $"Could not find file \"{request.Path}\" to download");
-
-                                    dequeue = true;
-                                }
-                            }
-                            else
-                            {
-                                Debug.Write("Download request was called without approprate extra data");
-                            }
-                        }
-                            break;
-                        case FileStoreRequest.RequestType.Rename:
-                        {
-                            var data = request.ExtraData as RequestRenameExtraData;
-                            if (data != null)
-                            {
-                                if (itemMetadata == null)
-                                {
-                                    //item doesn't exist
-                                    FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
-
-                                    dequeue = true;
-                                }
-                                else
-                                {
-                                    //rename the file
-                                    dequeue = await RenameItemAsync(itemMetadata.Id, data.NewName, request);
-                                }
-                            }
-                            else
-                            {
-                                Debug.Write("Rename request was called without approprate extra data");
-                            }
-                        }
-                            break;
-                        case FileStoreRequest.RequestType.Move:
-                        {
-                            var data = request.ExtraData as RequestMoveExtraData;
-                            if (data != null)
-                            {
-                                if (itemMetadata == null)
-                                {
-                                    //item doesn't exist
-                                    FailRequest(request, $"Could not find file \"{request.Path}\" to move");
-
-                                    dequeue = true;
-                                }
-                                else
-                                {
-                                    var parentMetadata = _metadata.GetItemMetadata(data.NewParentPath);
-                                    if (parentMetadata == null)
-                                    {
-                                        //new location doesn't exist TODO: should this be an error or should we create the new location?
-                                        FailRequest(request, $"Could not find new location \"{data.NewParentPath}\" for \"{request.Path}\" to move to");
-
-                                        dequeue = true;
-                                    }
-                                    else
-                                    {
-                                        //item exists, so move it
-                                        dequeue = await MoveItemAsync(itemMetadata.Id, parentMetadata.Id, request);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                Debug.Write("Move request was called without approprate extra data");
-                            }
-                        }
-                            break;
-                        case FileStoreRequest.RequestType.Create:
-                        {
+                            //this is a new item, so get it's parent metadata
                             var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+
                             if (parentMetadata == null)
                             {
-                                //new location doesn't exist TODO: should this be an error or should we create the new location?
-                                FailRequest(request, $"Could not create \"{request.Path}\" because parent location doesn't exist");
+                                //no parent item, so we have issues. TODO: This could be resolved by creating the directory path
+                                FailRequest(request, $"Could not find parent of file \"{request.Path}\" to upload");
 
                                 dequeue = true;
                             }
                             else
                             {
-                                dequeue = await CreateItemAsync(parentMetadata.Id, PathUtils.GetItemName(request.Path),
-                                    request);
+                                //We found the parent, so upload this child to it
+                                dequeue = await UploadFileWithProgressAsync(parentMetadata.Id, true,
+                                    data.StreamFrom, request);
                             }
                         }
-                            break;
-                        case FileStoreRequest.RequestType.Delete:
+                        else
                         {
-                            if (itemMetadata == null)
-                            {
-                                //item doesn't exist.  Is this an issue?
-                                FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
-                                dequeue = true;
-                            }
-                            else
-                            {
-                                dequeue = await DeleteItemAsync(itemMetadata.Id, request);
-                            }
+                            //the item already exists, so upload a new version
+                            dequeue = await UploadFileWithProgressAsync(itemMetadata.ParentId, false,
+                                data.StreamFrom, request);
                         }
-                            break;
-                        default:
-                            throw new ArgumentOutOfRangeException();
-                    }
 
-                    //should we dequeue the item?
-                    if (dequeue)
-                    {
-                        //yes
-                        _requests.TryDequeue(out FileStoreRequest result);
                     }
                     else
                     {
-                        //something failed, so we should wait a little bit before trying again
-                        await Utils.DelayNoThrow(errorDelay, ct);
+                        Debug.WriteLine("Upload request was called without appropriate extra data");
                     }
                 }
-                
-                //while there are limbo'd requests, pause other requests
-                while (!_limboRequests.IsEmpty)
+                    break;
+                case FileStoreRequest.RequestType.Read: // (Download)
                 {
-                    await Utils.DelayNoThrow(errorDelay, ct);
-                    if (ct.IsCancellationRequested)
-                        break;
+                    var data = request.ExtraData as RequestDownloadExtraData;
+                    if (data != null)
+                    {
+                        //try to get item metadata
+                        if (itemMetadata != null)
+                        {
+                            //item exists already, so download it
+                            dequeue = await DownloadFileWithProgressAsync(itemMetadata.Id, data.StreamTo, request);
+                        }
+                        else
+                        {
+                            //item doesn't exist
+                            FailRequest(request, $"Could not find file \"{request.Path}\" to download");
+
+                            dequeue = true;
+                        }
+                    }
+                    else
+                    {
+                        Debug.Write("Download request was called without approprate extra data");
+                    }
                 }
-                await Utils.DelayNoThrow(delay, ct);
+                    break;
+                case FileStoreRequest.RequestType.Rename:
+                {
+                    var data = request.ExtraData as RequestRenameExtraData;
+                    if (data != null)
+                    {
+                        if (itemMetadata == null)
+                        {
+                            //item doesn't exist
+                            FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
+
+                            dequeue = true;
+                        }
+                        else
+                        {
+                            //rename the file
+                            dequeue = await RenameItemAsync(itemMetadata.Id, data.NewName, request);
+                        }
+                    }
+                    else
+                    {
+                        Debug.Write("Rename request was called without approprate extra data");
+                    }
+                }
+                    break;
+                case FileStoreRequest.RequestType.Move:
+                {
+                    var data = request.ExtraData as RequestMoveExtraData;
+                    if (data != null)
+                    {
+                        if (itemMetadata == null)
+                        {
+                            //item doesn't exist
+                            FailRequest(request, $"Could not find file \"{request.Path}\" to move");
+
+                            dequeue = true;
+                        }
+                        else
+                        {
+                            var parentMetadata = _metadata.GetItemMetadata(data.NewParentPath);
+                            if (parentMetadata == null)
+                            {
+                                //new location doesn't exist TODO: should this be an error or should we create the new location?
+                                FailRequest(request, $"Could not find new location \"{data.NewParentPath}\" for \"{request.Path}\" to move to");
+
+                                dequeue = true;
+                            }
+                            else
+                            {
+                                //item exists, so move it
+                                dequeue = await MoveItemAsync(itemMetadata.Id, parentMetadata.Id, request);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.Write("Move request was called without approprate extra data");
+                    }
+                }
+                    break;
+                case FileStoreRequest.RequestType.Create:
+                {
+                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                    if (parentMetadata == null)
+                    {
+                        //new location doesn't exist TODO: should this be an error or should we create the new location?
+                        FailRequest(request, $"Could not create \"{request.Path}\" because parent location doesn't exist");
+
+                        dequeue = true;
+                    }
+                    else
+                    {
+                        dequeue = await CreateItemAsync(parentMetadata.Id, PathUtils.GetItemName(request.Path),
+                            request);
+                    }
+                }
+                    break;
+                case FileStoreRequest.RequestType.Delete:
+                {
+                    if (itemMetadata == null)
+                    {
+                        //item doesn't exist.  Is this an issue?
+                        FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
+                        dequeue = true;
+                    }
+                    else
+                    {
+                        dequeue = await DeleteItemAsync(itemMetadata.Id, request);
+                    }
+                }
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
+            return dequeue;
         }
         #endregion
 
@@ -556,135 +477,6 @@ namespace MyOneDriveClient
             return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
-
-        /// <summary>
-        /// Starts the processing of the request queue
-        /// </summary>
-        public void StartRequestProcessing()
-        {
-            if (_processQueueTask != null) return;
-            _processQueueCancellationTokenSource = new CancellationTokenSource();
-            _processQueueTask = ProcessQueue(TimeSpan.FromMilliseconds(5000), TimeSpan.FromMilliseconds(100), _processQueueCancellationTokenSource.Token);
-        }
-        /// <summary>
-        /// Stops the processing of the request queue
-        /// </summary>
-        /// <returns></returns>
-        public async Task StopRequestProcessingAsync()
-        {
-            if (_processQueueTask == null) return;
-            _processQueueCancellationTokenSource.Cancel();
-            await _processQueueTask;
-        }
-
-        /// <summary>
-        /// Waits for the given request status to reach a conclusive statis
-        ///  (<see cref="FileStoreRequest.RequestStatus.Cancelled"/>
-        ///  or <see cref="FileStoreRequest.RequestStatus.Success"/>
-        ///  or <see cref="FileStoreRequest.RequestStatus.Failure"/>
-        /// </summary>
-        /// <param name="requestId">the id of the request to wait for</param>
-        /// <returns>the request with that id</returns>
-        public async Task<FileStoreRequest> AwaitRequest(int requestId)
-        {
-            if (TryGetRequest(requestId, out FileStoreRequest request))
-            {
-                //check to see if it's already complete
-                if (request.Complete)
-                    return request;
-
-                var cts = new CancellationTokenSource();
-                OnRequestStatusChanged += async (sender, args) =>
-                {
-                    if (args.RequestId == requestId && args.Complete)
-                        cts.Cancel();
-                };
-
-                while (!cts.IsCancellationRequested)
-                {
-                    if (request.Complete)//if the event handler didn't catch it
-                        break;
-                    await Utils.DelayNoThrow(TimeSpan.FromMilliseconds(50), cts.Token);
-                }
-
-                return request;
-            }
-            else
-            {
-                return null;
-            }
-        }
-        public bool TryGetRequest(int requestId, out FileStoreRequest request)
-        {
-            //are there any queue items?
-            var reqs = _requests.Where(item => item.RequestId == requestId);
-            if (!reqs.Any())
-            {
-                //no queue items... let's check limbo
-                if (_limboRequests.TryGetValue(requestId, out FileStoreRequest limboReq))
-                {
-                    //there is a limbo request
-                    request = limboReq;
-                    return true;
-                }
-
-                //no limbo items... let's check completed ones
-                if (_completedRequests.TryGetItem(requestId, out FileStoreRequest completedRequest))
-                {
-                    request = completedRequest;
-                    return true;
-                }
-                //nope, no requests at all
-                request = null;
-                return false;
-            }
-
-            //there is a queue item!
-            request = reqs.First();
-            return true;
-        }
-        public void CancelRequest(int requestId)
-        {
-            //are there any queue items?
-            var reqs = _requests.Where(item => item.RequestId == requestId);
-            if (!reqs.Any())
-            {
-                //no queue items... let's check limbo
-                if (_limboRequests.TryRemove(requestId, out FileStoreRequest value))
-                {
-                    value.Status = FileStoreRequest.RequestStatus.Cancelled;
-                    InvokeStatusChanged(value);
-                }
-            }
-            else
-            {
-                //there is a queue item, so add it to the cancellation dictionary
-                _cancelledRequests.TryAdd(requestId, null);
-            }
-        }
-
-
-        /// <summary>
-        /// Enumerates the currently active requests
-        /// </summary>
-        /// <returns></returns>
-        public IEnumerable<FileStoreRequest> EnumerateActiveRequests()
-        {
-            //this creates a copy
-            return new List<FileStoreRequest>(_requests);
-        }
-
-
-        /// <summary>
-        /// When an existing request's progress changes
-        /// </summary>
-        public EventDelegates.RemoteRequestProgressChangedHandler OnRequestProgressChanged;
-        /// <summary>
-        /// When the status of an existing request changes or a new request is started.  Note
-        /// that if the status has been changed to <see cref="FileStoreRequest.RequestStatus.Success"/>, there
-        /// is no guarantee that the request still exists.
-        /// </summary>
-        public EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;
         
         /// <summary>
         /// Requests the remote deltas since the previous request
@@ -809,6 +601,11 @@ namespace MyOneDriveClient
             return filteredDeltas;
         }
         #endregion
+
+        /// <summary>
+        /// When an existing request's progress changes
+        /// </summary>
+        public EventDelegates.RemoteRequestProgressChangedHandler OnRequestProgressChanged;
 
         /*
          * TODO: support remote change events
