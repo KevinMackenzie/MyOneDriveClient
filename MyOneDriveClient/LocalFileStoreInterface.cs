@@ -440,8 +440,11 @@ namespace MyOneDriveClient
             bool dequeue = false;
             while (!ct.IsCancellationRequested)
             {
-                if (_requests.TryPeek(out FileStoreRequest request))
+                while (_requests.TryPeek(out FileStoreRequest request))
                 {
+                    if (ct.IsCancellationRequested)
+                        break;
+
                     //was this request cancelled?
                     if (_cancelledRequests.ContainsKey(request.RequestId))
                     {
@@ -663,7 +666,7 @@ namespace MyOneDriveClient
                                 var folderHandle = _local.GetFileHandle(request.Path);
                                 if (request.Path == "/")
                                 {
-                                    //the root...
+                                    //the root... it must already exist
                                     dequeue = true;
                                 }
                                 else

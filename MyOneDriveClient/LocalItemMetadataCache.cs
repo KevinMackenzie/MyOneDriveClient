@@ -19,6 +19,18 @@ namespace MyOneDriveClient
         /// <inheritdoc />
         public LocalItemMetadataCache() : base(new LocalCachedItemMetadata())
         {
+            //try to add the root item
+            MyData.LocalItems.TryAdd("0",
+                new ItemMetadata()
+                {
+                    Id = "0",
+                    IsFolder = true,
+                    LastModified = DateTime.UtcNow,
+                    Metadata = this,
+                    Name = "",
+                    ParentId = "",
+                    Sha1 = ""
+                });
         }
 
         public long GetNextItemId()

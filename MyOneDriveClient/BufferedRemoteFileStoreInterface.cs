@@ -266,8 +266,11 @@ namespace MyOneDriveClient
         {
             while (!ct.IsCancellationRequested)
             {
-                if (_requests.TryPeek(out FileStoreRequest request))
+                while (_requests.TryPeek(out FileStoreRequest request))
                 {
+                    if (ct.IsCancellationRequested)
+                        break;
+
                     //was this request cancelled?
                     if (_cancelledRequests.ContainsKey(request.RequestId))
                     {
