@@ -707,8 +707,24 @@ namespace MyOneDriveClient
                             Type = ItemDelta.DeltaType.Created
                         });
 
-                        //new item, so add it
-                        _metadata.AddItemMetadata(delta.ItemHandle);
+                        if (delta.ItemHandle.Path == "/")
+                        {
+                            //root item...
+                            _metadata.AddOrUpdateItemMetadata(new ItemMetadataCache.ItemMetadata()
+                            {
+                                Id = delta.ItemHandle.Id,
+                                IsFolder = delta.ItemHandle.IsFolder,
+                                LastModified = delta.ItemHandle.LastModified,
+                                Name = "root",
+                                ParentId = "",
+                                Sha1 = ""
+                            });
+                        }
+                        else
+                        {
+                            //new item, so add it
+                            _metadata.AddItemMetadata(delta.ItemHandle);
+                        }
                     }
                     else
                     {
@@ -719,24 +735,28 @@ namespace MyOneDriveClient
                             if (itemMetadata.LastModified == delta.ItemHandle.LastModified)
                             {
                                 //... with the same last modified ...
-                                if (itemMetadata.ParentId == delta.ItemHandle.ParentId)
+                                if (itemMetadata.ParentId != "")
                                 {
-                                    //... with the same parent so do nothing
-                                    //TODO: when does this happen
-                                    Debug.WriteLine("Delta found with same name, location, and timestamp");
-                                }
-                                else
-                                {
-                                    //... with a different parent so move it
-                                    filteredDeltas.Add(new ItemDelta
+                                    //... and not the root item ...
+                                    if (itemMetadata.ParentId == delta.ItemHandle.ParentId)
                                     {
-                                        Handle = delta.ItemHandle,
-                                        OldPath = itemMetadata.Path,
-                                        Type = ItemDelta.DeltaType.Moved
-                                    });
+                                        //... with the same parent so do nothing
+                                        //TODO: when does this happen
+                                        Debug.WriteLine("Delta found with same name, location, and timestamp");
+                                    }
+                                    else
+                                    {
+                                        //... with a different parent so move it
+                                        filteredDeltas.Add(new ItemDelta
+                                        {
+                                            Handle = delta.ItemHandle,
+                                            OldPath = itemMetadata.Path,
+                                            Type = ItemDelta.DeltaType.Moved
+                                        });
 
-                                    //and update the metadata
-                                    _metadata.UpdateItemMetadata(delta.ItemHandle);
+                                        //and update the metadata
+                                        itemMetadata.ParentId = delta.ItemHandle.ParentId;
+                                    }
                                 }
                             }
                             else
@@ -749,7 +769,7 @@ namespace MyOneDriveClient
                                 });
 
                                 //and update the metadata
-                                _metadata.UpdateItemMetadata(delta.ItemHandle);
+                                itemMetadata.LastModified = delta.ItemHandle.LastModified;
 
                                 //TODO: if an item has been modified in remote and local, but the network connection has problems and in between so local is waiting to push remote changes and remote is waiting to pull changes, but the local changes aren't the ones that are wanted.  In this case, the local item should be renamed, removed from the queue, and requested as a regular upload
                                 //TODO: how do we tell the local to rename the file? -- through "status" and "error message"
@@ -766,7 +786,8 @@ namespace MyOneDriveClient
                             });
 
                             //and update the metadata
-                            _metadata.UpdateItemMetadata(delta.ItemHandle);
+                            itemMetadata.Name = delta.ItemHandle.Name;
+                            itemMetadata.LastModified = delta.ItemHandle.LastModified;
                         }
 
                     }
