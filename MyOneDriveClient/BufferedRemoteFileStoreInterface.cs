@@ -595,7 +595,7 @@ namespace MyOneDriveClient
                 {
                     if (cts.IsCancellationRequested)
                         break;
-                    await Utils.DelayNoThrow(50, cts.Token);
+                    await Utils.DelayNoThrow(TimeSpan.FromMilliseconds(50), cts.Token);
                 }
                 return request;
             }
