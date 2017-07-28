@@ -269,7 +269,7 @@ namespace MyOneDriveClient
 
         private async void StartRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
         {
-            await App.OneDriveConnection.PromptUserLoginAsync();
+            //await App.OneDriveConnection.PromptUserLoginAsync();
             App.RemoteInterface.StartRequestProcessing();
         }
         private async void StopRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
