@@ -111,10 +111,15 @@ namespace MyOneDriveClient
 
         public bool UpdateItemMetadata(IRemoteItemHandle handle)
         {
-            if (!_data.LocalItems.ContainsKey(handle.Id))
+            if (!_data.LocalItems.TryGetValue(handle.Id, out ItemMetadata value))
                 return false;
 
-            AddOrUpdateItemMetadata(handle);
+            value.ParentId = handle.ParentId;
+            value.IsFolder = handle.IsFolder;
+            value.LastModified = handle.LastModified;
+            value.Name = handle.Name;
+            value.Sha1 = handle.SHA1Hash;
+            //AddOrUpdateItemMetadata(handle);
             return true;
         }
 
@@ -129,9 +134,14 @@ namespace MyOneDriveClient
                 Name = handle.Name,
                 LastModified = handle.LastModified,
                 Metadata = this
-            });
+            }, false);
         }
         public void AddOrUpdateItemMetadata(ItemMetadata metadata)
+        {
+            metadata.Metadata = this;
+            AddOrUpdateItemMetadata(metadata, false);
+        }
+        private void AddOrUpdateItemMetadata(ItemMetadata metadata, bool b)
         {
             _data.LocalItems[metadata.Id] = metadata;
         }
