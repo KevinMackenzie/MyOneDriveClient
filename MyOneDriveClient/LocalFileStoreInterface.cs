@@ -1108,6 +1108,10 @@ namespace MyOneDriveClient
         {
             if (TryGetRequest(requestId, out FileStoreRequest request))
             {
+                //check to see if it's already complete
+                if (request.Complete)
+                    return request;
+
                 var cts = new CancellationTokenSource();
                 OnRequestStatusChanged += async (sender, args) =>
                 {
@@ -1117,6 +1121,8 @@ namespace MyOneDriveClient
                 
                 while (!cts.IsCancellationRequested)
                 {
+                    if (request.Complete)//if the event handler didn't catch it
+                        break;
                     await Utils.DelayNoThrow(TimeSpan.FromMilliseconds(50), cts.Token);
                 }
 

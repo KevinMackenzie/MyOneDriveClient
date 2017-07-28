@@ -589,22 +589,24 @@ namespace MyOneDriveClient
         {
             if (TryGetRequest(requestId, out FileStoreRequest request))
             {
-                var done = false;
-                OnRequestStatusChanged += async (sender, args) =>
-                {
-                    if (args.RequestId == requestId && (args.Status == FileStoreRequest.RequestStatus.Success ||
-                                                        args.Status == FileStoreRequest.RequestStatus.Cancelled ||
-                                                        args.Status == FileStoreRequest.RequestStatus.Failure))
-                        done = true;
-                };
+                //check to see if it's already complete
+                if (request.Complete)
+                    return request;
 
                 var cts = new CancellationTokenSource();
-                while (!done)
+                OnRequestStatusChanged += async (sender, args) =>
                 {
-                    if (cts.IsCancellationRequested)
+                    if (args.RequestId == requestId && args.Complete)
+                        cts.Cancel();
+                };
+
+                while (!cts.IsCancellationRequested)
+                {
+                    if (request.Complete)//if the event handler didn't catch it
                         break;
                     await Utils.DelayNoThrow(TimeSpan.FromMilliseconds(50), cts.Token);
                 }
+
                 return request;
             }
             else
