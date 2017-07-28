@@ -14,5 +14,6 @@ namespace MyOneDriveClient
         /// </summary>
         /// <returns>a write-only stream to the file data, or null if item is being blocked</returns>
         Stream GetWritableStream();
+        bool Exists();
     }
 }

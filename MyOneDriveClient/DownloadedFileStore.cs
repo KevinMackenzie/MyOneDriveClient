@@ -172,7 +172,7 @@ namespace MyOneDriveClient
         }
         public ILocalItemHandle GetFileHandle(string localPath)
         {
-            return ItemExists(localPath) ? new DownloadedFileHandle(this, localPath) : null;
+            return new DownloadedFileHandle(this, localPath);//ItemExists(localPath) ? new DownloadedFileHandle(this, localPath) : null;
         }
         public void SetItemAttributes(string localPath, FileAttributes attributes)
         {
@@ -303,7 +303,15 @@ namespace MyOneDriveClient
             public string Path => _path;
             public Stream GetWritableStream()
             {
-                return new FileStream(_fs.BuildPath(_path), FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+                try
+                {
+                    return new FileStream(_fs.BuildPath(_path), FileMode.OpenOrCreate, FileAccess.Write,
+                        FileShare.None);
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
             }
 
             public bool IsFolder
@@ -377,6 +385,11 @@ namespace MyOneDriveClient
             public async Task<Stream> GetFileDataAsync()
             {
                 return _fs.GetLocalFileStream(_path);
+            }
+
+            public bool Exists()
+            {
+                return _fs.ItemExists(Path);
             }
             #endregion
         }
