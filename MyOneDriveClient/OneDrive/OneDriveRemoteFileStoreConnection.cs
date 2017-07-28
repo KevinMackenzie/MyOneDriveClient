@@ -24,7 +24,7 @@ namespace MyOneDriveClient.OneDrive
         private static string ClientId = "f9dc0bbd-fc1b-4cf4-ac6c-e2a41a05d583";//"0b8b0665-bc13-4fdc-bd72-e0227b9fc011";
         private static string _onedriveEndpoint = "https://graph.microsoft.com/v1.0/me/drive";
 
-        private HttpClient _httpClient = new HttpClient();
+        private HttpClient _httpClient;
         private AuthenticationResult _authResult = null;
 
         private PublicClientApplication _clientApp;
@@ -309,10 +309,10 @@ namespace MyOneDriveClient.OneDrive
         public async Task PromptUserLoginAsync()
         {
             string resultText = string.Empty;
-
+            AuthenticationResult newAuthenticationResult = null;
             try
             {
-                _authResult = await PublicClientApp.AcquireTokenSilentAsync(_scopes, PublicClientApp.Users.FirstOrDefault());
+                newAuthenticationResult = await PublicClientApp.AcquireTokenSilentAsync(_scopes, PublicClientApp.Users.FirstOrDefault());
             }
             catch (MsalUiRequiredException ex)
             {
@@ -321,7 +321,7 @@ namespace MyOneDriveClient.OneDrive
 
                 try
                 {
-                    _authResult = await PublicClientApp.AcquireTokenAsync(_scopes);
+                    newAuthenticationResult = await PublicClientApp.AcquireTokenAsync(_scopes);
                 }
                 catch (MsalException msalex)
                 {
@@ -334,13 +334,17 @@ namespace MyOneDriveClient.OneDrive
                 return;
             }
             
-            if (_authResult != null)
+            if (newAuthenticationResult != null)
             {
-                //resultText = await GetHttpContentWithToken(_onedriveEndpoint, _authResult.AccessToken);
-                //DisplayBasicTokenInfo(authResult);
-                //this.SignOutButton.Visibility = Visibility.Visible;
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _authResult.AccessToken);
-                _httpClient.Timeout = new TimeSpan(0, 0, 0, 30);
+                if (newAuthenticationResult.AccessToken != _authResult?.AccessToken)//only do this if the access token changes
+                {
+                    _authResult = newAuthenticationResult;
+
+                    _httpClient = new HttpClient();
+                    _httpClient.DefaultRequestHeaders.Authorization =
+                        new AuthenticationHeaderValue("Bearer", _authResult.AccessToken);
+                    _httpClient.Timeout = new TimeSpan(0, 0, 0, 30);
+                }
             }
         }
         public void LogUserOut()
@@ -553,6 +557,8 @@ namespace MyOneDriveClient.OneDrive
         }
         private async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, HttpContent content = null, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
+            if(_httpClient == null)
+                throw new Exception("Attempt to call http request before authentication!");
             var request = new HttpRequestMessage(verb, url);
             if (content != null)
             {

@@ -189,7 +189,6 @@ namespace MyOneDriveClient
                         throw new ArgumentOutOfRangeException();
                 }
             }
-            await SaveRemoteItemMetadataCacheAsync();
         }
         public async Task ApplyRemoteChangesAsync()
         {
@@ -272,10 +271,10 @@ namespace MyOneDriveClient
                         }
                         break;
                     case ItemDelta.DeltaType.Renamed:
-                        _local.RequestMoveItem(delta.OldPath, delta.Handle.Path);
+                        _local.RequestRenameItem(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        _local.RequestRenameItem(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
+                        _local.RequestMoveItem(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();

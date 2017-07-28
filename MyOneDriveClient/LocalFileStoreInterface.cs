@@ -323,20 +323,34 @@ namespace MyOneDriveClient
                             //... with a parent ...
                             if (itemMetadata == null) //FILTERS OUT REBOUNDING DELTAS
                             {
-                                //... without metadata, so add it ...
-                                _metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
-                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
-
-                                //this should only happen if the processing queue is far behind what is happening to the file
-                                // system and the user modifies a file after it is renamed
-                                Debug.WriteLine($"Local item renamed, but has a different last-modified");
-
-                                //... and add the delta
-                                _localDeltas.Enqueue(new ItemDelta()
+                                itemMetadata = _metadata.GetItemMetadata(e.OldLocalPath);
+                                if (itemMetadata == null)
                                 {
-                                    Type = ItemDelta.DeltaType.Renamed,
-                                    Handle = itemHandle
-                                });
+                                    //... and no metadata at the old location either, so add new metadata ...
+                                    _metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
+                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+
+                                    //... and create it i guess
+                                    _localDeltas.Enqueue(new ItemDelta()
+                                    {
+                                        Type = ItemDelta.DeltaType.Created,
+                                        OldPath = e.OldLocalPath,
+                                        Handle = itemHandle
+                                    });
+                                }
+                                else
+                                {
+                                    //... so update the name ...
+                                    itemMetadata.Name = e.Name;
+
+                                    //... and add the delta
+                                    _localDeltas.Enqueue(new ItemDelta()
+                                    {
+                                        Type = ItemDelta.DeltaType.Renamed,
+                                        OldPath = e.OldLocalPath,
+                                        Handle = itemHandle
+                                    });
+                                }
                             }
                         }
                     }
@@ -401,7 +415,7 @@ namespace MyOneDriveClient
         }
         private bool RenameItem(ItemMetadataCache.ItemMetadata metadata, string newName, FileStoreRequest request)
         {
-            var newPath = $"{PathUtils.GetParentItemPath(metadata.Path)}/{newName}";
+            var newPath = PathUtils.GetRenamedPath(metadata.Path, newName);
             if (_local.ItemExists(newPath))
             {
                 //item exists at the new location, so prompt user
@@ -523,7 +537,7 @@ namespace MyOneDriveClient
 
                                         if (data.LastModified > lastSyncTime) //(this is pretty much a guarantee)
                                         {
-                                            if (data.Sha1 == itemMetadata.Sha1)
+                                            if (data.Sha1 == itemMetadata.Sha1) // REBOUND FILTER
                                             {
                                                 //if we are receiving an update AND the sha1 of the remote is the same as the sha1 of
                                                 //  the previous sync, then this must mean that this request is caused by a delta
@@ -645,7 +659,16 @@ namespace MyOneDriveClient
                                 if (itemMetadata == null)
                                 {
                                     //item doesn't exist
-                                    FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
+                                    itemMetadata =
+                                        _metadata.GetItemMetadata(PathUtils.GetRenamedPath(request.Path, data.NewName));
+                                    if (itemMetadata == null)
+                                    {
+                                        FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
+                                    }
+                                    else
+                                    {
+                                        //Rebounded request... but we can't update last modified...
+                                    }
                                     dequeue = true;
                                 }
                                 else
@@ -1014,7 +1037,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestMoveItem(string path, string newParentPath)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
         /// <summary>
@@ -1025,7 +1048,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public int RequestRenameItem(string path, string newName)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
+            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
                 new RequestRenameExtraData(newName)));
         }
 

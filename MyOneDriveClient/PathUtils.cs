@@ -37,5 +37,10 @@ namespace MyOneDriveClient
 
             return $"{path}/{name}";
         }
+
+        public static string GetRenamedPath(string oldPath, string newName)
+        {
+            return $"{PathUtils.GetParentItemPath(oldPath)}/{newName}";
+        }
     }
 }
