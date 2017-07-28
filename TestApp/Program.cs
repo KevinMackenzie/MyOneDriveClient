@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -13,6 +14,12 @@ namespace TestApp
 {
     class Program
     {
+        class TestItem
+        {
+            public int Value1 { get; set; }
+            public int Value2 { get; set; }
+        }
+
         static ManualResetEvent done = new ManualResetEvent(false);
         static void Main(string[] args)
         {
@@ -33,7 +40,20 @@ namespace TestApp
 
 
             Console.WriteLine("Done");*/
-            
+
+            ConcurrentDictionary<int, TestItem> testItems = new ConcurrentDictionary<int, TestItem>();
+            testItems.TryAdd(0, new TestItem{Value1 = 1, Value2 = 1});
+
+            Console.WriteLine($"Value1: {testItems[0].Value1}, Value1: {testItems[0].Value2}");
+
+            var item = testItems[0];
+            item.Value1 = 5;
+            item.Value2 = 9;
+
+            Console.WriteLine($"Value1: {testItems[0].Value1}, Value1: {testItems[0].Value2}");
+
+
+            Console.Read();
         }
 
         /*static void Client_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)

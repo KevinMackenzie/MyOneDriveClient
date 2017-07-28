@@ -205,7 +205,7 @@ namespace MyOneDriveClient
                         if (delta.Handle.IsFolder)
                         {
                             //item is folder...
-                            if (_local.ItemExists(delta.Handle.Path))
+                            if (!_local.ItemExists(delta.Handle.Path))
                             {
                                 //... that doesn't exist, so create it
                                 _local.RequestFolderCreate(delta.Handle.Path, delta.Handle.LastModified);

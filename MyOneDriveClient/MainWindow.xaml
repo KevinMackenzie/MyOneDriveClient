@@ -34,10 +34,20 @@
                 <ColumnDefinition Width="80"/>
                 <ColumnDefinition Width="70"/>
                 <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="80"/>
             </Grid.ColumnDefinitions>
             <Button x:Name="GetDeltasButton" Content="Get Deltas" HorizontalAlignment="Stretch" Padding="5" Margin="5" Click="GetDeltasButton_Click" FontFamily="Segoe Ui" Grid.Column="0"/>
             <Button x:Name="SignOutButton" Content="Sign-Out" HorizontalAlignment="Stretch" Padding="5" Click="SignOutButton_Click" Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="1"/>
             <Button x:Name="ScanForChangesButton" Content="Scan For Changes" HorizontalAlignment="Stretch" Padding="5" Click="ScanForChangesButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="2" />
+            <Button x:Name="SaveMetadataButton" Content="Save Metadata" HorizontalAlignment="Stretch" Padding="5" Click="SaveMetadataButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="3" />
+            <Button x:Name="StartRemoteQueueButton" Content="Start Remote" HorizontalAlignment="Stretch" Padding="5" Click="StartRemoteQueueButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="4" />
+            <Button x:Name="StopRemoteQueueButton" Content="Stop Remote" HorizontalAlignment="Stretch" Padding="5" Click="StopRemoteQueueButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="5" />
+            <Button x:Name="StartLocalQueueButton" Content="Start Local" HorizontalAlignment="Stretch" Padding="5" Click="StartLocalQueueButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="6" />
+            <Button x:Name="StopLocalQueueButton" Content="Stop Local" HorizontalAlignment="Stretch" Padding="5" Click="StopLocalQueueButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="7" />
         </Grid>
 
         <Label Content="File Metadata" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="2" />

@@ -18,16 +18,23 @@ namespace MyOneDriveClient
         static App()
         {            
             OneDriveConnection = new OneDrive.OneDriveRemoteFileStoreConnection();
+            LocalFileStore = new DownloadedFileStore("C:/Users/kjmac/OneDriveTest");
+            RemoteInterface = new BufferedRemoteFileStoreInterface(OneDriveConnection);
+            LocalInterface = new LocalFileStoreInterface(LocalFileStore);
+
             FileStore = new FileStoreBridge(
             new string[]
             {
             }, 
-            new LocalFileStoreInterface(new DownloadedFileStore("C:/Users/kjmac/OneDriveTest")), 
-            new BufferedRemoteFileStoreInterface(new OneDriveRemoteFileStoreConnection()));
+            LocalInterface, RemoteInterface);
+
             FileStore.LoadMetadataAsync().Wait();
         }
 
         public static OneDrive.OneDriveRemoteFileStoreConnection OneDriveConnection;
+        public static DownloadedFileStore LocalFileStore;
+        public static BufferedRemoteFileStoreInterface RemoteInterface;
+        public static LocalFileStoreInterface LocalInterface;
         public static FileStoreBridge FileStore;
     }
 }

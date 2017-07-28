@@ -660,31 +660,41 @@ namespace MyOneDriveClient
                             var data = request.ExtraData as RequestCreateFolderExtraData;
                             if (data != null)
                             {
-                                var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
-                                if (parentMetadata == null)
+                                var folderHandle = _local.GetFileHandle(request.Path);
+                                if (request.Path == "/")
                                 {
-                                    //new location doesn't exist TODO: should this be an error or should we create the new location?
-                                    FailRequest(request,
-                                        $"Could not create \"{request.Path}\" because parent location doesn't exist");
-
+                                    //the root...
                                     dequeue = true;
                                 }
                                 else
                                 {
-                                    if (_local.ItemExists(request.Path))
+                                    var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                                    if (parentMetadata == null)
                                     {
-                                        var folderHandle = _local.GetFileHandle(request.Path);
-                                        //there's no point in creating a folder that already exists
-                                        if (itemMetadata == null)
-                                        {
-                                            //no metadata though, so add it
-                                            _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(folderHandle, _metadata.GetNextItemId().ToString(), parentMetadata.Id));
-                                        }
+                                        //new location doesn't exist TODO: should this be an error or should we create the new location?
+                                        FailRequest(request,
+                                            $"Could not create \"{request.Path}\" because parent location doesn't exist");
+
                                         dequeue = true;
                                     }
                                     else
                                     {
-                                        dequeue = CreateItem(request.Path, data.LastModified, request);
+                                        if (_local.ItemExists(request.Path))
+                                        {
+                                            //there's no point in creating a folder that already exists
+                                            if (itemMetadata == null)
+                                            {
+                                                //no metadata though, so add it
+                                                _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(
+                                                    folderHandle, _metadata.GetNextItemId().ToString(),
+                                                    parentMetadata.Id));
+                                            }
+                                            dequeue = true;
+                                        }
+                                        else
+                                        {
+                                            dequeue = CreateItem(request.Path, data.LastModified, request);
+                                        }
                                     }
                                 }
                             }
