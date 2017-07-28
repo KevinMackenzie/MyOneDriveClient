@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace MyOneDriveClient
@@ -93,6 +94,16 @@ namespace MyOneDriveClient
                 await destination.WriteAsync(buffer, 0, bytesRead);
                 remaining -= canSeek ? bytesRead : 0;
             }
+        }
+
+        public static async Task DelayNoThrow(TimeSpan delay, CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(delay, ct);
+            }
+            catch (TaskCanceledException)
+            { }
         }
     }
 }

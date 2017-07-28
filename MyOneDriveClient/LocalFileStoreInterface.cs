@@ -334,14 +334,18 @@ namespace MyOneDriveClient
                 writeStream.OnDisposed +=
                     (sender) =>
                     {
-                        //after disposing, make sure that we set the last modified of the local and the metadata
-                        _local.SetItemLastModified(request.Path, lastModified);
+                        return Task.Run(() =>
+                        {
+                            //after disposing, make sure that we set the last modified of the local and the metadata
+                            _local.SetItemLastModified(request.Path, lastModified);
 
-                        //add the new item to the metadata with the retrieved parent.  
-                        //      Do this after so the file is done writing to TODO: this will access the "SHA1" of the file and try to open for reading, but the stream is still being blocked because it hasn't finished disposing yet...
-                        _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(itemHandle, _metadata.GetNextItemId().ToString(), parentId));
-                        _metadata.GetItemMetadata(request.Path).LastModified =
-                            lastModified; //TODO: this is OK to do, change everywhere else!!!
+                            //add the new item to the metadata with the retrieved parent.  
+                            //      Do this after so the file is done writing to
+                            _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(itemHandle,
+                                _metadata.GetNextItemId().ToString(), parentId));
+                            _metadata.GetItemMetadata(request.Path).LastModified =
+                                lastModified; //TODO: this is OK to do, change everywhere else!!!
+                        });
                     };
 
                 request.ExtraData = new RequestStreamExtraData(writeStream, true);
@@ -734,18 +738,19 @@ namespace MyOneDriveClient
                     else
                     {
                         //something failed, so we should wait a little bit before trying again
-                        await Task.Delay(errorDelay, ct);
+                        await Utils.DelayNoThrow(errorDelay, ct);
                     }
                 }
 
                 //while there are limbo'd requests, pause other requests
                 while(!_limboRequests.IsEmpty)
                 {
-                    await Task.Delay(errorDelay, ct);
+                    await Utils.DelayNoThrow(errorDelay, ct);
                     if (ct.IsCancellationRequested)
                         break;
                 }
-                await Task.Delay(delay, ct);
+                
+                await Utils.DelayNoThrow(delay, ct);
             }
         }
         #endregion
@@ -993,16 +998,11 @@ namespace MyOneDriveClient
                                                         args.Status == FileStoreRequest.RequestStatus.Failure))
                         cts.Cancel();
                 };
-
-                try
+                
+                while (!cts.IsCancellationRequested)
                 {
-                    while (!cts.IsCancellationRequested)
-                    {
-                        await Task.Delay(50, cts.Token);
-                    }
+                    await Utils.DelayNoThrow(TimeSpan.FromMilliseconds(50), cts.Token);
                 }
-                catch(TaskCanceledException)
-                { }
 
                 return request;
             }

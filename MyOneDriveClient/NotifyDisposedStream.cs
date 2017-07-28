@@ -61,6 +61,9 @@ namespace MyOneDriveClient
         {
             if (!disposing) return;
             _innerStream.Dispose();
+
+            //invoke, but DON"T await it.  The other thread may be waiting for this
+            //  one to finish disposing
             OnDisposed?.Invoke(this);
         }
 

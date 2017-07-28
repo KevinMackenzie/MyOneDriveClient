@@ -455,18 +455,18 @@ namespace MyOneDriveClient
                     else
                     {
                         //something failed, so we should wait a little bit before trying again
-                        await Task.Delay(errorDelay, ct);
+                        await Utils.DelayNoThrow(errorDelay, ct);
                     }
                 }
                 
                 //while there are limbo'd requests, pause other requests
                 while (!_limboRequests.IsEmpty)
                 {
-                    await Task.Delay(errorDelay, ct);
+                    await Utils.DelayNoThrow(errorDelay, ct);
                     if (ct.IsCancellationRequested)
                         break;
                 }
-                await Task.Delay(delay, ct);
+                await Utils.DelayNoThrow(delay, ct);
             }
         }
         #endregion
@@ -595,7 +595,7 @@ namespace MyOneDriveClient
                 {
                     if (cts.IsCancellationRequested)
                         break;
-                    await Task.Delay(50, cts.Token);
+                    await Utils.DelayNoThrow(50, cts.Token);
                 }
                 return request;
             }

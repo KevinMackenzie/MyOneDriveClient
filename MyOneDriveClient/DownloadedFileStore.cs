@@ -73,7 +73,7 @@ namespace MyOneDriveClient
         {
             try
             {
-                return new FileStream(BuildPath(localPath), FileMode.Open, FileAccess.Read, FileShare.None);
+                return new FileStream(BuildPath(localPath), FileMode.Open, FileAccess.Read, FileShare.Read);
             }
             catch (Exception e)
             {
