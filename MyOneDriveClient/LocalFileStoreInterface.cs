@@ -138,6 +138,7 @@ namespace MyOneDriveClient
         private ConcurrentQueue<ItemDelta> _localDeltas = new ConcurrentQueue<ItemDelta>();
         private LocalItemMetadataCache _metadata = new LocalItemMetadataCache();
         private ConcurrentQueue<FileStoreRequest> _requests = new ConcurrentQueue<FileStoreRequest>();
+        private FileStoreRequestGraveyard _completedRequests = new FileStoreRequestGraveyard(TimeSpan.FromMinutes(5));
         private ConcurrentDictionary<int, FileStoreRequest> _limboRequests = new ConcurrentDictionary<int, FileStoreRequest>();
         private ConcurrentDictionary<int, object> _cancelledRequests = new ConcurrentDictionary<int, object>();
         private int _requestId;//TODO: should this be volatile
@@ -163,6 +164,13 @@ namespace MyOneDriveClient
         private void InvokeStatusChanged(FileStoreRequest request)
         {
             OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
+            if (request.Complete)
+                _completedRequests.Add(request);
+        }
+        private void InvokeStatusChanged(FileStoreRequest request, FileStoreRequest.RequestStatus status)
+        {
+            request.Status = status;
+            InvokeStatusChanged(request);
         }
         private void FailRequest(FileStoreRequest request, string errorMessage)
         {
@@ -393,8 +401,7 @@ namespace MyOneDriveClient
                     };
 
                 request.ExtraData = new RequestStreamExtraData(writeStream, true);
-                request.Status = FileStoreRequest.RequestStatus.Success;
-                InvokeStatusChanged(request);
+                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
             }
             return true;
         }
@@ -410,6 +417,7 @@ namespace MyOneDriveClient
             else
             {
                 request.ExtraData = new RequestStreamExtraData(stream, false);
+                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
             }
             return true;
         }
@@ -427,8 +435,7 @@ namespace MyOneDriveClient
                 {
                     //successful move
                     metadata.Name = newName;
-                    request.Status = FileStoreRequest.RequestStatus.Success;
-                    InvokeStatusChanged(request);
+                    InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
                 }
                 else
                 {
@@ -453,8 +460,7 @@ namespace MyOneDriveClient
                 {
                     //successful move
                     metadata.ParentId = newParentMetadata.Id;
-                    request.Status = FileStoreRequest.RequestStatus.Success;
-                    InvokeStatusChanged(request);
+                    InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
                 }
                 else
                 {
@@ -503,8 +509,7 @@ namespace MyOneDriveClient
                         //if so, dequeue it and move on
                         _requests.TryDequeue(out FileStoreRequest result);
                         _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
-                        request.Status = FileStoreRequest.RequestStatus.Cancelled;
-                        InvokeStatusChanged(request);
+                        InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
                         continue;
                     }
 
@@ -546,9 +551,8 @@ namespace MyOneDriveClient
 
                                                 _local.SetItemLastModified(fileHandle.Path, data.LastModified);
                                                 itemMetadata.LastModified = data.LastModified;
-
-                                                request.Status = FileStoreRequest.RequestStatus.Cancelled;
-                                                InvokeStatusChanged(request);
+                                                    
+                                                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
                                                 dequeue = true;
                                             }
                                             else
@@ -1107,9 +1111,7 @@ namespace MyOneDriveClient
                 var cts = new CancellationTokenSource();
                 OnRequestStatusChanged += async (sender, args) =>
                 {
-                    if (args.RequestId == requestId && (args.Status == FileStoreRequest.RequestStatus.Success ||
-                                                        args.Status == FileStoreRequest.RequestStatus.Cancelled ||
-                                                        args.Status == FileStoreRequest.RequestStatus.Failure))
+                    if (args.RequestId == requestId && args.Complete)
                         cts.Cancel();
                 };
                 
@@ -1138,19 +1140,21 @@ namespace MyOneDriveClient
                     request = limboReq;
                     return true;
                 }
-                else
+                
+                //no limbo items... let's check completed ones
+                if (_completedRequests.TryGetItem(requestId, out FileStoreRequest completedRequest))
                 {
-                    //nope, no request found
-                    request = null;
-                    return false;
+                    request = completedRequest;
+                    return true;
                 }
+                //nope, no requests at all
+                request = null;
+                return false;
             }
-            else
-            {
-                //there is a queue item!
-                request = reqs.First();
-                return true;
-            }
+            
+            //there is a queue item!
+            request = reqs.First();
+            return true;
         }
         public void CancelRequest(int requestId)
         {
@@ -1161,8 +1165,7 @@ namespace MyOneDriveClient
                 //no queue items... let's check limbo
                 if (_limboRequests.TryRemove(requestId, out FileStoreRequest value))
                 {
-                    value.Status = FileStoreRequest.RequestStatus.Cancelled;
-                    InvokeStatusChanged(value);
+                    InvokeStatusChanged(value, FileStoreRequest.RequestStatus.Cancelled);
                 }
             }
             else

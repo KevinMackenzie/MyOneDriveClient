@@ -105,6 +105,7 @@
     <Compile Include="FileData.cs" />
     <Compile Include="FileStoreBridge.cs" />
     <Compile Include="FileStoreRequest.cs" />
+    <Compile Include="FileStoreRequestGraveyard.cs" />
     <Compile Include="GraphConnection.cs" />
     <Compile Include="Contracts\ILocalFileStore.cs" />
     <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />

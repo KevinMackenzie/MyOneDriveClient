@@ -54,6 +54,7 @@ namespace MyOneDriveClient
         private IRemoteFileStoreConnection _remote;
         private RemoteItemMetadataCache _metadata = new RemoteItemMetadataCache();
         private ConcurrentQueue<FileStoreRequest> _requests = new ConcurrentQueue<FileStoreRequest>();
+        private FileStoreRequestGraveyard _completedRequests = new FileStoreRequestGraveyard(TimeSpan.FromMinutes(5));
         /// <summary>
         /// Requests that failed for reasons other than network connection
         /// </summary>
@@ -103,6 +104,13 @@ namespace MyOneDriveClient
         private void InvokeStatusChanged(FileStoreRequest request)
         {
             OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
+            if (request.Complete)
+                _completedRequests.Add(request);
+        }
+        private void InvokeStatusChanged(FileStoreRequest request, FileStoreRequest.RequestStatus status)
+        {
+            request.Status = status;
+            InvokeStatusChanged(request);
         }
         private void FailRequest(FileStoreRequest request, string errorMessage)
         {
@@ -611,25 +619,27 @@ namespace MyOneDriveClient
             if (!reqs.Any())
             {
                 //no queue items... let's check limbo
-                if(_limboRequests.TryGetValue(requestId, out FileStoreRequest limboReq))
+                if (_limboRequests.TryGetValue(requestId, out FileStoreRequest limboReq))
                 {
                     //there is a limbo request
                     request = limboReq;
                     return true;
                 }
-                else
+
+                //no limbo items... let's check completed ones
+                if (_completedRequests.TryGetItem(requestId, out FileStoreRequest completedRequest))
                 {
-                    //nope, no request found
-                    request = null;
-                    return false;
+                    request = completedRequest;
+                    return true;
                 }
+                //nope, no requests at all
+                request = null;
+                return false;
             }
-            else
-            {
-                //there is a queue item!
-                request = reqs.First();
-                return true;
-            }
+
+            //there is a queue item!
+            request = reqs.First();
+            return true;
         }
         public void CancelRequest(int requestId)
         {

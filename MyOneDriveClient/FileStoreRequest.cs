@@ -100,6 +100,12 @@ namespace MyOneDriveClient
         /// The type of the request
         /// </summary>
         public RequestType Type { get; }
+        /// <summary>
+        /// Whether <see cref="Status"/> is an end-state status
+        /// </summary>
+        public bool Complete => Status == RequestStatus.Cancelled || 
+                                Status == RequestStatus.Failure ||
+                                Status == RequestStatus.Success;
 
         public IFileStoreRequestExtraData ExtraData { get; set; }
     }

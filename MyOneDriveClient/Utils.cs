@@ -105,5 +105,16 @@ namespace MyOneDriveClient
             catch (TaskCanceledException)
             { }
         }
+
+        public static async Task DelayNoThrow(TimeSpan delay, TimeSpan resolution, CancellationToken ct)
+        {
+            var now = DateTime.UtcNow;
+            var later = now + delay;
+            while (now < later)
+            {
+                await DelayNoThrow(resolution, ct);
+                now = DateTime.UtcNow;
+            }
+        }
     }
 }

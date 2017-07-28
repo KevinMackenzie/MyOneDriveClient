@@ -16,6 +16,7 @@ namespace MyOneDriveClient.Events
             ErrorMessage = request.ErrorMessage;
             Type = request.Type;
             ExtraData = request.ExtraData;
+            Complete = request.Complete;
         }
 
         /// <summary>
@@ -38,6 +39,10 @@ namespace MyOneDriveClient.Events
         /// The type of the request
         /// </summary>
         public FileStoreRequest.RequestType Type { get; }
+        /// <summary>
+        /// Whether <see cref="Status"/> is an end-state status
+        /// </summary>
+        public bool Complete { get; }
 
         public IFileStoreRequestExtraData ExtraData { get; }
     }
