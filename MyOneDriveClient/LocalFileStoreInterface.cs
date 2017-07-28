@@ -320,9 +320,8 @@ namespace MyOneDriveClient
             }
         }
 
-        private bool CreateWritableHandle(FileStoreRequest request, DateTime lastModified)
+        private bool CreateWritableHandle(ILocalItemHandle itemHandle, string parentId, FileStoreRequest request, DateTime lastModified)
         {
-            var itemHandle = _local.GetFileHandle(request.Path);
             var stream = itemHandle.GetWritableStream();
             if (stream == null)
             {
@@ -338,11 +337,16 @@ namespace MyOneDriveClient
                         //after disposing, make sure that we set the last modified of the local and the metadata
                         _local.SetItemLastModified(request.Path, lastModified);
 
+                        //add the new item to the metadata with the retrieved parent.  
+                        //      Do this after so the file is done writing to TODO: this will access the "SHA1" of the file and try to open for reading, but the stream is still being blocked because it hasn't finished disposing yet...
+                        _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(itemHandle, _metadata.GetNextItemId().ToString(), parentId));
                         _metadata.GetItemMetadata(request.Path).LastModified =
                             lastModified; //TODO: this is OK to do, change everywhere else!!!
                     };
 
                 request.ExtraData = new RequestStreamExtraData(writeStream, true);
+                request.Status = FileStoreRequest.RequestStatus.Success;
+                InvokeStatusChanged(request);
             }
             return true;
         }
@@ -520,7 +524,7 @@ namespace MyOneDriveClient
                                                     else
                                                     {
                                                         //local item has not been modified since last sync
-                                                        dequeue = CreateWritableHandle(request, data.LastModified);
+                                                        dequeue = CreateWritableHandle(fileHandle, itemMetadata.ParentId, request, data.LastModified);
                                                     }
                                                 //}
                                             }
@@ -543,8 +547,6 @@ namespace MyOneDriveClient
                                     }
                                     else
                                     {
-                                            //add the new item to the metadata with the retrieved parent
-                                        _metadata.AddItemMetadata(new LocalRemoteItemHandle(fileHandle, _metadata.GetNextItemId().ToString(), parentMetadata.Id));
                                         if (_local.ItemExists(request.Path))
                                         {
                                             //item hasn't been synced before, so definitely ask the user ... 
@@ -554,7 +556,7 @@ namespace MyOneDriveClient
                                         else
                                         {
                                             //item has't been synced before, but doesn't exist locally, so just create the file
-                                            dequeue = CreateWritableHandle(request, data.LastModified);
+                                            dequeue = CreateWritableHandle(fileHandle, parentMetadata.Id, request, data.LastModified);
                                         }
                                     }
                                 }
@@ -685,18 +687,18 @@ namespace MyOneDriveClient
                                         if (_local.ItemExists(request.Path))
                                         {
                                             //there's no point in creating a folder that already exists
-                                            if (itemMetadata == null)
-                                            {
-                                                //no metadata though, so add it
-                                                _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(
-                                                    folderHandle, _metadata.GetNextItemId().ToString(),
-                                                    parentMetadata.Id));
-                                            }
                                             dequeue = true;
                                         }
                                         else
                                         {
                                             dequeue = CreateItem(request.Path, data.LastModified, request);
+                                        }
+                                        if (itemMetadata == null)
+                                        {
+                                            //no metadata though, so add it
+                                            _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(
+                                                folderHandle, _metadata.GetNextItemId().ToString(),
+                                                parentMetadata.Id));
                                         }
                                     }
                                 }
@@ -983,22 +985,25 @@ namespace MyOneDriveClient
         {
             if (TryGetRequest(requestId, out FileStoreRequest request))
             {
-                var done = false;
+                var cts = new CancellationTokenSource();
                 OnRequestStatusChanged += async (sender, args) =>
                 {
                     if (args.RequestId == requestId && (args.Status == FileStoreRequest.RequestStatus.Success ||
                                                         args.Status == FileStoreRequest.RequestStatus.Cancelled ||
                                                         args.Status == FileStoreRequest.RequestStatus.Failure))
-                        done = true;
+                        cts.Cancel();
                 };
 
-                var cts = new CancellationTokenSource();
-                while (!done)
+                try
                 {
-                    if (cts.IsCancellationRequested)
-                        break;
-                    await Task.Delay(50, cts.Token);
+                    while (!cts.IsCancellationRequested)
+                    {
+                        await Task.Delay(50, cts.Token);
+                    }
                 }
+                catch(TaskCanceledException)
+                { }
+
                 return request;
             }
             else
