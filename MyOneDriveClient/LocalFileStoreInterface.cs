@@ -195,16 +195,31 @@ namespace MyOneDriveClient
                         }
                         else
                         {
-                            //... with a parent, so add the item metadata ... (this happens when filtering instead now)
-                            //_metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
-                            //    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
-
-                            //... and add the delta
-                            _localDeltas.Enqueue(new ItemDelta()
+                            if (itemMetadata == null) //FILTERS OUT REBOUNDING DELTAS
                             {
-                                Type = ItemDelta.DeltaType.Created,
-                                Handle = itemHandle
-                            });
+                                //... with a parent, so add the item metadata ... (this happens when filtering instead now)
+                                //_metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
+                                //    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+
+                                //... and add the delta
+                                _localDeltas.Enqueue(new ItemDelta()
+                                {
+                                    Type = ItemDelta.DeltaType.Created,
+                                    Handle = itemHandle
+                                });
+                            }
+                            else
+                            {
+                                if (itemMetadata.LastModified != itemHandle.LastModified) //FILTERS OUT REBOUNDING DELTAS
+                                {
+                                    //this happens when the item has been created, deleted, then re-created
+                                    _localDeltas.Enqueue(new ItemDelta()
+                                    {
+                                        Type = ItemDelta.DeltaType.Created,
+                                        Handle = itemHandle
+                                    });
+                                }
+                            }
                         }
                     }
                     else
@@ -220,7 +235,7 @@ namespace MyOneDriveClient
                     else
                     {
                         //item doesn't exist ...
-                        if (itemMetadata == null)
+                        if (itemMetadata == null) //FILTERS OUT REBOUNDING DELTAS
                         {
                             //... and also doesn't exist in metadata, so it's as if it never existed ... so do nothing
                         }
@@ -257,24 +272,31 @@ namespace MyOneDriveClient
                             else
                             {
                                 //... and is a file ...
-                                var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
-                                if (parentMetadata == null)
+                                if (itemHandle.SHA1Hash == itemMetadata.Sha1) //FILTERS OUT REBOUNDING DELTAS
                                 {
-                                    //... but doesn't have a parent
-                                    //TODO: will this ever happen?
-                                    Debug.WriteLine($"Failed to find parent item of created item \"{e.LocalPath}\"");
-                                }
-                                else
-                                {
-                                    //... with a parent, so update the item metadata ...
-                                    _metadata.AddOrUpdateItemMetadata(itemMetadata);
-
-                                    //... and add the delta
-                                    _localDeltas.Enqueue(new ItemDelta()
+                                    //... with a different sha1 hash as the last update ...
+                                    var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
+                                    if (parentMetadata == null)
                                     {
-                                        Type = ItemDelta.DeltaType.Modified,
-                                        Handle = itemHandle
-                                    });
+                                        //... but doesn't have a parent
+                                        //TODO: will this ever happen?
+                                        Debug.WriteLine(
+                                            $"Failed to find parent item of created item \"{e.LocalPath}\"");
+                                    }
+                                    else
+                                    {
+                                        //... with a parent, so update the item metadata ...
+                                        //_metadata.AddOrUpdateItemMetadata(itemMetadata);
+                                        itemMetadata.LastModified = itemHandle.LastModified;
+                                        itemMetadata.Sha1 = itemHandle.SHA1Hash;
+
+                                        //... and add the delta
+                                        _localDeltas.Enqueue(new ItemDelta()
+                                        {
+                                            Type = ItemDelta.DeltaType.Modified,
+                                            Handle = itemHandle
+                                        });
+                                    }
                                 }
                             }
 
@@ -286,10 +308,10 @@ namespace MyOneDriveClient
                     }
                     break;
                 case WatcherChangeTypes.Renamed:
-                    if (TryGetItemHandle(e.OldLocalPath, out itemHandle))
+                    if (TryGetItemHandle(e.LocalPath, out itemHandle))
                     {
                         //item exists ... 
-                        var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
+                        var parentMetadata = _metadata.GetParentItemMetadata(e.OldLocalPath);
                         if (parentMetadata == null)
                         {
                             //... but doesn't have a parent
@@ -298,16 +320,24 @@ namespace MyOneDriveClient
                         }
                         else
                         {
-                            //... with a parent, so add the item metadata ...
-                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
-                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
-
-                            //... and add the delta
-                            _localDeltas.Enqueue(new ItemDelta()
+                            //... with a parent ...
+                            if (itemMetadata == null) //FILTERS OUT REBOUNDING DELTAS
                             {
-                                Type = ItemDelta.DeltaType.Renamed,
-                                Handle = itemHandle
-                            });
+                                //... without metadata, so add it ...
+                                _metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
+                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+
+                                //this should only happen if the processing queue is far behind what is happening to the file
+                                // system and the user modifies a file after it is renamed
+                                Debug.WriteLine($"Local item renamed, but has a different last-modified");
+
+                                //... and add the delta
+                                _localDeltas.Enqueue(new ItemDelta()
+                                {
+                                    Type = ItemDelta.DeltaType.Renamed,
+                                    Handle = itemHandle
+                                });
+                            }
                         }
                     }
                     else
