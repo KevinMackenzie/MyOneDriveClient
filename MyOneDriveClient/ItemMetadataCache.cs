@@ -88,16 +88,16 @@ namespace MyOneDriveClient
             var parentPath = PathUtils.GetParentItemPath(localPath);
             return GetItemMetadata(parentPath);
         }
-        public IEnumerable<ItemMetadata> GetChildMetadatas(string localPath)
+        public IDictionary<string, DateTime> GetChildrenLastModified(string localPath)
         {
-            var parentItem = GetItemMetadata(localPath);
-            if (parentItem == null)
-                return null;
-            var parentId = parentItem.Id;
-
-            return (from item in _data.LocalItems
-                where item.Value.ParentId == parentId
-                select item.Value);
+            if (localPath == "/" || localPath == "")
+            {
+                return (IDictionary<string, DateTime>) (from item in _data.LocalItems select new KeyValuePair<string, DateTime>(item.Value.Path, item.Value.LastModified));
+            }
+            else
+            {
+                return (IDictionary<string, DateTime>) _data.LocalItems.Select(item => new KeyValuePair<string, DateTime>(item.Value.Path, item.Value.LastModified)).Where(path => path.Key.StartsWith(localPath));
+            }
         }
 
         public bool AddItemMetadata(IRemoteItemHandle handle)

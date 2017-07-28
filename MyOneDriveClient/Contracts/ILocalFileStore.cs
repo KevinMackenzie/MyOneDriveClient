@@ -25,7 +25,7 @@ namespace MyOneDriveClient
         
         bool ItemExists(string localPath);
 
-        Task<IEnumerable<ILocalItemHandle>> EnumerateItemsAsync(string localPath);
+        Task<List<ILocalItemHandle>> EnumerateItemsAsync(string localPath);
 
         event EventDelegates.LocalFileStoreChangedHandler OnChanged;
     }

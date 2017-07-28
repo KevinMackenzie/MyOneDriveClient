@@ -783,6 +783,138 @@ namespace MyOneDriveClient
                 await Utils.DelayNoThrow(delay, ct);
             }
         }
+
+        private IEnumerable<ItemDelta> GetEventDeltas()
+        {
+            List<ItemDelta> filteredDeltas = new List<ItemDelta>();
+            while (_localDeltas.TryDequeue(out ItemDelta result))
+            {
+                switch (result.Type)
+                {
+                    case ItemDelta.DeltaType.Created:
+                        var parentMetadata = _metadata.GetParentItemMetadata(result.Handle.Path);
+                        if (parentMetadata != null)
+                        {
+                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(result.Handle,
+                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                        }
+                        else
+                        {
+                            Debug.WriteLine("Created item has no valid parent when filtering delta queue");
+                            continue; //we need to get ourselves together here
+                        }
+                        break;
+                    case ItemDelta.DeltaType.Deleted:
+                        //deleted item ...
+                        if (_localDeltas.TryPeek(out ItemDelta next))
+                        {
+                            if (next.Type == ItemDelta.DeltaType.Created)
+                            {
+                                //... with a creation immediately following ...
+                                if (next.Handle.LastModified == result.Handle.LastModified)
+                                {
+                                    //... with the same last modified ...
+                                    if (_localDeltas.TryDequeue(out ItemDelta nextDelta))
+                                    {
+                                        //... so update the metadata accordingly ... 
+                                        var itemMetadata = _metadata.GetItemMetadata(result.Handle.Path);
+                                        if (itemMetadata != null)
+                                        {
+                                            var newParentItemMetadata =
+                                                _metadata.GetParentItemMetadata(nextDelta.Handle.Path);
+                                            if (newParentItemMetadata != null)
+                                            {
+                                                itemMetadata.ParentId = newParentItemMetadata.Id;
+                                                _metadata.AddOrUpdateItemMetadata(itemMetadata);
+                                            }
+                                            else
+                                            {
+                                                Debug.WriteLine(
+                                                    "Moved item has no valid parent when filtering delta queue");
+                                                continue;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Debug.WriteLine("Moved item has no valid initial metadata");
+                                            continue;
+                                        }
+
+                                        //... and merge the two into a "moved" delta ...
+                                        filteredDeltas.Add(new ItemDelta()
+                                        {
+                                            Handle = nextDelta.Handle,
+                                            OldPath = result.OldPath,
+                                            Type = ItemDelta.DeltaType.Moved
+                                        });
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            //remove from metadata ONLY if there is no corresponding "create" call 
+                            _metadata.RemoveItemMetadata(result.OldPath);
+                        }
+                        break;
+                    case ItemDelta.DeltaType.Renamed:
+                        break;
+                    case ItemDelta.DeltaType.Modified:
+                        break;
+                    case ItemDelta.DeltaType.Moved:
+                        break;
+                    //TODO: detect item "moves"
+                }
+
+                //if there are no objections ("continue") then let the request through
+                filteredDeltas.Add(result);
+            }
+
+            //make sure there are no resultant orphans
+            _metadata.ClearOrphanedMetadata();
+
+            return (IEnumerable<ItemDelta>)filteredDeltas;
+        }
+        private async Task DeepScanForChanges()
+        {
+            //get the local items
+            var items = await _local.EnumerateItemsAsync("/");
+
+            //make sure the metadata is clean
+            _metadata.ClearOrphanedMetadata();
+
+            //get all metadata
+            var metadata = _metadata.GetChildrenLastModified("/");
+
+            //find the intersection of metadata and local items...
+
+            //... if it exists in the local, but not the metadata, then it must be new
+            var created = from item in items where !metadata.ContainsKey(item.Path) select item.Path;
+            //... if it exists in the local and the metadata, and the last modified times are different, it must
+            //          have been changed
+            var changed = from item in items
+                where metadata.ContainsKey(item.Path) && metadata[item.Path] != item.LastModified
+                select item.Path;
+            //... if it does not exist in local, but does exist in the metadata, then it must have been deleted
+            var deleted = from mData in metadata where items.Any(s => s.Path == mData.Key) select mData.Key;
+
+            // call for deleted items first
+            foreach (var item in deleted)
+            {
+                await LocalOnChanged(this, new LocalFileStoreEventArgs(WatcherChangeTypes.Deleted, item));
+            }
+            // then create new ones
+            foreach (var item in created)
+            {
+                await LocalOnChanged(this, new LocalFileStoreEventArgs(WatcherChangeTypes.Created, item));
+            }
+            // finally call the changed ones
+            foreach (var item in changed)
+            {
+                await LocalOnChanged(this, new LocalFileStoreEventArgs(WatcherChangeTypes.Changed, item));
+            }
+        }
         #endregion
 
         #region Public Properties
@@ -813,96 +945,25 @@ namespace MyOneDriveClient
         /// <summary>
         /// Gets all of the deltas since the previous check
         /// </summary>
+        /// <param name="comprehensive">whether to do a deep check of all files, or only look at events</param>
         /// <returns>a structure of item deltas</returns>
-        public Task<IEnumerable<ItemDelta>> GetDeltasAsync()
+        /// <remarks>Call this method with <see cref="comprehensive"/> as true only
+        ///  when there is a high likely hood that there were local changes that were 
+        /// missed while the application was closed</remarks>
+        public Task<IEnumerable<ItemDelta>> GetDeltasAsync(bool comprehensive = false)
         {
-            return Task.Run(() =>
+            if (comprehensive)
             {
-                List<ItemDelta> filteredDeltas = new List<ItemDelta>();
-                while (_localDeltas.TryDequeue(out ItemDelta result))
+                return Task.Run(() =>
                 {
-                    switch (result.Type)
-                    {
-                        case ItemDelta.DeltaType.Created:
-                            var parentMetadata = _metadata.GetParentItemMetadata(result.Handle.Path);
-                            if (parentMetadata != null)
-                            {
-                                _metadata.AddItemMetadata(new LocalRemoteItemHandle(result.Handle,
-                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
-                            }
-                            else
-                            {
-                                Debug.WriteLine("Created item has no valid parent when filtering delta queue");
-                                continue;//we need to get ourselves together here
-                            }
-                            break;
-                        case ItemDelta.DeltaType.Deleted:
-                            //deleted item ...
-                            if (_localDeltas.TryPeek(out ItemDelta next))
-                            {
-                                if (next.Type == ItemDelta.DeltaType.Created)
-                                {
-                                    //... with a creation immediately following ...
-                                    if (next.Handle.LastModified == result.Handle.LastModified)
-                                    {
-                                        //... with the same last modified ...
-                                        if (_localDeltas.TryDequeue(out ItemDelta nextDelta))
-                                        {
-                                            //... so update the metadata accordingly ... 
-                                            var itemMetadata = _metadata.GetItemMetadata(result.Handle.Path);
-                                            if (itemMetadata != null)
-                                            {
-                                                var newParentItemMetadata =
-                                                    _metadata.GetParentItemMetadata(nextDelta.Handle.Path);
-                                                if (newParentItemMetadata != null)
-                                                {
-                                                    itemMetadata.ParentId = newParentItemMetadata.Id;
-                                                    _metadata.AddOrUpdateItemMetadata(itemMetadata);
-                                                }
-                                                else
-                                                {
-                                                    Debug.WriteLine("Moved item has no valid parent when filtering delta queue");
-                                                    continue;
-                                                }
-                                            }
-                                            else
-                                            {
-                                                Debug.WriteLine("Moved item has no valid initial metadata");
-                                                continue;
-                                            }
-
-                                            //... and merge the two into a "moved" delta ...
-                                            filteredDeltas.Add(new ItemDelta()
-                                            {
-                                                Handle = nextDelta.Handle,
-                                                OldPath = result.OldPath,
-                                                Type = ItemDelta.DeltaType.Moved
-                                            });
-                                            continue;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                //remove from metadata ONLY if there is no corresponding "create" call 
-                                _metadata.RemoveItemMetadata(result.OldPath);
-                            }
-                            break;
-                        case ItemDelta.DeltaType.Renamed:
-                            break;
-                        case ItemDelta.DeltaType.Modified:
-                            break;
-                        case ItemDelta.DeltaType.Moved:
-                            break;
-                        //TODO: detect item "moves"
-                    }
-
-                    //if there are no objections ("continue") then let the request through
-                    filteredDeltas.Add(result);
-                }
-                return (IEnumerable<ItemDelta>) filteredDeltas;
-            });
+                    DeepScanForChanges().Wait();
+                    return GetEventDeltas();
+                });
+            }
+            else
+            {
+                return Task.Run(() => GetEventDeltas());
+            }
         }
 
         /// <summary>

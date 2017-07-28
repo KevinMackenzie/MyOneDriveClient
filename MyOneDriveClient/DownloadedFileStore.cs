@@ -220,7 +220,7 @@ namespace MyOneDriveClient
             string fqp = BuildPath(localPath);
             return Directory.Exists(fqp) || File.Exists(fqp);
         }
-        public async Task<IEnumerable<ILocalItemHandle>> EnumerateItemsAsync(string localPath)
+        public async Task<List<ILocalItemHandle>> EnumerateItemsAsync(string localPath)
         {
             string fqp = BuildPath(localPath);
             if (!Directory.Exists(fqp))
