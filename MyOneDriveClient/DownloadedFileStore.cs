@@ -307,6 +307,11 @@ namespace MyOneDriveClient
             {
                 try
                 {
+                    if (Exists())
+                    {
+                        return new FileStream(_fs.BuildPath(_path), FileMode.Truncate, FileAccess.Write,
+                            FileShare.None);
+                    }
                     return new FileStream(_fs.BuildPath(_path), FileMode.Create, FileAccess.Write,
                         FileShare.None);
                 }
