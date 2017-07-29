@@ -836,11 +836,8 @@ namespace MyOneDriveClient
                                 }
                             }
                         }
-                        else
-                        {
-                            //remove from metadata ONLY if there is no corresponding "create" call 
-                            _metadata.RemoveItemMetadata(result.OldPath);
-                        }
+                        //remove from metadata ONLY if there is no corresponding "create" call 
+                        _metadata.RemoveItemMetadata(result.OldPath);
                         break;
                     case ItemDelta.DeltaType.Renamed:
                         break;
