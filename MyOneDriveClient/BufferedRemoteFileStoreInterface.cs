@@ -535,35 +535,34 @@ namespace MyOneDriveClient
                         //existing item ...
                         if (itemMetadata.Name == delta.ItemHandle.Name)
                         {
-                            //... with the same name ...
-                            if (itemMetadata.LastModified == delta.ItemHandle.LastModified)
-                            {
-                                //... with the same last modified ...
-                                if (itemMetadata.ParentId != "")
-                                {
-                                    //... and not the root item ...
-                                    if (itemMetadata.ParentId == delta.ItemHandle.ParentId)
-                                    {
-                                        //... with the same parent so do nothing
-                                        //TODO: when does this happen
-                                        Debug.WriteLine("Delta found with same name, location, and timestamp");
-                                    }
-                                    else
-                                    {
-                                        //... with a different parent so move it
-                                        filteredDeltas.Add(new ItemDelta
-                                        {
-                                            Handle = delta.ItemHandle,
-                                            OldPath = itemMetadata.Path,
-                                            Type = ItemDelta.DeltaType.Moved
-                                        });
+                            //... with the same last modified ...
+                            if (itemMetadata.ParentId == "") continue;
 
-                                        //and update the metadata
-                                        itemMetadata.ParentId = delta.ItemHandle.ParentId;
-                                    }
-                                }
+                            //... and not the root item ...
+                            if (itemMetadata.ParentId == delta.ItemHandle.ParentId)
+                            {
+                                //... with the same parent so do nothing
+                                //TODO: when does this happen
+                                Debug.WriteLine("Delta found with same name, location, and timestamp");
                             }
                             else
+                            {
+                                //... with a different parent so move it
+                                filteredDeltas.Add(new ItemDelta
+                                {
+                                    Handle = delta.ItemHandle,
+                                    OldPath = itemMetadata.Path,
+                                    Type = ItemDelta.DeltaType.Moved
+                                });
+
+                                //and update the metadata
+                                itemMetadata.ParentId = delta.ItemHandle.ParentId;
+                            }
+
+                            //in item could be modified AND moved... so make sure we account for both
+
+                            //... with the same name ...
+                            if (itemMetadata.LastModified != delta.ItemHandle.LastModified)
                             {
                                 //... with a different last modified so download it
                                 filteredDeltas.Add(new ItemDelta
