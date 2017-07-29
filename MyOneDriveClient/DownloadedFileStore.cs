@@ -163,9 +163,18 @@ namespace MyOneDriveClient
         {
             try
             {
-                //delete the file
-                File.Delete(BuildPath(localPath));
-                return true;
+                var fqp = BuildPath(localPath);
+                if (File.Exists(fqp))
+                {
+                    //delete the file
+                    File.Delete(fqp);
+                }
+                else if (Directory.Exists(fqp))
+                {
+                    //delete the directory and all contents
+                    Directory.Delete(fqp);
+                }
+                return true; //even if it doesn't exist, its fine, as long as there isn't an exception
             }
             catch(Exception)
             {
