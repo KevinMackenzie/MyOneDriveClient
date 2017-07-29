@@ -19,6 +19,38 @@ namespace MyOneDriveClient
     /// </summary>
     public class BufferedRemoteFileStoreInterface : FileStoreInterface
     {
+
+        /// <summary>
+        /// An item handle for deleted items, because they don't have a parent reference path
+        /// </summary>
+        private class DeletedItemHandle : IItemHandle
+        {
+            private IItemHandle _itemHandle;
+            public DeletedItemHandle(IItemHandle itemHandle, string path)
+            {
+                _itemHandle = itemHandle;
+                Path = path;
+            }
+
+            /// <inheritdoc />
+            public bool IsFolder => _itemHandle.IsFolder;
+            /// <inheritdoc />
+            public string Name => _itemHandle.Name;
+            /// <inheritdoc />
+            public long Size => _itemHandle.Size;
+            /// <inheritdoc />
+            public string SHA1Hash => _itemHandle.SHA1Hash;
+            /// <inheritdoc />
+            public DateTime LastModified => _itemHandle.LastModified;
+            /// <inheritdoc />
+            public Task<Stream> GetFileDataAsync()
+            {
+                return _itemHandle.GetFileDataAsync();
+            }
+
+            public string Path { get; }
+        }
+
         #region Extra Datas
         public class RequestUploadExtraData : IFileStoreRequestExtraData
         {
@@ -491,17 +523,25 @@ namespace MyOneDriveClient
             var filteredDeltas = new List<ItemDelta>();
             foreach (var delta in deltas)
             {
+                var itemMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
                 if (delta.Deleted)
                 {
-                    filteredDeltas.Add(new ItemDelta
+                    if (itemMetadata != null)
                     {
-                        Handle = delta.ItemHandle,
-                        Type = ItemDelta.DeltaType.Deleted
-                    });
+                        filteredDeltas.Add(new ItemDelta
+                        {
+                            Handle = new DeletedItemHandle(delta.ItemHandle, itemMetadata.Path),
+                            Type = ItemDelta.DeltaType.Deleted
+                        });
+                    }
+                    else
+                    {
+                        //we're trying to delete an item that we don't even know about...
+                        Debug.WriteLine($"Attempt to delete item not in remote metadata, \"{delta.ItemHandle.Id}, ({delta.ItemHandle.Path})\"");
+                    }
                 }
                 else
                 {
-                    var itemMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
                     if (itemMetadata == null)
                     {
                         //new item

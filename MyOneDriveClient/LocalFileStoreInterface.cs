@@ -722,7 +722,7 @@ namespace MyOneDriveClient
                     }
                     else
                     {
-                        dequeue = DeleteItem(itemMetadata.Id, request);
+                        dequeue = DeleteItem(itemMetadata.Path, request);
                     }
                 }
                     break;
