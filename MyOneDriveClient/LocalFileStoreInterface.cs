@@ -438,9 +438,16 @@ namespace MyOneDriveClient
         }
         private bool DeleteItem(string path, FileStoreRequest request)
         {
-            //TODO: should we do any checking?  or just ignore it if the request failed
-            _local.DeleteLocalItem(path);
-            return true;
+            var success = _local.DeleteLocalItem(path);
+            if (success) // item deleted or not
+            {
+                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+            }
+            else // item in use/otherwise blocked
+            {
+                RequestAwaitUser(request, UserPrompts.CloseApplication);
+            }
+            return success;
         }
 
         protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct)
@@ -723,6 +730,10 @@ namespace MyOneDriveClient
                     else
                     {
                         dequeue = DeleteItem(itemMetadata.Path, request);
+                        if (dequeue)
+                        {
+                            _metadata.RemoveItemMetadataById(itemMetadata.Id);
+                        }
                     }
                 }
                     break;
