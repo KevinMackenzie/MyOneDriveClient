@@ -236,31 +236,34 @@ namespace MyOneDriveClient
                             }
                             else
                             {
-                                //... and is a file ...
-                                if (itemHandle.SHA1Hash != itemMetadata.Sha1) //FILTERS OUT REBOUNDING DELTAS
+                                if (itemHandle.LastModified != itemMetadata.LastModified) //if this is the same, then we got this even twice?
                                 {
-                                    //... with a different sha1 hash as the last update ...
-                                    var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
-                                    if (parentMetadata == null)
+                                    //... and is a file ...
+                                    if (itemHandle.SHA1Hash != itemMetadata.Sha1) //FILTERS OUT REBOUNDING DELTAS
                                     {
-                                        //... but doesn't have a parent
-                                        //TODO: will this ever happen?
-                                        Debug.WriteLine(
-                                            $"Failed to find parent item of created item \"{e.LocalPath}\"");
-                                    }
-                                    else
-                                    {
-                                        //... with a parent, so update the item metadata ...
-                                        //_metadata.AddOrUpdateItemMetadata(itemMetadata);
-                                        itemMetadata.LastModified = itemHandle.LastModified;
-                                        itemMetadata.Sha1 = itemHandle.SHA1Hash;
-
-                                        //... and add the delta
-                                        _localDeltas.Enqueue(new ItemDelta()
+                                        //... with a different sha1 hash as the last update ...
+                                        var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
+                                        if (parentMetadata == null)
                                         {
-                                            Type = ItemDelta.DeltaType.Modified,
-                                            Handle = itemHandle
-                                        });
+                                            //... but doesn't have a parent
+                                            //TODO: will this ever happen?
+                                            Debug.WriteLine(
+                                                $"Failed to find parent item of created item \"{e.LocalPath}\"");
+                                        }
+                                        else
+                                        {
+                                            //... with a parent, so update the item metadata ...
+                                            //_metadata.AddOrUpdateItemMetadata(itemMetadata);
+                                            itemMetadata.LastModified = itemHandle.LastModified;
+                                            itemMetadata.Sha1 = itemHandle.SHA1Hash;
+
+                                            //... and add the delta
+                                            _localDeltas.Enqueue(new ItemDelta()
+                                            {
+                                                Type = ItemDelta.DeltaType.Modified,
+                                                Handle = itemHandle
+                                            });
+                                        }
                                     }
                                 }
                             }
