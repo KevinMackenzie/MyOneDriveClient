@@ -237,7 +237,7 @@ namespace MyOneDriveClient
                             else
                             {
                                 //... and is a file ...
-                                if (itemHandle.SHA1Hash == itemMetadata.Sha1) //FILTERS OUT REBOUNDING DELTAS
+                                if (itemHandle.SHA1Hash != itemMetadata.Sha1) //FILTERS OUT REBOUNDING DELTAS
                                 {
                                     //... with a different sha1 hash as the last update ...
                                     var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
