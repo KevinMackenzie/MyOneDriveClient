@@ -39,7 +39,7 @@ namespace MyOneDriveClient
         public string Serialize()
         {
             ClearOrphanedMetadata();
-            return JsonConvert.SerializeObject(_data);
+            return JsonConvert.SerializeObject(_data, Formatting.Indented);
         }
         
         /// <summary>
