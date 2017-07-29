@@ -307,7 +307,7 @@ namespace MyOneDriveClient
             {
                 try
                 {
-                    return new FileStream(_fs.BuildPath(_path), FileMode.OpenOrCreate, FileAccess.Write,
+                    return new FileStream(_fs.BuildPath(_path), FileMode.Create, FileAccess.Write,
                         FileShare.None);
                 }
                 catch (Exception)
