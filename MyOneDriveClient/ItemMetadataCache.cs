@@ -38,6 +38,7 @@ namespace MyOneDriveClient
         public abstract void Deserialize(string json);
         public string Serialize()
         {
+            ClearOrphanedMetadata();
             return JsonConvert.SerializeObject(_data);
         }
         
@@ -92,11 +93,28 @@ namespace MyOneDriveClient
         {
             if (localPath == "/" || localPath == "")
             {
-                return (IDictionary<string, DateTime>) (from item in _data.LocalItems select new KeyValuePair<string, DateTime>(item.Value.Path, item.Value.LastModified));
+                return (IDictionary<string, DateTime>) (from item in _data.LocalItems
+                    select new KeyValuePair<string, DateTime>(item.Value.Path, item.Value.LastModified));
             }
             else
             {
-                return (IDictionary<string, DateTime>) _data.LocalItems.Select(item => new KeyValuePair<string, DateTime>(item.Value.Path, item.Value.LastModified)).Where(path => path.Key.StartsWith(localPath));
+                var retValues = new Dictionary<string, DateTime>();
+                foreach (var item in _data.LocalItems)
+                {
+                    var path = item.Value.Path;
+                    if (path.StartsWith(localPath) && path != localPath)
+                    {
+                        try
+                        {
+                            retValues.Add(path, item.Value.LastModified);
+                        }
+                        catch (Exception e)
+                        {
+                            int i = 0;
+                        }
+                    }
+                }
+                return retValues;
             }
         }
 
@@ -149,14 +167,13 @@ namespace MyOneDriveClient
         public bool RemoveItemMetadata(string localPath)
         {
             var metadata = GetItemMetadata(localPath);
-            if (metadata == null)
-                return false;//failure
-
-            return RemoveItemMetadataById(metadata.Id);
+            return metadata != null && RemoveItemMetadataById(metadata.Id);
         }
         public bool RemoveItemMetadataById(string id)
         {
-            return _data.LocalItems.TryRemove(id, out ItemMetadata value);
+            if (!_data.LocalItems.TryRemove(id, out ItemMetadata value)) return false;
+            ClearOrphanedMetadata();
+            return true;
         }
 
         public class ItemMetadata

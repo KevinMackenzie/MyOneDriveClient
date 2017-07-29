@@ -730,7 +730,7 @@ namespace MyOneDriveClient
             return dequeue;
         }
 
-        private IEnumerable<ItemDelta> GetEventDeltas()
+        private async Task<IEnumerable<ItemDelta>> GetEventDeltas()
         {
             List<ItemDelta> filteredDeltas = new List<ItemDelta>();
             while (_localDeltas.TryDequeue(out ItemDelta result))
@@ -741,8 +741,46 @@ namespace MyOneDriveClient
                         var parentMetadata = _metadata.GetParentItemMetadata(result.Handle.Path);
                         if (parentMetadata != null)
                         {
-                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(result.Handle,
-                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                            if (_local.ItemExists(result.Handle.Path))
+                            {
+                                _metadata.AddItemMetadata(new LocalRemoteItemHandle(result.Handle,
+                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+
+                                if (result.Handle.IsFolder)
+                                {
+                                    //when creating a folder, scan its contents because it may have been copied over
+                                    await DeepScanForChanges(result.Handle.Path);
+                                }
+                            }
+                            else
+                            {
+                                //created item has been moved/deleted since it was created
+
+                                //very often, an item will be renamed RIGHT after it is created -- this gets handled by 
+                                //          the initial event handler
+                                continue;
+                                /*if (_localDeltas.TryPeek(out ItemDelta nextDelta))
+                                {
+                                    if (nextDelta.Type == ItemDelta.DeltaType.Renamed)
+                                    {
+                                        //...with a rename immediately following ...
+                                        if (nextDelta.OldPath == result.Handle.Path)
+                                        {
+                                            //with our old path, so just create the other one...
+                                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(nextDelta.Handle,
+                                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                            
+                                            //... and dequeue it
+                                            _localDeltas.TryDequeue(out nextDelta);
+
+                                            nextDelta.Type = ItemDelta.DeltaType.Created;
+                                            nextDelta.OldPath = "";
+                                            filteredDeltas.Add(nextDelta);
+                                            continue;
+                                        }
+                                    }
+                                }*/
+                            }
                         }
                         else
                         {
@@ -771,7 +809,7 @@ namespace MyOneDriveClient
                                             if (newParentItemMetadata != null)
                                             {
                                                 itemMetadata.ParentId = newParentItemMetadata.Id;
-                                                _metadata.AddOrUpdateItemMetadata(itemMetadata);
+                                                //_metadata.AddOrUpdateItemMetadata(itemMetadata);
                                             }
                                             else
                                             {
@@ -822,16 +860,19 @@ namespace MyOneDriveClient
 
             return (IEnumerable<ItemDelta>)filteredDeltas;
         }
-        private async Task DeepScanForChanges()
+        private async Task DeepScanForChanges(string path)
         {
             //get the local items
-            var items = await _local.EnumerateItemsAsync("/");
+            var items = await _local.EnumerateItemsAsync(path);
+            
+            //remove the first item
+            items.RemoveAt(0);
 
             //make sure the metadata is clean
             _metadata.ClearOrphanedMetadata();
 
             //get all metadata
-            var metadata = _metadata.GetChildrenLastModified("/");
+            var metadata = _metadata.GetChildrenLastModified(path);
 
             //find the intersection of metadata and local items...
 
@@ -902,7 +943,7 @@ namespace MyOneDriveClient
             {
                 return Task.Run(() =>
                 {
-                    DeepScanForChanges().Wait();
+                    DeepScanForChanges("/").Wait();
                     return GetEventDeltas();
                 });
             }

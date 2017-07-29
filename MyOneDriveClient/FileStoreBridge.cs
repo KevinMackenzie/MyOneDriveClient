@@ -150,30 +150,36 @@ namespace MyOneDriveClient
                             //TODO: how should we tell the user this?  is this a case that will actually happen once done?
                             Debug.WriteLine("Locally Created/Modified delta item does not exist locally");
                         }*/
-
-                        //get the read stream from the local
-                        var readStream = await _local.AwaitRequest(_local.RequestReadOnlyStream(delta.Handle.Path));
-
-                        if (readStream.Status == FileStoreRequest.RequestStatus.Cancelled)
+                        if (delta.Handle.IsFolder)
                         {
-                            //should this even be an option for the user?
-                        }
-                        else if(readStream.Status == FileStoreRequest.RequestStatus.Success)
-                        {
-                            //successfully got the read stream
-                            var streamData = readStream.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
-                            if (streamData != null)
-                            {
-                                _remote.RequestUpload(delta.Handle.Path, streamData.Stream);
-                            }
-                            else
-                            {
-                                Debug.WriteLine($"Request data from stream request \"{delta.Handle.Path}\" was not a stream!");
-                            }
+                            _remote.RequestFolderCreate(delta.Handle.Path);
                         }
                         else
                         {
-                            Debug.WriteLine($"Awaited stream request for \"{delta.Handle.Path}\" was neither successful nor cancelled!");
+                            //get the read stream from the local
+                            var readStream = await _local.AwaitRequest(_local.RequestReadOnlyStream(delta.Handle.Path));
+
+                            if (readStream.Status == FileStoreRequest.RequestStatus.Cancelled)
+                            {
+                                //should this even be an option for the user?
+                            }
+                            else if(readStream.Status == FileStoreRequest.RequestStatus.Success)
+                            {
+                                //successfully got the read stream
+                                var streamData = readStream.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
+                                if (streamData != null)
+                                {
+                                    _remote.RequestUpload(delta.Handle.Path, streamData.Stream);
+                                }
+                                else
+                                {
+                                    Debug.WriteLine($"Request data from stream request \"{delta.Handle.Path}\" was not a stream!");
+                                }
+                            }
+                            else
+                            {
+                                Debug.WriteLine($"Awaited stream request for \"{delta.Handle.Path}\" was neither successful nor cancelled!");
+                            }
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
@@ -183,7 +189,7 @@ namespace MyOneDriveClient
                         _remote.RequestRename(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        _remote.RequestMove(delta.OldPath, delta.Handle.Path);
+                        _remote.RequestMove(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();

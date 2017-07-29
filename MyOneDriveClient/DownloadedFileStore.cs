@@ -112,6 +112,8 @@ namespace MyOneDriveClient
         {
             using (var fs = GetLocalFileStream(localPath))
             {
+                if (fs == null)
+                    return ""; //TODO :when will this happen?
                 using (var cryptoProvider = new SHA1CryptoServiceProvider())
                 {
                     return await Task.Run(
