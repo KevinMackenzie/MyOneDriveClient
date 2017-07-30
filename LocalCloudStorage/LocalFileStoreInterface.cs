@@ -958,20 +958,13 @@ namespace MyOneDriveClient
         /// <remarks>Call this method with <see cref="comprehensive"/> as true only
         ///  when there is a high likely hood that there were local changes that were 
         /// missed while the application was closed</remarks>
-        public Task<IEnumerable<ItemDelta>> GetDeltasAsync(bool comprehensive = false)
+        public async Task<IEnumerable<ItemDelta>> GetDeltasAsync(bool comprehensive = false)
         {
             if (comprehensive)
             {
-                return Task.Run(() =>
-                {
-                    DeepScanForChanges("/").Wait();
-                    return GetEventDeltas();
-                });
+                await DeepScanForChanges("/");
             }
-            else
-            {
-                return Task.Run(() => GetEventDeltas());
-            }
+            return await GetEventDeltas();
         }
 
         /// <summary>
