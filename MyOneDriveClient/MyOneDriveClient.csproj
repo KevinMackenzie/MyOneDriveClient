@@ -86,44 +86,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="AsyncLock.cs" />
-    <Compile Include="Contracts\ICachedItemMetadata.cs" />
-    <Compile Include="Contracts\IItemHandle.cs" />
-    <Compile Include="Contracts\ILocalItemHandle.cs" />
-    <Compile Include="Contracts\ILocalFileStoreInterface.cs" />
-    <Compile Include="Contracts\ILocalItemUpdate.cs" />
-    <Compile Include="BufferedRemoteFileStoreInterface.cs" />
-    <Compile Include="Contracts\IRemoteItemHandle.cs" />
-    <Compile Include="Contracts\IRemoteItemUpdate.cs" />
-    <Compile Include="DeltaPage.cs" />
-    <Compile Include="DownloadedFileStore.cs" />
-    <Compile Include="Events\EventDelegates.cs" />
-    <Compile Include="Events\LocalFileStoreEventArgs.cs" />
-    <Compile Include="Events\RemoteFileStoreDataChanged.cs" />
-    <Compile Include="Events\RemoteRequestProgressChangedEventArgs.cs" />
-    <Compile Include="Events\RequestStatusChangedEventArgs.cs" />
-    <Compile Include="FileData.cs" />
-    <Compile Include="FileStoreBridge.cs" />
-    <Compile Include="FileStoreInterface.cs" />
-    <Compile Include="FileStoreRequest.cs" />
-    <Compile Include="FileStoreRequestGraveyard.cs" />
-    <Compile Include="GraphConnection.cs" />
-    <Compile Include="Contracts\ILocalFileStore.cs" />
-    <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />
-    <Compile Include="HttpResult.cs" />
-    <Compile Include="ItemDelta.cs" />
-    <Compile Include="LocalFileStoreInterface.cs" />
-    <Compile Include="LocalItemMetadataCache.cs" />
-    <Compile Include="NotifyDisposedStream.cs" />
-    <Compile Include="ProgressableStreamWrapper.cs" />
-    <Compile Include="ProgressChangedEventArgs.cs" />
-    <Compile Include="ItemMetadataCache.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
-    <Compile Include="PathUtils.cs" />
-    <Compile Include="RemoteItemMetadataCache.cs" />
-    <Compile Include="RemoteItemUpdate.cs" />
     <Compile Include="TokenCacheHelper.cs" />
-    <Compile Include="Utils.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -177,6 +141,12 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LocalCloudStorage\LocalCloudStorage.csproj">
+      <Project>{8ec13552-65ca-4c05-95b7-3ed3498611e0}</Project>
+      <Name>LocalCloudStorage</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
