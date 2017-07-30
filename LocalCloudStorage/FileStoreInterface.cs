@@ -14,7 +14,8 @@ namespace MyOneDriveClient
         public enum UserPrompts
         {
             KeepOverwriteOrRename,
-            CloseApplication
+            CloseApplication,
+            Acknowledge
         }
 
         #region Private Fields
@@ -81,15 +82,16 @@ namespace MyOneDriveClient
         }
         protected void FailRequest(FileStoreRequest request, string errorMessage)
         {
-            request.Status = FileStoreRequest.RequestStatus.Failure;
+            RequestAwaitUser(request, UserPrompts.Acknowledge, errorMessage);
+            /*request.Status = FileStoreRequest.RequestStatus.Failure;
             request.ErrorMessage = errorMessage;
             _limboRequests[request.RequestId] = request;
-            InvokeStatusChanged(request);
+            InvokeStatusChanged(request);*/
         }
-        protected void RequestAwaitUser(FileStoreRequest request, UserPrompts prompt)
+        protected void RequestAwaitUser(FileStoreRequest request, UserPrompts prompt, string message = null)
         {
             request.Status = FileStoreRequest.RequestStatus.WaitForUser;
-            request.ErrorMessage = prompt.ToString();
+            request.ErrorMessage = string.IsNullOrEmpty(message) ? prompt.ToString() : message;
             _limboRequests[request.RequestId] = request;
             InvokeStatusChanged(request);
         }

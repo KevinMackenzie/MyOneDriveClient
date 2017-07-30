@@ -265,7 +265,6 @@ namespace MyOneDriveClient
 
         protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request)
         {
-            bool dequeue = false;
             var itemMetadata = _metadata.GetItemMetadata(request.Path);
             //since only this class has access to the queue, we have good confidence that 
             //the appropriate extra data will be with the appropriate request type
@@ -286,20 +285,19 @@ namespace MyOneDriveClient
                             {
                                 //no parent item, so we have issues. TODO: This could be resolved by creating the directory path
                                 FailRequest(request, $"Could not find parent of file \"{request.Path}\" to upload");
-
-                                dequeue = true;
+                                return false;
                             }
                             else
                             {
                                 //We found the parent, so upload this child to it
-                                dequeue = await UploadFileWithProgressAsync(parentMetadata.Id, true,
+                                return await UploadFileWithProgressAsync(parentMetadata.Id, true,
                                     data.StreamFrom, request);
                             }
                         }
                         else
                         {
                             //the item already exists, so upload a new version
-                            dequeue = await UploadFileWithProgressAsync(itemMetadata.ParentId, false,
+                            return await UploadFileWithProgressAsync(itemMetadata.ParentId, false,
                                 data.StreamFrom, request);
                         }
 
@@ -307,6 +305,7 @@ namespace MyOneDriveClient
                     else
                     {
                         Debug.WriteLine("Upload request was called without appropriate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -319,19 +318,19 @@ namespace MyOneDriveClient
                         if (itemMetadata != null)
                         {
                             //item exists already, so download it
-                            dequeue = await DownloadFileWithProgressAsync(itemMetadata.Id, data.StreamTo, request);
+                            return await DownloadFileWithProgressAsync(itemMetadata.Id, data.StreamTo, request);
                         }
                         else
                         {
                             //item doesn't exist
                             FailRequest(request, $"Could not find file \"{request.Path}\" to download");
-
-                            dequeue = true;
+                            return false;
                         }
                     }
                     else
                     {
                         Debug.Write("Download request was called without approprate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -344,18 +343,18 @@ namespace MyOneDriveClient
                         {
                             //item doesn't exist
                             FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
-
-                            dequeue = true;
+                            return false;
                         }
                         else
                         {
                             //rename the file
-                            dequeue = await RenameItemAsync(itemMetadata.Id, data.NewName, request);
+                            return await RenameItemAsync(itemMetadata.Id, data.NewName, request);
                         }
                     }
                     else
                     {
                         Debug.Write("Rename request was called without approprate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -368,8 +367,7 @@ namespace MyOneDriveClient
                         {
                             //item doesn't exist
                             FailRequest(request, $"Could not find file \"{request.Path}\" to move");
-
-                            dequeue = true;
+                            return false;
                         }
                         else
                         {
@@ -378,19 +376,19 @@ namespace MyOneDriveClient
                             {
                                 //new location doesn't exist TODO: should this be an error or should we create the new location?
                                 FailRequest(request, $"Could not find new location \"{data.NewParentPath}\" for \"{request.Path}\" to move to");
-
-                                dequeue = true;
+                                return false;
                             }
                             else
                             {
                                 //item exists, so move it
-                                dequeue = await MoveItemAsync(itemMetadata.Id, parentMetadata.Id, request);
+                                return await MoveItemAsync(itemMetadata.Id, parentMetadata.Id, request);
                             }
                         }
                     }
                     else
                     {
                         Debug.Write("Move request was called without approprate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -401,13 +399,11 @@ namespace MyOneDriveClient
                     {
                         //new location doesn't exist TODO: should this be an error or should we create the new location?
                         FailRequest(request, $"Could not create \"{request.Path}\" because parent location doesn't exist");
-
-                        dequeue = true;
+                        return false;
                     }
                     else
                     {
-                        dequeue = await CreateItemAsync(parentMetadata.Id, PathUtils.GetItemName(request.Path),
-                            request);
+                        return await CreateItemAsync(parentMetadata.Id, PathUtils.GetItemName(request.Path), request);
                     }
                 }
                     break;
@@ -417,18 +413,17 @@ namespace MyOneDriveClient
                     {
                         //item doesn't exist.  Is this an issue?
                         FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
-                        dequeue = true;
+                        return false;
                     }
                     else
                     {
-                        dequeue = await DeleteItemAsync(itemMetadata.Id, request);
+                        return await DeleteItemAsync(itemMetadata.Id, request);
                     }
                 }
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-            return dequeue;
         }
         #endregion
 

@@ -352,6 +352,7 @@ namespace MyOneDriveClient
             {
                 //this means something is blocking the file from being written to...
                 RequestAwaitUser(request, UserPrompts.CloseApplication);
+                return false;
             }
             else
             {
@@ -379,8 +380,8 @@ namespace MyOneDriveClient
                 InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
 
                 func?.Invoke(request);
+                return true;
             }
-            return true;
         }
         private bool CreateReadOnlyHandle(FileStoreRequest request)
         {
@@ -390,6 +391,7 @@ namespace MyOneDriveClient
             {
                 //this means something is blocking the file from being read from...
                 RequestAwaitUser(request, UserPrompts.CloseApplication);
+                return false;
             }
             else
             {
@@ -399,8 +401,8 @@ namespace MyOneDriveClient
                 InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
 
                 func?.Invoke(request);
+                return true;
             }
-            return true;
         }
         private bool RenameItem(ItemMetadataCache.ItemMetadata metadata, string newName, FileStoreRequest request)
         {
@@ -409,6 +411,7 @@ namespace MyOneDriveClient
             {
                 //item exists at the new location, so prompt user
                 RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+                return false;
             }
             else
             {
@@ -417,15 +420,16 @@ namespace MyOneDriveClient
                     //successful move
                     metadata.Name = newName;
                     InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+                    return true;
                 }
                 else
                 {
                     //TODO: when will this happen?
                     RequestAwaitUser(request, UserPrompts.CloseApplication);
+                    return false;
                 }
             }
 
-            return true;
         }
         private bool MoveItem(ItemMetadataCache.ItemMetadata metadata, ItemMetadataCache.ItemMetadata newParentMetadata, FileStoreRequest request)
         {
@@ -434,6 +438,7 @@ namespace MyOneDriveClient
             {
                 //item exists at the new location, so prompt user
                 RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
+                return false;
             }
             else
             {
@@ -442,14 +447,15 @@ namespace MyOneDriveClient
                     //successful move
                     metadata.ParentId = newParentMetadata.Id;
                     InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+                    return true;
                 }
                 else
                 {
                     //if the item doesn't exist already, when will this fail? (moving a folder with a item being modified in it?)
                     RequestAwaitUser(request, UserPrompts.CloseApplication);
+                    return false;
                 }
             }
-            return true;
         }
         private bool CreateItem(string path, DateTime lastModified, FileStoreRequest request)
         {
@@ -483,7 +489,6 @@ namespace MyOneDriveClient
              *      exist et. al.
              * 
              */
-            bool dequeue = false;
             var itemMetadata = _metadata.GetItemMetadata(request.Path);
 
             switch (request.Type)
@@ -498,6 +503,7 @@ namespace MyOneDriveClient
                         if (_local.ItemExists(request.Path) && fileHandle.IsFolder)
                         {
                             FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for writing");
+                            return false;
                         }
                         if (itemMetadata != null)
                         {
@@ -505,6 +511,7 @@ namespace MyOneDriveClient
                             {
                                 //item has been synced before, but doesn't exist locally...  this is weird
                                 FailRequest(request, $"Attempt to download previously synced file that no longer exists \"{request.Path}\"");
+                                return false;
                             }
                             else
                             {
@@ -524,7 +531,7 @@ namespace MyOneDriveClient
                                         itemMetadata.LastModified = data.LastModified;
                                                     
                                         InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
-                                        dequeue = true;
+                                        return true;
                                     }
                                     else
                                     {
@@ -541,12 +548,12 @@ namespace MyOneDriveClient
                                             {
                                                 //local item has also been modified since last sync
                                                 RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
-                                                dequeue = true;
+                                                return false;
                                             }
                                             else
                                             {
                                                 //local item has not been modified since last sync
-                                                dequeue = CreateWritableHandle(fileHandle, itemMetadata.ParentId, request, data.LastModified);
+                                                return CreateWritableHandle(fileHandle, itemMetadata.ParentId, request, data.LastModified);
                                             }
                                         //}
                                     }
@@ -554,7 +561,7 @@ namespace MyOneDriveClient
                                 else
                                 {
                                     FailRequest(request, $"Attempt to download older version of \"{request.Path}\" than exists locally");
-                                    dequeue = true;
+                                    return false;
                                 }
                             }
                         }
@@ -565,7 +572,7 @@ namespace MyOneDriveClient
                             if (parentMetadata == null)
                             {
                                 FailRequest(request, $"Attempted to get parent metadata of item \"{request.Path}\" that does not exist");
-                                dequeue = true;
+                                return false;
                             }
                             else
                             {
@@ -573,12 +580,12 @@ namespace MyOneDriveClient
                                 {
                                     //item hasn't been synced before, so definitely ask the user ... 
                                     RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
-                                    dequeue = true;//TODO: we must pause everything while requesting the user!!!
+                                    return false;
                                 }
                                 else
                                 {
                                     //item has't been synced before, but doesn't exist locally, so just create the file
-                                    dequeue = CreateWritableHandle(fileHandle, parentMetadata.Id, request, data.LastModified);
+                                    return CreateWritableHandle(fileHandle, parentMetadata.Id, request, data.LastModified);
                                 }
                             }
                         }
@@ -586,6 +593,7 @@ namespace MyOneDriveClient
                     else
                     {
                         Debug.WriteLine("Write request was called without approprate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -598,7 +606,7 @@ namespace MyOneDriveClient
                         {
                             FailRequest(request,
                                 $"Attempt to open a local item that does not exist \"{request.Path}\"");
-                            dequeue = true;
+                            return false;
                         }
                         else
                         {
@@ -606,7 +614,7 @@ namespace MyOneDriveClient
                             if (fileHandle.IsFolder)
                             {
                                 FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for reading");
-                                dequeue = true;
+                                return false;
                             }
                             if (itemMetadata == null)
                             {
@@ -617,7 +625,7 @@ namespace MyOneDriveClient
                                     //the item exists locally, but something is messed up with the metadata
                                     FailRequest(request,
                                         $"Attempt to open a file \"{request.Path}\" that has no parent metadata.  Check metadata cache state");
-                                    dequeue = true;
+                                    return false;
                                 }
                                 else
                                 {
@@ -625,13 +633,14 @@ namespace MyOneDriveClient
                                         _metadata.GetNextItemId().ToString(), parentMetadata.Id));
                                 }
                             }
-                            dequeue = CreateReadOnlyHandle(request);
+                            return CreateReadOnlyHandle(request);
 
                         }
                     }
                     else
                     {
                         Debug.WriteLine("Read request was called without appropriate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -648,22 +657,24 @@ namespace MyOneDriveClient
                             if (itemMetadata == null)
                             {
                                 FailRequest(request, $"Could not find file \"{request.Path}\" to rename");
+                                return false;
                             }
                             else
                             {
                                 //Rebounded request... but we can't update last modified...
+                                return true;
                             }
-                            dequeue = true;
                         }
                         else
                         {
                             //rename the file
-                            dequeue = RenameItem(itemMetadata, data.NewName, request);
+                            return RenameItem(itemMetadata, data.NewName, request);
                         }
                     }
                     else
                     {
                         Debug.WriteLine("Rename request was called without approprate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -676,7 +687,7 @@ namespace MyOneDriveClient
                         {
                             //item doesn't exist
                             FailRequest(request, $"Could not find file \"{request.Path}\" to move");
-                            dequeue = true;
+                            return false;
                         }
                         else
                         {
@@ -685,19 +696,19 @@ namespace MyOneDriveClient
                             {
                                 //new location doesn't exist TODO: should this be an error or should we create the new location?
                                 FailRequest(request, $"Could not find new location \"{data.NewParentPath}\" for \"{request.Path}\" to move to");
-
-                                dequeue = true;
+                                return false;
                             }
                             else
                             {
                                 //item exists, so move it
-                                dequeue = MoveItem(itemMetadata, parentMetadata, request);
+                                return MoveItem(itemMetadata, parentMetadata, request);
                             }
                         }
                     }
                     else
                     {
                         Debug.WriteLine("Move request was called without approprate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -710,7 +721,7 @@ namespace MyOneDriveClient
                         if (request.Path == "/")
                         {
                             //the root... it must already exist
-                            dequeue = true;
+                            return true;
                         }
                         else
                         {
@@ -720,20 +731,11 @@ namespace MyOneDriveClient
                                 //new location doesn't exist TODO: should this be an error or should we create the new location?
                                 FailRequest(request,
                                     $"Could not create \"{request.Path}\" because parent location doesn't exist");
-
-                                dequeue = true;
-                            }
+                                return false;
+                                }
                             else
                             {
-                                if (_local.ItemExists(request.Path))
-                                {
-                                    //there's no point in creating a folder that already exists
-                                    dequeue = true;
-                                }
-                                else
-                                {
-                                    dequeue = CreateItem(request.Path, data.LastModified, request);
-                                }
+                                var ret = _local.ItemExists(request.Path) || CreateItem(request.Path, data.LastModified, request);
                                 if (itemMetadata == null)
                                 {
                                     //no metadata though, so add it
@@ -741,12 +743,14 @@ namespace MyOneDriveClient
                                         folderHandle, _metadata.GetNextItemId().ToString(),
                                         parentMetadata.Id));
                                 }
+                                return ret;
                             }
                         }
                     }
                     else
                     {
                         Debug.WriteLine("Create folder was called without appropriate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -756,20 +760,22 @@ namespace MyOneDriveClient
                     {
                         //item doesn't exist.  Is this an issue?
                         FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
-                        dequeue = true;
+                        return false;
                     }
                     else
                     {
-                        dequeue = DeleteItem(itemMetadata.Path, request);
-                        if (dequeue)
+                        var success = DeleteItem(itemMetadata.Path, request);
+                        if (success)
                         {
                             _metadata.RemoveItemMetadataById(itemMetadata.Id);
                         }
+                        return success;
                     }
                 }
                     break;
+                default:
+                    throw new NotImplementedException();
             }
-            return dequeue;
         }
 
         private async Task<IEnumerable<ItemDelta>> GetEventDeltas()
