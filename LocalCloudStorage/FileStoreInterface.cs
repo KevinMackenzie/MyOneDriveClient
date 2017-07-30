@@ -34,6 +34,17 @@ namespace MyOneDriveClient
         #endregion
 
         #region Private Methods
+        private bool SkipRequest(FileStoreRequest request)
+        {
+            //was this request cancelled?
+            if (!_cancelledRequests.ContainsKey(request.RequestId)) return false;
+
+            //if so, move on
+            _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
+            request.Status = FileStoreRequest.RequestStatus.Cancelled;
+            InvokeStatusChanged(request);
+            return true;
+        }
         private async Task ProcessQueueInternal(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
@@ -42,19 +53,15 @@ namespace MyOneDriveClient
                 {
                     if (ct.IsCancellationRequested)
                         break;
-
-                    //was this request cancelled?
-                    if (_cancelledRequests.ContainsKey(request.RequestId))
+                    
+                    if (SkipRequest(request))
                     {
-                        //if so, dequeue it and move on
+                        //dequeue and move on
                         _requests.TryDequeue(out FileStoreRequest result);
-                        _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
-                        request.Status = FileStoreRequest.RequestStatus.Cancelled;
-                        InvokeStatusChanged(request);
                         continue;
                     }
 
-                    var dequeue = await ProcessQueueItemAsync(request, ct);
+                    var dequeue = await ProcessQueueItemAsync(request);
 
                     //should we dequeue the item?
                     if (dequeue)
@@ -82,7 +89,7 @@ namespace MyOneDriveClient
         #endregion
 
         #region Abstract Methods
-        protected abstract Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct);
+        protected abstract Task<bool> ProcessQueueItemAsync(FileStoreRequest request);
         #endregion
 
         #region Protected Methods
@@ -116,6 +123,15 @@ namespace MyOneDriveClient
             _requests.Enqueue(request);
             InvokeStatusChanged(request);
             return request.RequestId;
+        }
+        protected async Task<FileStoreRequest> EnqueueRequestAsync(FileStoreRequest request)
+        {
+            InvokeStatusChanged(request);
+            if (await ProcessQueueItemAsync(request))
+            {
+                _completedRequests.Add(request);
+            }
+            return request;
         }
         #endregion
 

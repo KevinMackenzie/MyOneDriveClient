@@ -434,6 +434,7 @@ namespace MyOneDriveClient
         {
             //TODO: should we do any checking?  or just ignore it if the request failed
             _local.CreateLocalFolder(path, lastModified);
+            InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
             return true;
         }
         private bool DeleteItem(string path, FileStoreRequest request)
@@ -450,7 +451,7 @@ namespace MyOneDriveClient
             return success;
         }
 
-        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct)
+        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request)
         {
             /*
              * 
@@ -968,9 +969,9 @@ namespace MyOneDriveClient
         /// <param name="path">the path of the stream to get</param>
         /// <param name="sha1">the sha1 sum of the item to test against to determine conflicts.  leave blank/null to always overwrite local</param>
         /// <returns>the request id</returns>
-        public int RequestWritableStream(string path, string sha1, DateTime lastModified)
+        public async Task<FileStoreRequest> RequestWritableStreamAsync(string path, string sha1, DateTime lastModified)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, new RequestWritableStreamExtraData(sha1, lastModified)));
+            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, new RequestWritableStreamExtraData(sha1, lastModified)));
         }
         /// <summary>
         /// Gets a read-only stream.  To get the stream, use the <see cref="RequestStreamExtraData"/> of 
@@ -978,27 +979,27 @@ namespace MyOneDriveClient
         /// </summary>
         /// <param name="path">the path of the stream to get</param>
         /// <returns>the request id</returns>
-        public int RequestReadOnlyStream(string path)
+        public async Task<FileStoreRequest> RequestReadOnlyStreamAsync(string path)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path, null));
+            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path, null));
         }
         /// <summary>
             /// Deletes a local item and its children
             /// </summary>
             /// <param name="path">the path of the item to delete</param>
             /// <returns>the request id</returns>
-        public int RequestDeleteItem(string path)
+        public async Task<FileStoreRequest> RequestDeleteItemAsync(string path)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
+            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
         }
         /// <summary>
         /// Creates a local folder
         /// </summary>
         /// <param name="path">the path of the folder to create</param>
         /// <returns>the request id</returns>
-        public int RequestFolderCreate(string path, DateTime lastModified)
+        public async Task<FileStoreRequest> RequestFolderCreateAsync(string path, DateTime lastModified)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
+            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
                 new RequestCreateFolderExtraData(lastModified)));
         }
         /// <summary>
@@ -1007,9 +1008,9 @@ namespace MyOneDriveClient
         /// <param name="path">the current path of the item</param>
         /// <param name="newParentPath">the new location of the item post-move</param>
         /// <returns>the request id</returns>
-        public int RequestMoveItem(string path, string newParentPath)
+        public async Task<FileStoreRequest> RequestMoveItemAsync(string path, string newParentPath)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
+            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
         /// <summary>
@@ -1018,9 +1019,9 @@ namespace MyOneDriveClient
         /// <param name="path">the current path of the item</param>
         /// <param name="newName">the new name of the item</param>
         /// <returns>the request id</returns>
-        public int RequestRenameItem(string path, string newName)
+        public async Task<FileStoreRequest> RequestRenameItemAsync(string path, string newName)
         {
-            return EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
+            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
                 new RequestRenameExtraData(newName)));
         }
 

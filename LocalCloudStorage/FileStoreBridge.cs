@@ -66,7 +66,7 @@ namespace MyOneDriveClient
 
         private async Task CreateOrDownloadFileAsync(ItemDelta delta)
         {
-            var streamRequest = await _local.AwaitRequest(_local.RequestWritableStream(delta.Handle.Path, delta.Handle.SHA1Hash, delta.Handle.LastModified));
+            var streamRequest = await _local.RequestWritableStreamAsync(delta.Handle.Path, delta.Handle.SHA1Hash, delta.Handle.LastModified);
             if (streamRequest.Status == FileStoreRequest.RequestStatus.Cancelled)
             {
                 //cancelled request, so that mean's we'll skip this delta... (this can happen when the local and remote files are the same or if the user choses to keep the local)
@@ -77,7 +77,7 @@ namespace MyOneDriveClient
                 var extraData = streamRequest.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
                 if (extraData != null)
                 {
-                    _remote.RequestFileDownload(delta.Handle.Path, extraData.Stream);
+                    await _remote.RequestFileDownloadAsync(delta.Handle.Path, extraData.Stream);
                 }
                 else
                 {
@@ -156,12 +156,12 @@ namespace MyOneDriveClient
                         }*/
                         if (delta.Handle.IsFolder)
                         {
-                            _remote.RequestFolderCreate(delta.Handle.Path);
+                            await _remote.RequestFolderCreateAsync(delta.Handle.Path);
                         }
                         else
                         {
                             //get the read stream from the local
-                            var readStream = await _local.AwaitRequest(_local.RequestReadOnlyStream(delta.Handle.Path));
+                            var readStream = await _local.RequestReadOnlyStreamAsync(delta.Handle.Path);
 
                             if (readStream.Status == FileStoreRequest.RequestStatus.Cancelled)
                             {
@@ -173,7 +173,7 @@ namespace MyOneDriveClient
                                 var streamData = readStream.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
                                 if (streamData != null)
                                 {
-                                    _remote.RequestUpload(delta.Handle.Path, streamData.Stream);
+                                    await _remote.RequestUploadAsync(delta.Handle.Path, streamData.Stream);
                                 }
                                 else
                                 {
@@ -187,13 +187,13 @@ namespace MyOneDriveClient
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
-                        _remote.RequestDelete(delta.OldPath);// item handle doesn't exist, so use old path
+                        await _remote.RequestDeleteAsync(delta.OldPath);// item handle doesn't exist, so use old path
                         break;
                     case ItemDelta.DeltaType.Renamed:
-                        _remote.RequestRename(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
+                        await _remote.RequestRenameAsync(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        _remote.RequestMove(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
+                        await _remote.RequestMoveAsync(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
@@ -217,7 +217,7 @@ namespace MyOneDriveClient
                             if (!_local.ItemExists(delta.Handle.Path))
                             {
                                 //... that doesn't exist, so create it
-                                _local.RequestFolderCreate(delta.Handle.Path, delta.Handle.LastModified);
+                                await _local.RequestFolderCreateAsync(delta.Handle.Path, delta.Handle.LastModified);
                             }
                         }
                         else
@@ -248,7 +248,7 @@ namespace MyOneDriveClient
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
-                        _local.RequestDeleteItem(delta.Handle.Path);
+                        await _local.RequestDeleteItemAsync(delta.Handle.Path);
                         break;
                     case ItemDelta.DeltaType.Modified:
                         if (delta.Handle.IsFolder)
@@ -281,10 +281,10 @@ namespace MyOneDriveClient
                         }
                         break;
                     case ItemDelta.DeltaType.Renamed:
-                        _local.RequestRenameItem(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
+                        await _local.RequestRenameItemAsync(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        _local.RequestMoveItem(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
+                        await _local.RequestMoveItemAsync(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
