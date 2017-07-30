@@ -56,6 +56,10 @@ namespace MyOneDriveClient
         }
         private bool IsBlacklisted(string path)
         {
+            //hopefully it never gets to this point, but it is a good thing to check
+            if (path == RemoteMetadataCachePath || path == LocalMetadataCachePath)
+                return true;
+
             var len = path.Length;
             return _blacklist.Where(item => item.Length <= len).Any(item => path.Substring(item.Length) == item);
         }
