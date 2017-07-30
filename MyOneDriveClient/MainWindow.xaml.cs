@@ -18,6 +18,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using MyOneDriveClient.Annotations;
+using MyOneDriveClient.Events;
 
 namespace MyOneDriveClient
 {
@@ -32,13 +34,23 @@ namespace MyOneDriveClient
         //Set the scope for API call to user.read
         string[] scopes = new string[] { "user.read" };
 
+        public RequestsViewModel Requests { get; }
 
         public MainWindow()
         {
             InitializeComponent();
-            App.OneDriveConnection.PromptUserLoginAsync();
 
+            //TODO: where should this construction happen?
+            DataContext = Requests = new RequestsViewModel(App.LocalInterface, App.RemoteInterface);
 
+            LocalActiveRequests.ItemsSource = Requests.LocalRequests.ActiveRequests;
+            LocalUserAwaitRequests.ItemsSource = Requests.LocalRequests.AwaitUserRequests;
+            LocalFailedRequests.ItemsSource = Requests.LocalRequests.FailedRequests;
+
+            RemoteActiveRequests.ItemsSource = Requests.RemoteRequests.ActiveRequests;
+            RemoteUserAwaitRequests.ItemsSource = Requests.RemoteRequests.AwaitUserRequests;
+            RemoteFailedRequests.ItemsSource = Requests.RemoteRequests.FailedRequests;
+           
             Debug.Listeners.Add(new DebugListener(this));
 
             Debug.WriteLine("Debug initialized");
@@ -118,82 +130,11 @@ namespace MyOneDriveClient
             try
             {
                 App.OneDriveConnection.LogUserOut();
-                this.DownloadFileButton.Visibility = Visibility.Visible;
                 this.SignOutButton.Visibility = Visibility.Collapsed;
             }
             catch (MsalException ex)
             {
-                MetadataText.Text = ex.ToString();
             }
-        }
-
-        /// <summary>
-        /// Display file metadata
-        /// </summary>
-        private void DisplayFileMetadata(string metadata)
-        {
-            //TODO: make this prettier
-            MetadataText.Text = metadata;
-            //if (authResult != null)
-            //{
-                //TokenInfoText.Text += $"Name: {authResult.User.Name}" + Environment.NewLine;
-                //TokenInfoText.Text += $"Username: {authResult.User.DisplayableId}" + Environment.NewLine;
-                //TokenInfoText.Text += $"Token Expires: {authResult.ExpiresOn.ToLocalTime()}" + Environment.NewLine;
-                //TokenInfoText.Text += $"Access Token: {authResult.AccessToken}" + Environment.NewLine;
-            //}
-        }
-
-        private async void DownloadFileButton_Click(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.PromptUserLoginAsync();
-            IRemoteItemHandle file = (await App.OneDriveConnection.GetItemHandleAsync(RemoteFilePath.Text)).Value;
-
-            //DisplayFileMetadata(file.Metadata);
-
-            Stream data = await file.GetFileDataAsync();
-
-            byte[] buffer = new byte[data.Length];
-            await data.ReadAsync(buffer, 0, (int)data.Length);
-
-            ContentsText.Text = Encoding.UTF8.GetString(buffer);
-
-            SignOutButton.Visibility = Visibility.Visible;
-        }
-
-        private async void UploadFileButton_Click(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.PromptUserLoginAsync();
-
-            Stream data = new MemoryStream(Encoding.UTF8.GetBytes(ContentsText.Text));
-
-            try
-            {
-                await App.OneDriveConnection.UploadFileAsync(RemoteFilePath.Text, data);
-            }
-            catch(Exception ex)
-            {
-                MetadataText.Text = ex.ToString();
-            }
-        }
-
-        private async void ListDirButton_Click(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.PromptUserLoginAsync();
-            
-            //try
-            //{
-                /*var files = await App.OneDriveConnection.EnumerateFilePathsAsync(RemoteFilePath.Text);
-
-                ContentsText.Text = "";
-                foreach (var file in files)
-                {
-                    ContentsText.Text += $"{file}{Environment.NewLine}";
-                }*/
-            //}
-            //catch(Exception ex)
-            //{
-            //    MetadataText.Text = ex.ToString();
-            //}
         }
 
         DeltaPage _deltaPage = null;
@@ -201,23 +142,6 @@ namespace MyOneDriveClient
         {
             await App.OneDriveConnection.PromptUserLoginAsync();
             await App.FileStore.ApplyRemoteChangesAsync();
-            //_deltaPage = await App.OneDriveConnection.GetDeltasPageAsync(_deltaPage);
-
-            //IEnumerable<string> ids = (from delta in _deltaPage
-            //                           where (delta.ItemHandle != null)
-            //                           select (string)((JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata))["id"]);
-
-            ContentsText.Text = "";
-            /*foreach (var delta in _deltaPage)
-            {
-                var obj = (JObject)JsonConvert.DeserializeObject(delta.ItemHandle.Metadata);
-                string id = (string)obj["id"];
-                string path = "";
-                var parentReference = obj["parentReference"];
-                if (parentReference != null)
-                    path = ((string)parentReference["path"])?.Split(new char[] { ':' }, 2).Last() ?? "No Path";
-                ContentsText.Text += $"{id} : {path}{Environment.NewLine}";
-            }*/
         }
 
         private async void ScanForChangesButton_OnClick(object sender, RoutedEventArgs e)
@@ -269,7 +193,7 @@ namespace MyOneDriveClient
 
         private async void StartRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
         {
-            //await App.OneDriveConnection.PromptUserLoginAsync();
+            await App.OneDriveConnection.PromptUserLoginAsync();
             App.RemoteInterface.StartRequestProcessing();
         }
         private async void StopRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)

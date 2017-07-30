@@ -86,8 +86,15 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="AwaitUserRequestViewModel.cs" />
+    <Compile Include="FileStoreRequestViewModel.cs" />
+    <Compile Include="BaseRequestsViewModel.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
+    <Compile Include="Properties\Annotations.cs" />
+    <Compile Include="RemoteRequestsViewModel.cs" />
+    <Compile Include="RequestsViewModel.cs" />
     <Compile Include="TokenCacheHelper.cs" />
+    <Compile Include="ViewModelBase.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

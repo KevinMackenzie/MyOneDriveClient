@@ -8,7 +8,7 @@ namespace MyOneDriveClient.Events
 {
     public class RemoteRequestProgressChangedEventArgs : ProgressChangedEventArgs
     {
-        public RemoteRequestProgressChangedEventArgs(double complete, double total, int requestId) : base(complete, total)
+        public RemoteRequestProgressChangedEventArgs(long complete, long total, int requestId) : base(complete, total)
         {
             RequestId = requestId;
         }

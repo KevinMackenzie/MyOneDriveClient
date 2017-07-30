@@ -5,31 +5,44 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MyOneDriveClient"
         mc:Ignorable="d"
-        Title="MainWindow" Height="700" Width="750">
+        Title="MainWindow" Height="700" Width="750" >
+    <Window.Resources>
+        <DataTemplate x:Key="ActiveRequestTemplate" DataType="{x:Type local:FileStoreRequestViewModel}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="2*" />
+                </Grid.ColumnDefinitions>
+                <Grid Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Label Grid.Row="0" Content="{Binding Type}" />
+                    <Label Grid.Row="1" Content="{Binding Status}" />
+                </Grid>
+                <Grid Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="2*"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Label Grid.Row="0" HorizontalAlignment="Left" Content="{Binding Path}" />
+                    <ProgressBar Grid.Row="1" Margin="1" HorizontalAlignment="Stretch" Height="3" Background="Blue" Minimum="0" Maximum="{Binding Percent}"/>
+                    <Label Grid.Row="2" HorizontalAlignment="Left" Content="{Binding Progress}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
     <Grid Background="Azure">
         <Grid.RowDefinitions>
             <RowDefinition Height="35"/>
-            <RowDefinition Height="35"/>
             <RowDefinition Height="25"/>
-            <RowDefinition Height="150"/>
-            <RowDefinition Height="25"/>
-            <RowDefinition Height="1*"/>
+            <RowDefinition Height="2*"/>
             <RowDefinition Height="25"/>
             <RowDefinition Height="1*"/>
         </Grid.RowDefinitions>
         <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1*" />
-                <ColumnDefinition Width="100" />
-                <ColumnDefinition Width="85" />
-                <ColumnDefinition Width="40" />
-            </Grid.ColumnDefinitions>
-            <TextBox x:Name="RemoteFilePath" Text="/DevTest/" HorizontalAlignment="Stretch" Padding="5" Margin="5" FontFamily="SegoeUi" Grid.Column="0"/>
-            <Button x:Name="DownloadFileButton" Content="Download File" HorizontalAlignment="Stretch" Padding="5" Click="DownloadFileButton_Click" Margin="5" FontFamily="Segoe Ui" Grid.Column="1"/>
-            <Button x:Name="UploadFileButton" Content="Upload File" HorizontalAlignment="Stretch" Padding="5" Click="UploadFileButton_Click" Margin="5" FontFamily="Segoe Ui" Grid.Column="2"/>
-            <Button x:Name="ListDirButton" Content="List" HorizontalAlignment="Stretch" Padding="5" Click="ListDirButton_Click" Margin="5" FontFamily="Segoe Ui" Grid.Column="3" />
-        </Grid>
-        <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="80"/>
                 <ColumnDefinition Width="70"/>
@@ -50,13 +63,52 @@
             <Button x:Name="StopLocalQueueButton" Content="Stop Local" HorizontalAlignment="Stretch" Padding="5" Click="StopLocalQueueButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="7" />
         </Grid>
 
-        <Label Content="File Metadata" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="2" />
-        <TextBox x:Name="MetadataText" TextWrapping="Wrap" MinHeight="120" Margin="5" FontFamily="Segoe Ui" Grid.Row="3" />
-        <Label Content="FileContents" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="4" />
-        <TextBox x:Name="ContentsText" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Height="150" Margin="5" FontFamily="Segoe Ui" Grid.Row="5" />
+        <Label Content="Requests" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="1" />
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="25" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Label Content="Local Requests" HorizontalAlignment="Center" Grid.Row="0" Grid.ColumnSpan="2"/>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                </Grid>
+            </Grid>
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Gray"/>
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="25" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Label Content="Remote Requests" HorizontalAlignment="Center" Grid.Row="0" />
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                </Grid>
+            </Grid>
+        </Grid>
 
-        <Label Content="Debug" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="6" />
-        <Button Content="Get Debug" Width="150" Click="ButtonBase_OnClick" Grid.Row="6"/>
-        <TextBox x:Name="DebugBox" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Height="150" Margin="5" FontFamily="Segoe Ui" Grid.Row="7" />
+        <Label Content="Debug" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="3" />
+        <Button Content="Get Debug" VerticalAlignment="Center" Width="150" Click="ButtonBase_OnClick" Grid.Row="3"/>
+        <TextBox x:Name="DebugBox" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" VerticalAlignment="Stretch" Margin="5" FontFamily="Segoe Ui" Grid.Row="4" />
     </Grid>
 </Window>

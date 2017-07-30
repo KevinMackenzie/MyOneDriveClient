@@ -8,14 +8,14 @@ namespace MyOneDriveClient
 {
     public class ProgressChangedEventArgs
     {
-        public ProgressChangedEventArgs(double amountComplete, double total)
+        public ProgressChangedEventArgs(long amountComplete, long total)
         {
             Complete = amountComplete;
             Total = total;
         }
 
-        public double Complete { get; }
-        public double Total { get; }
-        public double Percent => Total / Complete;
+        public long Complete { get; }
+        public long Total { get; }
+        public double Progress => (double)Total / Complete;
     }
 }

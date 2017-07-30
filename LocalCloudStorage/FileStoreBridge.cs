@@ -33,10 +33,10 @@ namespace MyOneDriveClient
         }
 
         #region Private Methods
-        private async Task OnRemoteRequestStatusChanged(object sender, RequestStatusChangedEventArgs requestStatusChangedEventArgs)
+        private void OnRemoteRequestStatusChanged(object sender, RequestStatusChangedEventArgs requestStatusChangedEventArgs)
         {
         }
-        private async Task OnLocalRequestStatusChanged(object sender, RequestStatusChangedEventArgs e)
+        private void OnLocalRequestStatusChanged(object sender, RequestStatusChangedEventArgs e)
         {
             switch (e.Status)
             {

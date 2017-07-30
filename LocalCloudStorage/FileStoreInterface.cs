@@ -114,6 +114,7 @@ namespace MyOneDriveClient
         protected int EnqueueRequest(FileStoreRequest request)
         {
             _requests.Enqueue(request);
+            InvokeStatusChanged(request);
             return request.RequestId;
         }
         #endregion
