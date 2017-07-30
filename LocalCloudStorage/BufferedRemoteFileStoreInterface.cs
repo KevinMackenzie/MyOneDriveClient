@@ -452,9 +452,9 @@ namespace MyOneDriveClient
         /// <param name="streamFrom">the stream to read data from</param>
         /// <returns>the request id</returns>
         /// <remarks><see cref="streamFrom"/> gets disposed in this method</remarks>
-        public async Task<FileStoreRequest> RequestUploadAsync(string path, Stream streamFrom)
+        public void RequestUpload(string path, Stream streamFrom)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path,
                 new RequestUploadExtraData(streamFrom)));
         }
         /// <summary>
@@ -464,9 +464,9 @@ namespace MyOneDriveClient
         /// <param name="streamTo">where to stream the download to</param>
         /// <returns>the request id</returns>
         /// <remarks><see cref="streamTo"/> gets disposed in this method</remarks>
-        public async Task<FileStoreRequest> RequestFileDownloadAsync(string path, Stream streamTo)
+        public void RequestFileDownload(string path, Stream streamTo)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
                 new RequestDownloadExtraData(streamTo)));
         }
         /// <summary>
@@ -474,18 +474,18 @@ namespace MyOneDriveClient
         /// </summary>
         /// <param name="path">the path of the remote folder to create</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestFolderCreateAsync(string path)
+        public void RequestFolderCreate(string path)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path, null));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path, null));
         }
         /// <summary>
         /// Deletes a remote item and its children
         /// </summary>
         /// <param name="path">the path of the item to delete</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestDeleteAsync(string path)
+        public void RequestDelete(string path)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
         }
         /// <summary>
         /// Renames a remote item
@@ -493,9 +493,9 @@ namespace MyOneDriveClient
         /// <param name="path">the path of the item to rename</param>
         /// <param name="newName">the new name of the item</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestRenameAsync(string path, string newName)
+        public void RequestRename(string path, string newName)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
                 new RequestRenameExtraData(newName)));
         }
         /// <summary>
@@ -504,9 +504,9 @@ namespace MyOneDriveClient
         /// <param name="path">the previous path of the item</param>
         /// <param name="newParentPath">the folder the item is moved to</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestMoveAsync(string path, string newParentPath)
+        public void RequestMove(string path, string newParentPath)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
         

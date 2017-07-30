@@ -104,13 +104,23 @@ namespace MyOneDriveClient
         /// </summary>
         private class RequestWritableStreamExtraData : IFileStoreRequestExtraData
         {
-            public RequestWritableStreamExtraData(string sha1, DateTime lastModified)
+            public RequestWritableStreamExtraData(string sha1, DateTime lastModified, Action<FileStoreRequest> onCompleteFunc)
             {
                 Sha1 = sha1;
                 LastModified = lastModified;
+                OnCompleted = onCompleteFunc;
             }
             public string Sha1 { get; }
             public DateTime LastModified { get; }
+            public Action<FileStoreRequest> OnCompleted { get; }
+        }
+        private class RequestReadOnlyStreamExtraData : IFileStoreRequestExtraData
+        {
+            public RequestReadOnlyStreamExtraData(Action<FileStoreRequest> onCompleteFunc)
+            {
+                OnCompleted = onCompleteFunc;
+            }
+            public Action<FileStoreRequest> OnCompleted { get; }
         }
         /// <summary>
         /// Data returned from a request after getting the stream
@@ -363,8 +373,12 @@ namespace MyOneDriveClient
                         });
                     };
 
+                var func = (request.ExtraData as RequestWritableStreamExtraData)?.OnCompleted;
+
                 request.ExtraData = new RequestStreamExtraData(writeStream, true);
                 InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+
+                func?.Invoke(request);
             }
             return true;
         }
@@ -379,8 +393,12 @@ namespace MyOneDriveClient
             }
             else
             {
+                var func = (request.ExtraData as RequestReadOnlyStreamExtraData)?.OnCompleted;
+
                 request.ExtraData = new RequestStreamExtraData(stream, false);
                 InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+
+                func?.Invoke(request);
             }
             return true;
         }
@@ -567,43 +585,53 @@ namespace MyOneDriveClient
                     }
                     else
                     {
-                        Debug.Write("Write request was called without approprate extra data");
+                        Debug.WriteLine("Write request was called without approprate extra data");
                     }
                 }
                     break;
                 case FileStoreRequest.RequestType.Read: // get read-only stream
                 {
-                    if (!_local.ItemExists(request.Path))
+                    var data = request.ExtraData as RequestReadOnlyStreamExtraData;
+                    if (data != null)
                     {
-                        FailRequest(request,
-                            $"Attempt to open a local item that does not exist \"{request.Path}\"");
-                        dequeue = true;
+                        if (!_local.ItemExists(request.Path))
+                        {
+                            FailRequest(request,
+                                $"Attempt to open a local item that does not exist \"{request.Path}\"");
+                            dequeue = true;
+                        }
+                        else
+                        {
+                            var fileHandle = _local.GetFileHandle(request.Path);
+                            if (fileHandle.IsFolder)
+                            {
+                                FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for reading");
+                                dequeue = true;
+                            }
+                            if (itemMetadata == null)
+                            {
+                                //item hasn't been synced before
+                                var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
+                                if (parentMetadata == null)
+                                {
+                                    //the item exists locally, but something is messed up with the metadata
+                                    FailRequest(request,
+                                        $"Attempt to open a file \"{request.Path}\" that has no parent metadata.  Check metadata cache state");
+                                    dequeue = true;
+                                }
+                                else
+                                {
+                                    _metadata.AddItemMetadata(new LocalRemoteItemHandle(fileHandle,
+                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                }
+                            }
+                            dequeue = CreateReadOnlyHandle(request);
+
+                        }
                     }
                     else
                     {
-                        var fileHandle = _local.GetFileHandle(request.Path);
-                        if (fileHandle.IsFolder)
-                        {
-                            FailRequest(request, $"Attempted to open a folder \"{request.Path}\" for reading");
-                            dequeue = true;
-                        }
-                        if (itemMetadata == null)
-                        {
-                            //item hasn't been synced before
-                            var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
-                            if (parentMetadata == null)
-                            {
-                                //the item exists locally, but something is messed up with the metadata
-                                FailRequest(request, $"Attempt to open a file \"{request.Path}\" that has no parent metadata.  Check metadata cache state");
-                                dequeue = true;
-                            }
-                            else
-                            {
-                                _metadata.AddItemMetadata(new LocalRemoteItemHandle(fileHandle,
-                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
-                            }
-                        }
-                        dequeue = CreateReadOnlyHandle(request);
+                        Debug.WriteLine("Read request was called without appropriate extra data");
                     }
                 }
                     break;
@@ -635,7 +663,7 @@ namespace MyOneDriveClient
                     }
                     else
                     {
-                        Debug.Write("Rename request was called without approprate extra data");
+                        Debug.WriteLine("Rename request was called without approprate extra data");
                     }
                 }
                     break;
@@ -669,7 +697,7 @@ namespace MyOneDriveClient
                     }
                     else
                     {
-                        Debug.Write("Move request was called without approprate extra data");
+                        Debug.WriteLine("Move request was called without approprate extra data");
                     }
                 }
                     break;
@@ -718,7 +746,7 @@ namespace MyOneDriveClient
                     }
                     else
                     {
-                        Debug.Write("Create folder was called without appropriate extra data");
+                        Debug.WriteLine("Create folder was called without appropriate extra data");
                     }
                 }
                     break;
@@ -974,9 +1002,9 @@ namespace MyOneDriveClient
         /// <param name="path">the path of the stream to get</param>
         /// <param name="sha1">the sha1 sum of the item to test against to determine conflicts.  leave blank/null to always overwrite local</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestWritableStreamAsync(string path, string sha1, DateTime lastModified)
+        public void RequestWritableStream(string path, string sha1, DateTime lastModified, Action<FileStoreRequest> onCompleteFunc)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, new RequestWritableStreamExtraData(sha1, lastModified)));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, new RequestWritableStreamExtraData(sha1, lastModified, onCompleteFunc)));
         }
         /// <summary>
         /// Gets a read-only stream.  To get the stream, use the <see cref="RequestStreamExtraData"/> of 
@@ -984,27 +1012,27 @@ namespace MyOneDriveClient
         /// </summary>
         /// <param name="path">the path of the stream to get</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestReadOnlyStreamAsync(string path)
+        public void RequestReadOnlyStream(string path, Action<FileStoreRequest> onCompleteFunc)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path, null));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path, new RequestReadOnlyStreamExtraData(onCompleteFunc)));
         }
         /// <summary>
             /// Deletes a local item and its children
             /// </summary>
             /// <param name="path">the path of the item to delete</param>
             /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestDeleteItemAsync(string path)
+        public void RequestDeleteItem(string path)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
         }
         /// <summary>
         /// Creates a local folder
         /// </summary>
         /// <param name="path">the path of the folder to create</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestFolderCreateAsync(string path, DateTime lastModified)
+        public void RequestFolderCreate(string path, DateTime lastModified)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
                 new RequestCreateFolderExtraData(lastModified)));
         }
         /// <summary>
@@ -1013,9 +1041,9 @@ namespace MyOneDriveClient
         /// <param name="path">the current path of the item</param>
         /// <param name="newParentPath">the new location of the item post-move</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestMoveItemAsync(string path, string newParentPath)
+        public void RequestMoveItem(string path, string newParentPath)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
         /// <summary>
@@ -1024,9 +1052,9 @@ namespace MyOneDriveClient
         /// <param name="path">the current path of the item</param>
         /// <param name="newName">the new name of the item</param>
         /// <returns>the request id</returns>
-        public async Task<FileStoreRequest> RequestRenameItemAsync(string path, string newName)
+        public void RequestRenameItem(string path, string newName)
         {
-            return await EnqueueRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
                 new RequestRenameExtraData(newName)));
         }
 

@@ -194,19 +194,19 @@ namespace MyOneDriveClient
         private async void StartRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
         {
             await App.OneDriveConnection.PromptUserLoginAsync();
-            App.RemoteInterface.StartRequestProcessing();
+            //App.RemoteInterface.StartRequestProcessing();
         }
         private async void StopRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
         {
-            await App.RemoteInterface.StopRequestProcessingAsync();
+            //await App.RemoteInterface.StopRequestProcessingAsync();
         }
         private void StartLocalQueueButton_OnClick(object sender, RoutedEventArgs e)
         {
-            App.LocalInterface.StartRequestProcessing();
+            //App.LocalInterface.StartRequestProcessing();
         }
         private async void StopLocalQueueButton_OnClick(object sender, RoutedEventArgs e)
         {
-            await App.LocalInterface.StopRequestProcessingAsync();
+            //await App.LocalInterface.StopRequestProcessingAsync();
         }
         private async void SaveMetadataButton_OnClick(object sender, RoutedEventArgs e)
         {

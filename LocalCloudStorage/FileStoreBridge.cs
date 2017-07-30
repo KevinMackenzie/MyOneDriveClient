@@ -64,29 +64,57 @@ namespace MyOneDriveClient
             return _blacklist.Where(item => item.Length <= len).Any(item => path.Substring(item.Length) == item);
         }
 
-        private async Task CreateOrDownloadFileAsync(ItemDelta delta)
+        private void CreateOrDownloadFile(ItemDelta delta)
         {
-            var streamRequest = await _local.RequestWritableStreamAsync(delta.Handle.Path, delta.Handle.SHA1Hash, delta.Handle.LastModified);
-            if (streamRequest.Status == FileStoreRequest.RequestStatus.Cancelled)
+            _local.RequestWritableStream(delta.Handle.Path, delta.Handle.SHA1Hash, delta.Handle.LastModified, OnGetWritableStream);
+        }
+
+        private void OnGetReadOnlyStream(FileStoreRequest request)
+        {
+            if (request.Status == FileStoreRequest.RequestStatus.Cancelled)
             {
-                //cancelled request, so that mean's we'll skip this delta... (this can happen when the local and remote files are the same or if the user choses to keep the local)
+                //should this even be an option for the user?
             }
-            else if (streamRequest.Status == FileStoreRequest.RequestStatus.Success)
+            else if (request.Status == FileStoreRequest.RequestStatus.Success)
             {
-                //successful request, so overwrite/create local
-                var extraData = streamRequest.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
-                if (extraData != null)
+                //successfully got the read stream
+                var streamData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
+                if (streamData != null)
                 {
-                    await _remote.RequestFileDownloadAsync(delta.Handle.Path, extraData.Stream);
+                    _remote.RequestUpload(request.Path, streamData.Stream);
                 }
                 else
                 {
-                    Debug.WriteLine($"Request data from stream request \"{delta.Handle.Path}\" was not a stream!");
+                    Debug.WriteLine($"Request data from stream request \"{request.Path}\" was not a stream!");
                 }
             }
             else
             {
-                Debug.WriteLine($"Awaited stream request for \"{delta.Handle.Path}\" was neither successful nor cancelled!");
+                Debug.WriteLine($"Awaited stream request for \"{request.Path}\" was neither successful nor cancelled!");
+            }
+        }
+        private void OnGetWritableStream(FileStoreRequest request)
+        {
+            if (request.Status == FileStoreRequest.RequestStatus.Cancelled)
+            {
+                //cancelled request, so that mean's we'll skip this delta... (this can happen when the local and remote files are the same or if the user choses to keep the local)
+            }
+            else if (request.Status == FileStoreRequest.RequestStatus.Success)
+            {
+                //successful request, so overwrite/create local
+                var extraData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
+                if (extraData != null)
+                {
+                    _remote.RequestFileDownload(request.Path, extraData.Stream);
+                }
+                else
+                {
+                    Debug.WriteLine($"Request data from stream request \"{request.Path}\" was not a stream!");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"Awaited stream request for \"{request.Path}\" was neither successful nor cancelled!");
             }
         }
 
@@ -156,48 +184,40 @@ namespace MyOneDriveClient
                         }*/
                         if (delta.Handle.IsFolder)
                         {
-                            await _remote.RequestFolderCreateAsync(delta.Handle.Path);
+                            _remote.RequestFolderCreate(delta.Handle.Path);
                         }
                         else
                         {
                             //get the read stream from the local
-                            var readStream = await _local.RequestReadOnlyStreamAsync(delta.Handle.Path);
-
-                            if (readStream.Status == FileStoreRequest.RequestStatus.Cancelled)
-                            {
-                                //should this even be an option for the user?
-                            }
-                            else if(readStream.Status == FileStoreRequest.RequestStatus.Success)
-                            {
-                                //successfully got the read stream
-                                var streamData = readStream.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
-                                if (streamData != null)
-                                {
-                                    await _remote.RequestUploadAsync(delta.Handle.Path, streamData.Stream);
-                                }
-                                else
-                                {
-                                    Debug.WriteLine($"Request data from stream request \"{delta.Handle.Path}\" was not a stream!");
-                                }
-                            }
-                            else
-                            {
-                                Debug.WriteLine($"Awaited stream request for \"{delta.Handle.Path}\" was neither successful nor cancelled!");
-                            }
+                            _local.RequestReadOnlyStream(delta.Handle.Path, OnGetReadOnlyStream);
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
-                        await _remote.RequestDeleteAsync(delta.OldPath);// item handle doesn't exist, so use old path
+                        _remote.RequestDelete(delta.OldPath);// item handle doesn't exist, so use old path
                         break;
                     case ItemDelta.DeltaType.Renamed:
-                        await _remote.RequestRenameAsync(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
+                        _remote.RequestRename(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        await _remote.RequestMoveAsync(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
+                        _remote.RequestMove(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
+            }
+
+            while (!await _remote.ProcessQueueAsync())
+            {
+                //TODO: wait for user intervention
+                await Task.Delay(1000);
+            }
+
+            //also process the local requests, because we may have made
+            //  some writable stream requests
+            while (!await _local.ProcessQueueAsync())
+            {
+                //TODO: wait for user intervention
+                await Task.Delay(1000);
             }
         }
         public async Task ApplyRemoteChangesAsync()
@@ -217,7 +237,7 @@ namespace MyOneDriveClient
                             if (!_local.ItemExists(delta.Handle.Path))
                             {
                                 //... that doesn't exist, so create it
-                                await _local.RequestFolderCreateAsync(delta.Handle.Path, delta.Handle.LastModified);
+                                _local.RequestFolderCreate(delta.Handle.Path, delta.Handle.LastModified);
                             }
                         }
                         else
@@ -242,13 +262,13 @@ namespace MyOneDriveClient
                             */
                             
                             //this is the same for both creating files and downloading existing ones
-                            await CreateOrDownloadFileAsync(delta);
+                            CreateOrDownloadFile(delta);
 
                             ////////// END CODE UNDER MAINTINANCE
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
-                        await _local.RequestDeleteItemAsync(delta.Handle.Path);
+                        _local.RequestDeleteItem(delta.Handle.Path);
                         break;
                     case ItemDelta.DeltaType.Modified:
                         if (delta.Handle.IsFolder)
@@ -275,20 +295,34 @@ namespace MyOneDriveClient
 
 
                             //this is the same for both creating files and downloading existing ones
-                            await CreateOrDownloadFileAsync(delta);
+                            CreateOrDownloadFile(delta);
 
                             ////////// END CODE UNDER MAINTINANCE
                         }
                         break;
                     case ItemDelta.DeltaType.Renamed:
-                        await _local.RequestRenameItemAsync(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
+                        _local.RequestRenameItem(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        await _local.RequestMoveItemAsync(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
+                        _local.RequestMoveItem(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
+            }
+
+            while (!await _local.ProcessQueueAsync())
+            {
+                //TODO: wait for user intervention
+                await Task.Delay(1000);
+            }
+            
+            //also process the remote requests, because we may have made
+            //  some download requests
+            while (!await _remote.ProcessQueueAsync())
+            {
+                //TODO: wait for user intervention
+                await Task.Delay(1000);
             }
         }
 

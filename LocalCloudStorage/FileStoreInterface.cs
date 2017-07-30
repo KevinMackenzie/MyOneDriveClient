@@ -49,40 +49,15 @@ namespace MyOneDriveClient
         {
             while (!ct.IsCancellationRequested)
             {
-                while (_requests.TryPeek(out FileStoreRequest request))
+                if (ct.IsCancellationRequested)
+                    break;
+
+                while (!await ProcessQueueAsync())
                 {
-                    if (ct.IsCancellationRequested)
-                        break;
-                    
-                    if (SkipRequest(request))
-                    {
-                        //dequeue and move on
-                        _requests.TryDequeue(out FileStoreRequest result);
-                        continue;
-                    }
-
-                    var dequeue = await ProcessQueueItemAsync(request);
-
-                    //should we dequeue the item?
-                    if (dequeue)
-                    {
-                        //yes
-                        _requests.TryDequeue(out FileStoreRequest result);
-                    }
-                    else
-                    {
-                        //something failed, so we should wait a little bit before trying again
-                        await Utils.DelayNoThrow(errorDelay, ct);
-                    }
-                }
-
-                //while there are limbo'd requests, pause other requests
-                while (!_limboRequests.IsEmpty)
-                {
+                    //something failed (failed request, or limbo), so we should wait a little bit before trying again
                     await Utils.DelayNoThrow(errorDelay, ct);
-                    if (ct.IsCancellationRequested)
-                        break;
                 }
+
                 await Utils.DelayNoThrow(delay, ct);
             }
         }
@@ -124,7 +99,7 @@ namespace MyOneDriveClient
             InvokeStatusChanged(request);
             return request.RequestId;
         }
-        protected async Task<FileStoreRequest> EnqueueRequestAsync(FileStoreRequest request)
+        protected async Task<FileStoreRequest> ProcessRequestAsync(FileStoreRequest request)
         {
             InvokeStatusChanged(request);
             if (await ProcessQueueItemAsync(request))
@@ -140,22 +115,22 @@ namespace MyOneDriveClient
         /// <summary>
         /// Starts the processing of the request queue
         /// </summary>
-        public void StartRequestProcessing()
-        {
-            if (_processQueueTask != null) return;
-            _processQueueCancellationTokenSource = new CancellationTokenSource();
-            _processQueueTask = ProcessQueueInternal(TimeSpan.FromMilliseconds(5000), TimeSpan.FromMilliseconds(100), _processQueueCancellationTokenSource.Token);
-        }
+        //public void StartRequestProcessing()
+        //{
+        //    if (_processQueueTask != null) return;
+        //    _processQueueCancellationTokenSource = new CancellationTokenSource();
+        //    _processQueueTask = ProcessQueueInternal(TimeSpan.FromMilliseconds(5000), TimeSpan.FromMilliseconds(100), _processQueueCancellationTokenSource.Token);
+        //}
         /// <summary>
         /// Stops the processing of the request queue
         /// </summary>
         /// <returns></returns>
-        public async Task StopRequestProcessingAsync()
-        {
-            if (_processQueueTask == null) return;
-            _processQueueCancellationTokenSource.Cancel();
-            await _processQueueTask;
-        }
+        //public async Task StopRequestProcessingAsync()
+        //{
+        //    if (_processQueueTask == null) return;
+        //    _processQueueCancellationTokenSource.Cancel();
+        //    await _processQueueTask;
+        //}
         
 
         /// <summary>
@@ -244,6 +219,40 @@ namespace MyOneDriveClient
             }
         }
 
+        /// <summary>
+        /// Processes the request queue until an error comes up or
+        ///  the user needs to be prompted
+        /// </summary>
+        /// <returns>whether the queue was successfully emptied</returns>
+        public async Task<bool> ProcessQueueAsync()
+        {
+            while (_requests.TryPeek(out FileStoreRequest request))
+            {
+                if (!_limboRequests.IsEmpty)
+                    return false; //stop on a limbo request
+
+                if (SkipRequest(request))
+                {
+                    //dequeue and move on
+                    _requests.TryDequeue(out FileStoreRequest result);
+                    continue;
+                }
+
+                var dequeue = await ProcessQueueItemAsync(request);
+
+                //should we dequeue the item?
+                if (dequeue)
+                {
+                    //yes
+                    _requests.TryDequeue(out FileStoreRequest result);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
 
         /// <summary>
         /// Enumerates the currently active requests
