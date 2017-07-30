@@ -7,28 +7,32 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="700" Width="750" >
     <Window.Resources>
-        <DataTemplate x:Key="ActiveRequestTemplate" DataType="{x:Type local:FileStoreRequestViewModel}">
+        <DataTemplate x:Key="ActiveRequestTemplate" DataType="{x:Type local:FileStoreRequestViewModel}" >
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="2" />
+                    <ColumnDefinition Width="3*" />
                 </Grid.ColumnDefinitions>
                 <Grid Column="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="2" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" Content="{Binding Type}" />
-                    <Label Grid.Row="1" Content="{Binding Status}" />
+                    <Line Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Fill="Gray"/>
+                    <Label Grid.Row="2" Content="{Binding Status}" />
                 </Grid>
-                <Grid Column="1">
+                <Line Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Fill="Gray"/>
+                <Grid Column="2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="2*"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" HorizontalAlignment="Left" Content="{Binding Path}" />
-                    <ProgressBar Grid.Row="1" Margin="1" HorizontalAlignment="Stretch" Height="3" Background="Blue" Minimum="0" Maximum="{Binding Percent}"/>
+                    <ProgressBar Grid.Row="1" Margin="1" HorizontalAlignment="Stretch" Height="3" Background="Blue" Value="{Binding Percent, Mode=OneWay}"/>
                     <Label Grid.Row="2" HorizontalAlignment="Left" Content="{Binding Progress}" />
                 </Grid>
             </Grid>
@@ -82,9 +86,9 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="LocalUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="LocalFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
                 </Grid>
             </Grid>
             <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Gray"/>
@@ -100,9 +104,9 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="RemoteUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="RemoteFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" ItemsSource="{Binding}" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
                 </Grid>
             </Grid>
         </Grid>
