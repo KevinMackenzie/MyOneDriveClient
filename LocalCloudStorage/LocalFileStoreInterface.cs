@@ -225,7 +225,12 @@ namespace MyOneDriveClient
                         //item exists ... 
                         if (itemMetadata == null)
                         {
-                            //... without metadata ... TODO: what do we do here?
+                            //... without metadata ... so create it
+                            _localDeltas.Enqueue(new ItemDelta()
+                            {
+                                Type=ItemDelta.DeltaType.Created,
+                                Handle = itemHandle
+                            });
                         }
                         else
                         {
@@ -254,8 +259,6 @@ namespace MyOneDriveClient
                                         {
                                             //... with a parent, so update the item metadata ...
                                             //_metadata.AddOrUpdateItemMetadata(itemMetadata);
-                                            itemMetadata.LastModified = itemHandle.LastModified;
-                                            itemMetadata.Sha1 = itemHandle.SHA1Hash;
 
                                             //... and add the delta
                                             _localDeltas.Enqueue(new ItemDelta()
@@ -295,8 +298,8 @@ namespace MyOneDriveClient
                                 if (itemMetadata == null)
                                 {
                                     //... and no metadata at the old location either, so add new metadata ...
-                                    _metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
-                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                    //_metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
+                                    //    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
 
                                     //... and create it i guess
                                     _localDeltas.Enqueue(new ItemDelta()
@@ -309,7 +312,7 @@ namespace MyOneDriveClient
                                 else
                                 {
                                     //... so update the name ...
-                                    itemMetadata.Name = e.Name;
+                                    //THIS HAS BEEN MOVED TO THE DEQUEUE METHOD
 
                                     //... and add the delta
                                     _localDeltas.Enqueue(new ItemDelta()
@@ -520,8 +523,7 @@ namespace MyOneDriveClient
                                             {
                                                 //local item has also been modified since last sync
                                                 RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
-                                                dequeue =
-                                                    true; //TODO: we must pause everything while requesting the user!!!
+                                                dequeue = true;
                                             }
                                             else
                                             {
@@ -747,10 +749,11 @@ namespace MyOneDriveClient
             List<ItemDelta> filteredDeltas = new List<ItemDelta>();
             while (_localDeltas.TryDequeue(out ItemDelta result))
             {
+                var itemMetadata = _metadata.GetItemMetadata(result.Handle.Path);
+                var parentMetadata = _metadata.GetParentItemMetadata(result.Handle.Path);
                 switch (result.Type)
                 {
                     case ItemDelta.DeltaType.Created:
-                        var parentMetadata = _metadata.GetParentItemMetadata(result.Handle.Path);
                         if (parentMetadata != null)
                         {
                             if (_local.ItemExists(result.Handle.Path))
@@ -813,7 +816,6 @@ namespace MyOneDriveClient
                                     if (_localDeltas.TryDequeue(out ItemDelta nextDelta))
                                     {
                                         //... so update the metadata accordingly ... 
-                                        var itemMetadata = _metadata.GetItemMetadata(result.Handle.Path);
                                         if (itemMetadata != null)
                                         {
                                             var newParentItemMetadata =
@@ -852,12 +854,22 @@ namespace MyOneDriveClient
                         _metadata.RemoveItemMetadata(result.OldPath);
                         break;
                     case ItemDelta.DeltaType.Renamed:
+                        if (itemMetadata == null)
+                        {
+                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(result.Handle,
+                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                        }
+                        else
+                        {
+                            itemMetadata.Name = result.Handle.Name;
+                        }
                         break;
                     case ItemDelta.DeltaType.Modified:
+                        itemMetadata.LastModified = result.Handle.LastModified;
+                        itemMetadata.Sha1 = result.Handle.SHA1Hash;
                         break;
                     case ItemDelta.DeltaType.Moved:
                         break;
-                    //TODO: detect item "moves"
                 }
 
                 //if there are no objections ("continue") then let the request through
