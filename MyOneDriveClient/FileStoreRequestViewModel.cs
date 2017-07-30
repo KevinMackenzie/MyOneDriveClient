@@ -10,7 +10,6 @@ namespace MyOneDriveClient
     public class FileStoreRequestViewModel : ViewModelBase
     {
         private long _progress;
-        private double _percent;
         private FileStoreRequest.RequestStatus _status;
         private long _total;
 
@@ -20,6 +19,7 @@ namespace MyOneDriveClient
             Type = type;
             _status = status;
             RequestId = requestId;
+            Percent = 0;
         }
 
         public void OnStatusChanged(FileStoreRequest.RequestStatus newStatus)
@@ -30,7 +30,7 @@ namespace MyOneDriveClient
         {
             _total = e.Total;
             _progress = e.Complete;
-            _percent = e.Progress * 100.0;
+            Percent = e.Progress;
             OnPropertyChanged(nameof(Progress));
             OnPropertyChanged(nameof(Percent));
         }

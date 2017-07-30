@@ -12,6 +12,7 @@ namespace MyOneDriveClient
     {
         private Stream _stream;
         private long _length;
+        private long _cumulativeProgress;
         /// <summary>
         /// Creates a new wrapper around a stream to track progress of the read/write.
         /// </summary>
@@ -50,7 +51,8 @@ namespace MyOneDriveClient
         {
             var bytesRead = _stream.Read(buffer, offset, count);
 
-            SafeInvokeReadProgressChanged(new ProgressChangedEventArgs(offset + bytesRead, _length));
+            _cumulativeProgress += count;
+            SafeInvokeReadProgressChanged(new ProgressChangedEventArgs(_cumulativeProgress, _length));
 
             return bytesRead;
         }

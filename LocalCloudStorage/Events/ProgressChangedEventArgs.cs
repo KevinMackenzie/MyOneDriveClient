@@ -16,6 +16,6 @@ namespace MyOneDriveClient
 
         public long Complete { get; }
         public long Total { get; }
-        public double Progress => (double)Total / Complete;
+        public double Progress => (double)Complete / Total;
     }
 }
