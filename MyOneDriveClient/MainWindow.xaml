@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MyOneDriveClient"
         mc:Ignorable="d"
-        Title="MainWindow" Height="700" Width="750" >
+        Title="MainWindow" Height="700" Width="750" 
+        DataContext="{Binding}">
     <Window.Resources>
         <DataTemplate x:Key="ActiveRequestTemplate" DataType="{x:Type local:FileStoreRequestViewModel}" >
             <Grid>
@@ -32,7 +33,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" HorizontalAlignment="Left" Content="{Binding Path}" />
-                    <ProgressBar Grid.Row="1" Margin="1" HorizontalAlignment="Stretch" Height="3" Background="Blue" Value="{Binding Percent, Mode=OneWay}"/>
+                    <ProgressBar Grid.Row="1" Margin="1" HorizontalAlignment="Stretch" Height="3" Value="{Binding Percent, Mode=OneWay}"/>
                     <Label Grid.Row="2" HorizontalAlignment="Left" Content="{Binding Progress}" />
                 </Grid>
             </Grid>
@@ -80,19 +81,19 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Label Content="Local Requests" HorizontalAlignment="Center" Grid.Row="0" Grid.ColumnSpan="2"/>
-                <Grid Grid.Row="1">
+                <Grid DataContext="{Binding LocalRequests}" Grid.Row="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="LocalUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="LocalFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding}" ItemsSource="{Binding ActiveRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" DataContext="{Binding}" ItemsSource="{Binding AwaitUserRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" DataContext="{Binding}" ItemsSource="{Binding FailedRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
                 </Grid>
             </Grid>
             <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Gray"/>
-            <Grid Grid.Column="2">
+            <Grid DataContext="{Binding RemoteRequests}" Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="25" />
                     <RowDefinition Height="*" />
@@ -104,9 +105,9 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="RemoteUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="RemoteFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding}" ItemsSource="{Binding ActiveRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" DataContext="{Binding}" ItemsSource="{Binding AwaitUserRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" DataContext="{Binding}" ItemsSource="{Binding FailedRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
                 </Grid>
             </Grid>
         </Grid>

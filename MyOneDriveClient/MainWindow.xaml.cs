@@ -43,13 +43,13 @@ namespace MyOneDriveClient
             //TODO: where should this construction happen?
             DataContext = Requests = new RequestsViewModel(App.LocalInterface, App.RemoteInterface);
 
-            LocalActiveRequests.ItemsSource = Requests.LocalRequests.ActiveRequests;
+            /*LocalActiveRequests.ItemsSource = Requests.LocalRequests.ActiveRequests;
             LocalUserAwaitRequests.ItemsSource = Requests.LocalRequests.AwaitUserRequests;
             LocalFailedRequests.ItemsSource = Requests.LocalRequests.FailedRequests;
 
             RemoteActiveRequests.ItemsSource = Requests.RemoteRequests.ActiveRequests;
             RemoteUserAwaitRequests.ItemsSource = Requests.RemoteRequests.AwaitUserRequests;
-            RemoteFailedRequests.ItemsSource = Requests.RemoteRequests.FailedRequests;
+            RemoteFailedRequests.ItemsSource = Requests.RemoteRequests.FailedRequests;*/
            
             Debug.Listeners.Add(new DebugListener(this));
 
