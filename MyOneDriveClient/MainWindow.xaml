@@ -87,9 +87,9 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding}" ItemsSource="{Binding ActiveRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="LocalUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" DataContext="{Binding}" ItemsSource="{Binding AwaitUserRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="LocalFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" DataContext="{Binding}" ItemsSource="{Binding FailedRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" DataContext="{Binding AwaitUserRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" DataContext="{Binding FailedRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
                 </Grid>
             </Grid>
             <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Gray"/>
@@ -105,9 +105,9 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding}" ItemsSource="{Binding ActiveRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="RemoteUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" DataContext="{Binding}" ItemsSource="{Binding AwaitUserRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="RemoteFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" DataContext="{Binding}" ItemsSource="{Binding FailedRequests}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" DataContext="{Binding AwaitUserRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" DataContext="{Binding FailedRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
                 </Grid>
             </Grid>
         </Grid>
