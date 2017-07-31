@@ -572,7 +572,8 @@ namespace MyOneDriveClient.OneDrive
                     request.Headers.Add(header.Key, header.Value);
                 }
             }
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, 
+                HttpCompletionOption.ResponseHeadersRead); //ONLY Read the headers, because reading the content will make this function last until the contents are downloaded (see issue #28)
             return response;
         }
         public async Task<string> ReadResponseAsStringAsync(HttpResponseMessage message)
