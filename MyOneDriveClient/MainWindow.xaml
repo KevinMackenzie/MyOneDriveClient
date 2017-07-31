@@ -33,7 +33,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" HorizontalAlignment="Left" Content="{Binding Path}" />
-                    <ProgressBar Grid.Row="1" Margin="1" HorizontalAlignment="Stretch" Height="3" Value="{Binding Percent, Mode=OneWay}"/>
+                    <ProgressBar Grid.Row="1" Margin="1" HorizontalAlignment="Stretch" Height="3" Minimum="0" Maximum="1" Value="{Binding Percent, Mode=OneWay}"/>
                     <Label Grid.Row="2" HorizontalAlignment="Left" Content="{Binding Progress}" />
                 </Grid>
             </Grid>
