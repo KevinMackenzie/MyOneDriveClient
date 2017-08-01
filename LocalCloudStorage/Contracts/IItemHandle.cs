@@ -13,7 +13,7 @@ namespace MyOneDriveClient
         string Path { get; }
         string Name { get; }
         long Size { get; }
-        string SHA1Hash { get; }
+        Task<string> GetSha1HashAsync();
         DateTime LastModified { get; }
         //DateTime Created { get; } (less important)
         /// <summary>

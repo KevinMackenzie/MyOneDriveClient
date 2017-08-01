@@ -31,6 +31,7 @@ namespace MyOneDriveClient
             /// <inheritdoc />
             public long Size => throw new NotSupportedException();
             /// <inheritdoc />
+            public Task<string> GetSha1HashAsync() => throw new NotSupportedException();
             public string SHA1Hash => throw new NotSupportedException();
             /// <inheritdoc />
             public DateTime LastModified { get; }
@@ -52,7 +53,6 @@ namespace MyOneDriveClient
                 _sha1 = sha1Hash;
             }
 
-
             /// <inheritdoc />
             public bool IsFolder => _handle.IsFolder;
             /// <inheritdoc />
@@ -62,17 +62,7 @@ namespace MyOneDriveClient
             /// <inheritdoc />
             public long Size => _handle.Size;
             /// <inheritdoc />
-            public string SHA1Hash
-            {
-                get
-                {
-                    if (_sha1 == null)
-                    {
-                        _sha1 = _handle.SHA1Hash;
-                    }
-                    return _sha1;
-                }
-            }
+            public string Sha1 => _sha1;
             /// <inheritdoc />
             public DateTime LastModified => _handle.LastModified;
             /// <inheritdoc />
@@ -84,10 +74,16 @@ namespace MyOneDriveClient
             public string Id { get; }
             /// <inheritdoc />
             public string ParentId { get; }
+
             /// <inheritdoc />
             public Task<HttpResult<Stream>> TryGetFileDataAsync()
             {
                 throw new NotSupportedException();
+            }
+
+            public Task<string> GetSha1HashAsync()
+            {
+                throw new NotImplementedException();
             }
         }
 
@@ -151,6 +147,11 @@ namespace MyOneDriveClient
         }
 
         #region Private Methods
+        private async Task<IRemoteItemHandle> GetMetadataHandleAsync(IItemHandle handle, string id, string parentId)
+        {
+            return new LocalRemoteItemHandle(handle, id, parentId, await handle.GetSha1HashAsync());
+        }
+
         private async Task LocalOnChanged(object sender, LocalFileStoreEventArgs e)
         {
             var itemMetadata = _metadata.GetItemMetadata(e.LocalPath);
@@ -254,7 +255,7 @@ namespace MyOneDriveClient
                                 if (itemHandle.LastModified != itemMetadata.LastModified) //if this is the same, then we got this even twice?
                                 {
                                     //... and is a file ...
-                                    if (itemHandle.SHA1Hash != itemMetadata.Sha1) //FILTERS OUT REBOUNDING DELTAS
+                                    if (await itemHandle.GetSha1HashAsync() != itemMetadata.Sha1) //FILTERS OUT REBOUNDING DELTAS
                                     {
                                         //... with a different sha1 hash as the last update ...
                                         var parentMetadata = _metadata.GetParentItemMetadata(e.LocalPath);
@@ -367,8 +368,8 @@ namespace MyOneDriveClient
 
                             //add the new item to the metadata with the retrieved parent.  
                             //      Do this after so the file is done writing to
-                            _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(itemHandle,
-                                _metadata.GetNextItemId().ToString(), parentId));
+                            _metadata.AddOrUpdateItemMetadata(GetMetadataHandleAsync(itemHandle,
+                                _metadata.GetNextItemId().ToString(), parentId).Result);
                             _metadata.GetItemMetadata(request.Path).LastModified =
                                 lastModified; //TODO: this is OK to do, change everywhere else!!!
                         });
@@ -629,7 +630,7 @@ namespace MyOneDriveClient
                                 }
                                 else
                                 {
-                                    _metadata.AddItemMetadata(new LocalRemoteItemHandle(fileHandle,
+                                    _metadata.AddItemMetadata(await GetMetadataHandleAsync(fileHandle,
                                         _metadata.GetNextItemId().ToString(), parentMetadata.Id));
                                 }
                             }
@@ -739,7 +740,7 @@ namespace MyOneDriveClient
                                 if (itemMetadata == null)
                                 {
                                     //no metadata though, so add it
-                                    _metadata.AddOrUpdateItemMetadata(new LocalRemoteItemHandle(
+                                    _metadata.AddOrUpdateItemMetadata(await GetMetadataHandleAsync(
                                         folderHandle, _metadata.GetNextItemId().ToString(),
                                         parentMetadata.Id));
                                 }
@@ -792,7 +793,7 @@ namespace MyOneDriveClient
                         {
                             if (_local.ItemExists(result.Handle.Path))
                             {
-                                _metadata.AddItemMetadata(new LocalRemoteItemHandle(result.Handle,
+                                _metadata.AddItemMetadata(await GetMetadataHandleAsync(result.Handle,
                                     _metadata.GetNextItemId().ToString(), parentMetadata.Id));
 
                                 if (result.Handle.IsFolder)
@@ -890,7 +891,7 @@ namespace MyOneDriveClient
                     case ItemDelta.DeltaType.Renamed:
                         if (itemMetadata == null)
                         {
-                            _metadata.AddItemMetadata(new LocalRemoteItemHandle(result.Handle,
+                            _metadata.AddItemMetadata(await GetMetadataHandleAsync(result.Handle,
                                 _metadata.GetNextItemId().ToString(), parentMetadata.Id));
                         }
                         else
@@ -900,7 +901,7 @@ namespace MyOneDriveClient
                         break;
                     case ItemDelta.DeltaType.Modified:
                         itemMetadata.LastModified = result.Handle.LastModified;
-                        itemMetadata.Sha1 = result.Handle.SHA1Hash;
+                        itemMetadata.Sha1 = await result.Handle.GetSha1HashAsync();
                         break;
                     case ItemDelta.DeltaType.Moved:
                         break;

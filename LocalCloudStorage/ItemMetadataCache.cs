@@ -136,7 +136,7 @@ namespace MyOneDriveClient
             value.IsFolder = handle.IsFolder;
             value.LastModified = handle.LastModified;
             value.Name = handle.Name;
-            value.Sha1 = handle.SHA1Hash;
+            value.Sha1 = handle.Sha1;
             //AddOrUpdateItemMetadata(handle);
             return true;
         }
@@ -148,7 +148,7 @@ namespace MyOneDriveClient
                 IsFolder = handle.IsFolder,
                 Id = handle.Id,
                 ParentId = handle.ParentId,
-                Sha1 = handle.SHA1Hash,
+                Sha1 = handle.Sha1,
                 Name = handle.Name,
                 LastModified = handle.LastModified,
                 Metadata = this

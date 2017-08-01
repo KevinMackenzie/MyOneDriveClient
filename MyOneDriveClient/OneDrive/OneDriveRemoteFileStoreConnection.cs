@@ -463,7 +463,7 @@ namespace MyOneDriveClient.OneDrive
                 }
 
             }
-            public string SHA1Hash
+            public string Sha1
             {
                 get
                 {
@@ -483,6 +483,10 @@ namespace MyOneDriveClient.OneDrive
                     }
                     return _sha1Hash;
                 }
+            }
+            public async Task<string> GetSha1HashAsync()
+            {
+                return Sha1;
             }
             public DateTime LastModified
             {

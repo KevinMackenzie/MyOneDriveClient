@@ -39,7 +39,10 @@ namespace MyOneDriveClient
             /// <inheritdoc />
             public long Size => _itemHandle.Size;
             /// <inheritdoc />
-            public string SHA1Hash => _itemHandle.SHA1Hash;
+            public async Task<string> GetSha1HashAsync()
+            {
+                return await _itemHandle.GetSha1HashAsync();
+            }
             /// <inheritdoc />
             public DateTime LastModified => _itemHandle.LastModified;
             /// <inheritdoc />

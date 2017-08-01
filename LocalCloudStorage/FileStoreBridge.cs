@@ -62,9 +62,9 @@ namespace MyOneDriveClient
             return _blacklist.Where(item => item.Length <= len).Any(item => path.Substring(item.Length) == item);
         }
 
-        private void CreateOrDownloadFile(ItemDelta delta)
+        private async Task CreateOrDownloadFile(ItemDelta delta)
         {
-            _local.RequestWritableStream(delta.Handle.Path, delta.Handle.SHA1Hash, delta.Handle.LastModified, OnGetWritableStream);
+            _local.RequestWritableStream(delta.Handle.Path, await delta.Handle.GetSha1HashAsync(), delta.Handle.LastModified, OnGetWritableStream);
         }
 
         private async Task OnGetReadOnlyStream(FileStoreRequest request, bool immediate)
@@ -289,7 +289,7 @@ namespace MyOneDriveClient
                             */
                             
                             //this is the same for both creating files and downloading existing ones
-                            CreateOrDownloadFile(delta);
+                            await CreateOrDownloadFile(delta);
 
                             ////////// END CODE UNDER MAINTINANCE
                         }
@@ -322,7 +322,7 @@ namespace MyOneDriveClient
 
 
                             //this is the same for both creating files and downloading existing ones
-                            CreateOrDownloadFile(delta);
+                            await CreateOrDownloadFile(delta);
 
                             ////////// END CODE UNDER MAINTINANCE
                         }

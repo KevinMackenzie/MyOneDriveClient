@@ -352,16 +352,13 @@ namespace MyOneDriveClient
                     return _name;
                 }
             }
-            public string SHA1Hash
+            public async Task<string> GetSha1HashAsync()
             {
-                get
+                if(_sha1Hash == null)
                 {
-                    if(_sha1Hash == null)
-                    {
-                        _sha1Hash = IsFolder ? "" : _fs.GetLocalSHA1Async(_path).Result;
-                    }
-                    return _sha1Hash;
+                    _sha1Hash = IsFolder ? "" : await _fs.GetLocalSHA1Async(_path);
                 }
+                return _sha1Hash;
             }
             public DateTime LastModified
             {

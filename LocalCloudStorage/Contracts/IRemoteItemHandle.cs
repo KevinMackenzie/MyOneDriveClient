@@ -14,6 +14,7 @@ namespace MyOneDriveClient
         //JObject Metadata { get; }
         string Id { get; }
         string ParentId { get; }
+        string Sha1 { get; }
         Task<HttpResult<Stream>> TryGetFileDataAsync();
     }
 }
