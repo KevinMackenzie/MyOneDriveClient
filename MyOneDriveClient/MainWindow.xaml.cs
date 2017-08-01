@@ -213,7 +213,7 @@ namespace MyOneDriveClient
             await App.FileStore.SaveMetadataAsync();
         }
 
-        private void KeepLocal_OnClick(object sender, RoutedEventArgs e)
+        private async void KeepLocal_OnClick(object sender, RoutedEventArgs e)
         {
             var request = (sender as Button)?.DataContext as AwaitUserRequestViewModel;
             if (request != null)
@@ -221,12 +221,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    App.FileStore.ResolveLocalConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    App.FileStore.ResolveRemoteConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
                 }
                 else
                 {
@@ -238,7 +238,7 @@ namespace MyOneDriveClient
                 Debug.WriteLine($"Sender DataContext is not of type {nameof(AwaitUserRequestViewModel)}");
             }
         }
-        private void KeepRemote_OnClick(object sender, RoutedEventArgs e)
+        private async void KeepRemote_OnClick(object sender, RoutedEventArgs e)
         {
             var request = (sender as Button)?.DataContext as AwaitUserRequestViewModel;
             if (request != null)
@@ -246,12 +246,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    App.FileStore.ResolveLocalConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    App.FileStore.ResolveRemoteConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
                 }
                 else
                 {
@@ -263,7 +263,7 @@ namespace MyOneDriveClient
                 Debug.WriteLine($"Sender DataContext is not of type {nameof(AwaitUserRequestViewModel)}");
             }
         }
-        private void KeepBoth_OnClick(object sender, RoutedEventArgs e)
+        private async void KeepBoth_OnClick(object sender, RoutedEventArgs e)
         {
             var request = (sender as Button)?.DataContext as AwaitUserRequestViewModel;
             if (request != null)
@@ -271,12 +271,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    App.FileStore.ResolveLocalConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    App.FileStore.ResolveRemoteConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
                 }
                 else
                 {
@@ -288,8 +288,8 @@ namespace MyOneDriveClient
                 Debug.WriteLine($"Sender DataContext is not of type {nameof(AwaitUserRequestViewModel)}");
             }
         }
-        
-        private void TryAgain_OnClick(object sender, RoutedEventArgs e)
+
+        private async void TryAgain_OnClick(object sender, RoutedEventArgs e)
         {
             var request = (sender as Button)?.DataContext as CloseAppRequestViewModel;
             if (request != null)

@@ -1064,6 +1064,39 @@ namespace MyOneDriveClient
                 new RequestRenameExtraData(newName)));
         }
 
+
+        public async Task<FileStoreRequest> RequestWritableStreamImmediateAsync(string path, string sha1, DateTime lastModified)
+        {
+            FileStoreRequest ret = null;
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, 
+                new RequestWritableStreamExtraData(sha1, lastModified,
+                (request) =>
+                {
+                    ret = request;
+                })));
+            return ret;
+        }
+        public async Task<FileStoreRequest> RequestReadOnlyStreamImmediateAsync(string path)
+        {
+            FileStoreRequest ret = null;
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
+                new RequestReadOnlyStreamExtraData(
+                    (request) =>
+                    {
+                        ret = request;
+                    })));
+            return ret;
+        }
+        public async Task RequestDeleteItemImmediateAsync(string path)
+        {
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
+        }
+        public async Task RequestRenameItemImmediateAsync(string path, string newName)
+        {
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
+                new RequestRenameExtraData(newName)));
+        }
+
         
         //TODO: the two methods below are REALLY bad b/c they do no null/exception checking
 
@@ -1083,7 +1116,6 @@ namespace MyOneDriveClient
         {
             return await (await _local.GetFileHandle(path).GetFileDataAsync()).ReadAllToStringAsync(Encoding.UTF8);
         }
-        
         #endregion
 
         #region Public Events

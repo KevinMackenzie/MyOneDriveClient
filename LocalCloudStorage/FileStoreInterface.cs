@@ -229,6 +229,13 @@ namespace MyOneDriveClient
             }
         }
 
+        public void ResolveRequest(int requestId)
+        {
+            if (!_limboRequests.TryRemove(requestId, out FileStoreRequest request)) return;
+            request.Status = FileStoreRequest.RequestStatus.Pending;
+            request.ErrorMessage = "";
+        }
+
         /// <summary>
         /// Processes the request queue until an error comes up or
         ///  the user needs to be prompted

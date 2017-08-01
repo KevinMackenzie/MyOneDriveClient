@@ -69,7 +69,7 @@ namespace MyOneDriveClient
             _local.RequestWritableStream(delta.Handle.Path, delta.Handle.SHA1Hash, delta.Handle.LastModified, OnGetWritableStream);
         }
 
-        private void OnGetReadOnlyStream(FileStoreRequest request)
+        private async Task OnGetReadOnlyStream(FileStoreRequest request, bool immediate)
         {
             if (request.Status == FileStoreRequest.RequestStatus.Cancelled)
             {
@@ -81,7 +81,50 @@ namespace MyOneDriveClient
                 var streamData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
                 if (streamData != null)
                 {
-                    _remote.RequestUpload(request.Path, streamData.Stream);
+                    if (immediate)
+                    {
+                        await _remote.RequestUploadImmediateAsync(request.Path, streamData.Stream);
+                    }
+                    else
+                    {
+                        _remote.RequestUpload(request.Path, streamData.Stream);
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine($"Request data from stream request \"{request.Path}\" was not a stream!");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"Awaited stream request for \"{request.Path}\" was neither successful nor cancelled!");
+            }
+        }
+        private void OnGetReadOnlyStream(FileStoreRequest request)
+        {
+            OnGetReadOnlyStream(request, false).Wait();
+        }
+
+        private async Task OnGetWritableStream(FileStoreRequest request, bool immediate)
+        {
+            if (request.Status == FileStoreRequest.RequestStatus.Cancelled)
+            {
+                //cancelled request, so that mean's we'll skip this delta... (this can happen when the local and remote files are the same or if the user choses to keep the local)
+            }
+            else if (request.Status == FileStoreRequest.RequestStatus.Success)
+            {
+                //successful request, so overwrite/create local
+                var extraData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
+                if (extraData != null)
+                {
+                    if (immediate)
+                    {
+                        await _remote.RequestFileDownloadImmediateAsync(request.Path, extraData.Stream);
+                    }
+                    else
+                    {
+                        _remote.RequestFileDownload(request.Path, extraData.Stream);
+                    }
                 }
                 else
                 {
@@ -95,27 +138,13 @@ namespace MyOneDriveClient
         }
         private void OnGetWritableStream(FileStoreRequest request)
         {
-            if (request.Status == FileStoreRequest.RequestStatus.Cancelled)
-            {
-                //cancelled request, so that mean's we'll skip this delta... (this can happen when the local and remote files are the same or if the user choses to keep the local)
-            }
-            else if (request.Status == FileStoreRequest.RequestStatus.Success)
-            {
-                //successful request, so overwrite/create local
-                var extraData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
-                if (extraData != null)
-                {
-                    _remote.RequestFileDownload(request.Path, extraData.Stream);
-                }
-                else
-                {
-                    Debug.WriteLine($"Request data from stream request \"{request.Path}\" was not a stream!");
-                }
-            }
-            else
-            {
-                Debug.WriteLine($"Awaited stream request for \"{request.Path}\" was neither successful nor cancelled!");
-            }
+            OnGetWritableStream(request, false).Wait();
+        }
+
+        private async Task UploadImmediateAsync(string path)
+        {
+            var result = await _local.RequestReadOnlyStreamImmediateAsync(path);
+            await OnGetReadOnlyStream(result, true);
         }
 
         private async Task SaveRemoteItemMetadataCacheAsync()
@@ -268,7 +297,7 @@ namespace MyOneDriveClient
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
-                        _local.RequestDeleteItem(delta.Handle.Path);
+                        _local.RequestDeleteItem(delta.Handle.Path); //TODO: check timestamps
                         break;
                     case ItemDelta.DeltaType.Modified:
                         if (delta.Handle.IsFolder)
@@ -326,22 +355,160 @@ namespace MyOneDriveClient
             }
         }
 
-        public void ResolveLocalConflict(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        public async Task ResolveLocalConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
         {
-            switch (resolution)
+            if (_local.TryGetRequest(requestId, out FileStoreRequest request))
             {
-                case FileStoreInterface.ConflictResolutions.KeepLocal:
-                    break;
-                case FileStoreInterface.ConflictResolutions.KeepRemote:
-                    break;
-                case FileStoreInterface.ConflictResolutions.KeepBoth:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(resolution), resolution, null);
+                switch (resolution)
+                {
+                    case FileStoreInterface.ConflictResolutions.KeepLocal:
+                        _local.CancelRequest(request.RequestId);
+                        switch (request.Type)
+                        {
+                            case FileStoreRequest.RequestType.Delete: //don't delete the local file and upload it
+                            case FileStoreRequest.RequestType.Write:
+                                //cancel the download and submit an upload request
+                                await UploadImmediateAsync(request.Path);
+                                break;
+                            case FileStoreRequest.RequestType.Rename:
+                                //don't rename the file and upload both local files
+                            {
+                                var extraData = (request.ExtraData as RequestRenameExtraData);
+                                if (extraData != null)
+                                {
+                                    await UploadImmediateAsync(request.Path);
+                                    await UploadImmediateAsync(PathUtils.GetRenamedPath(request.Path, extraData.NewName));
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Rename request was called without approprate extra data");
+                                }
+                            }
+                                break;
+                            case FileStoreRequest.RequestType.Move:
+                                //don't move the file and upload both local files
+                            {
+                                var extraData = (request.ExtraData as RequestMoveExtraData);
+                                if (extraData != null)
+                                {
+                                    await UploadImmediateAsync(request.Path);
+                                    await UploadImmediateAsync($"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}");
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Move request was called without approprate extra data");
+                                }
+                            }
+                                break;
+                            case FileStoreRequest.RequestType.Create:
+                            case FileStoreRequest.RequestType.Read:
+                            default:
+                                break;
+                        }
+                        break;
+                    case FileStoreInterface.ConflictResolutions.KeepRemote:
+                        switch (request.Type)
+                        {
+                            case FileStoreRequest.RequestType.Delete: //delete the local file
+                            case FileStoreRequest.RequestType.Write:
+                                //delete local file
+                                await _local.RequestDeleteItemImmediateAsync(request.Path);
+                                break;
+                            case FileStoreRequest.RequestType.Rename:
+                                //Delete the destination file
+                            {
+                                var extraData = (request.ExtraData as RequestRenameExtraData);
+                                if (extraData != null)
+                                {
+                                    await _local.RequestDeleteItemImmediateAsync(PathUtils.GetRenamedPath(request.Path, extraData.NewName));
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Rename request was called without approprate extra data");
+                                }
+                            }
+                                break;
+                            case FileStoreRequest.RequestType.Move:
+                                //Delete the destination file
+                            {
+                                var extraData = (request.ExtraData as RequestMoveExtraData);
+                                if (extraData != null)
+                                {
+                                    await _local.RequestDeleteItemImmediateAsync($"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}");
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Move request was called without approprate extra data");
+                                }
+                            }
+                                break;
+                            case FileStoreRequest.RequestType.Create:
+                            case FileStoreRequest.RequestType.Read:
+                            default:
+                                break;
+                        }
+                        _local.ResolveRequest(request.RequestId);
+                        break;
+                    case FileStoreInterface.ConflictResolutions.KeepBoth:
+                        switch (request.Type)
+                        {
+                            case FileStoreRequest.RequestType.Write:
+                                //rename the local file
+                                await _local.RequestRenameItemImmediateAsync(request.Path,
+                                    PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()));
+                                break;
+                            case FileStoreRequest.RequestType.Rename:
+                                //rename the existing destination file
+                            {
+                                var extraData = (request.ExtraData as RequestRenameExtraData);
+                                if (extraData != null)
+                                {
+                                    await _local.RequestRenameItemImmediateAsync(
+                                        PathUtils.GetRenamedPath(request.Path, extraData.NewName),
+                                        PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()));
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Rename request was called without approprate extra data");
+                                }
+                            }
+                                break;
+                            case FileStoreRequest.RequestType.Move:
+                                //rename the existing destination file
+                            {
+                                var extraData = (request.ExtraData as RequestMoveExtraData);
+                                if (extraData != null)
+                                {
+                                    await _local.RequestRenameItemImmediateAsync(
+                                        $"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}",
+                                        PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()));
+                                }
+                                else
+                                {
+                                    Debug.WriteLine("Move request was called without approprate extra data");
+                                }
+                            }
+                                break;
+                            case FileStoreRequest.RequestType.Delete:
+                            case FileStoreRequest.RequestType.Create:
+                            case FileStoreRequest.RequestType.Read:
+                            default:
+                                break;
+                        }
+                        _local.ResolveRequest(request.RequestId);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(resolution), resolution, null);
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"Cannot resolve local conflict with request id: {requestId} because it could not be found");
             }
         }
-        public void ResolveRemoteConflict(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        public async Task ResolveRemoteConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
         {
+            throw new NotImplementedException();
             //TODO: at this point no remote requests have conflict handling...
             switch (resolution)
             {

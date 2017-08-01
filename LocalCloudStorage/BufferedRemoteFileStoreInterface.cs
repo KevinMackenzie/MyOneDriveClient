@@ -504,6 +504,18 @@ namespace MyOneDriveClient
             EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
+
+
+        public async Task RequestUploadImmediateAsync(string path, Stream streamFrom)
+        {
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path,
+                new RequestUploadExtraData(streamFrom)));
+        }
+        public async Task RequestFileDownloadImmediateAsync(string path, Stream streamTo)
+        {
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
+                new RequestDownloadExtraData(streamTo)));
+        }
         
         /// <summary>
         /// Requests the remote deltas since the previous request
