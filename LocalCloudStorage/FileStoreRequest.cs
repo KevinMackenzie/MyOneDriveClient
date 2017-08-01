@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using LocalCloudStorage;
 
 namespace MyOneDriveClient
 {
@@ -29,7 +30,7 @@ namespace MyOneDriveClient
     }
     #endregion
 
-    public class FileStoreRequest
+    public class FileStoreRequest : IFileStoreRequestIdentifiable
     {
         public enum RequestStatus
         {

@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    public class AcknowledgeErrorRequestViewModel : ViewModelBase
+    public class AcknowledgeErrorRequestViewModel : FileStoreRequestViewModelBase
     {
-        public AcknowledgeErrorRequestViewModel(FileStoreRequestViewModel me, string errorMessage)
+        public AcknowledgeErrorRequestViewModel(FileStoreRequestViewModel me, string errorMessage) : base(me.RequestId)
         {
             ErrorMessage = errorMessage;
             InnerRequest = me;

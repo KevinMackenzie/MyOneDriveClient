@@ -357,6 +357,8 @@ namespace MyOneDriveClient
         {
             if (_local.TryGetRequest(requestId, out FileStoreRequest request))
             {
+                if (request.Complete)
+                    return;
                 switch (resolution)
                 {
                     case FileStoreInterface.ConflictResolutions.KeepLocal:

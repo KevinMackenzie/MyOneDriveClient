@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="BufferedRemoteFileStoreInterface.cs" />
     <Compile Include="Contracts\ICachedItemMetadata.cs" />
+    <Compile Include="Contracts\IFileStoreRequestIdentifiable.cs" />
     <Compile Include="Contracts\IItemHandle.cs" />
     <Compile Include="Contracts\ILocalFileStore.cs" />
     <Compile Include="Contracts\ILocalFileStoreInterface.cs" />

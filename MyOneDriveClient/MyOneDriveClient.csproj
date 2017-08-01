@@ -91,6 +91,7 @@
     <Compile Include="CloseAppRequestViewModel.cs" />
     <Compile Include="FileStoreRequestViewModel.cs" />
     <Compile Include="BaseRequestsViewModel.cs" />
+    <Compile Include="FileStoreRequestViewModelBase.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
     <Compile Include="Properties\Annotations.cs" />
     <Compile Include="RemoteRequestsViewModel.cs" />

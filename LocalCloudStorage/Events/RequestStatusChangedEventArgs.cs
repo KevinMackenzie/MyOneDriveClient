@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using LocalCloudStorage;
 
 namespace MyOneDriveClient.Events
 {
-    public class RequestStatusChangedEventArgs : EventArgs
+    public class RequestStatusChangedEventArgs : EventArgs, IFileStoreRequestIdentifiable
     {
         public RequestStatusChangedEventArgs(FileStoreRequest request)
         {

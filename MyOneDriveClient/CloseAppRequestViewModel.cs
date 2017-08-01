@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace MyOneDriveClient
 {
-    class CloseAppRequestViewModel : ViewModelBase
+    class CloseAppRequestViewModel : FileStoreRequestViewModelBase
     {
-        public CloseAppRequestViewModel(FileStoreRequestViewModel me)
+        public CloseAppRequestViewModel(FileStoreRequestViewModel me) : base(me.RequestId)
         {
             InnerRequest = me;
         }

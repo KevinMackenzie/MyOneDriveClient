@@ -33,13 +33,19 @@ namespace MyOneDriveClient
 
                     if (request != null)
                     {
-                        ActiveRequests.Remove(request);
+                        //the request might have a different type, so go by ID
+
+                        var activeReq = (from req in ActiveRequests where req.RequestId == request.RequestId select req).First();
+                        if (activeReq != null)
+                        {
+                            ActiveRequests.Remove(activeReq);
+                        }
                     }
                     break;
                 case FileStoreRequest.RequestStatus.WaitForUser:
                     if (request != null)
                     {
-                        //it will ALWAYS be the top item
+                        //it will ALWAYS be the top item TODO: will it?
                         if (Enum.TryParse(e.ErrorMessage, out FileStoreInterface.UserPrompts prompt))
                         {
                             switch (prompt)
@@ -96,6 +102,6 @@ namespace MyOneDriveClient
         }
 
 
-        public ObservableCollection<ViewModelBase> ActiveRequests { get; } = new ObservableCollection<ViewModelBase>();
+        public ObservableCollection<FileStoreRequestViewModelBase> ActiveRequests { get; } = new ObservableCollection<FileStoreRequestViewModelBase>();
     }
 }

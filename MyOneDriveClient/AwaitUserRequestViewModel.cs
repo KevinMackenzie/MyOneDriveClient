@@ -11,9 +11,9 @@ namespace MyOneDriveClient
     /// <summary>
     /// The viewmodel for the <see cref="FileStoreInterface.UserPrompts.KeepOverwriteOrRename"/> type
     /// </summary>
-    public class AwaitUserRequestViewModel : ViewModelBase
+    public class AwaitUserRequestViewModel : FileStoreRequestViewModelBase
     {
-        public AwaitUserRequestViewModel(FileStoreRequestViewModel me)
+        public AwaitUserRequestViewModel(FileStoreRequestViewModel me) : base(me.RequestId)
         {
             InnerRequest = me;
         }

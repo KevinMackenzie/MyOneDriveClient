@@ -4,21 +4,21 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MyOneDriveClient.Events;
+using LocalCloudStorage;
 
 namespace MyOneDriveClient
 {
-    public class FileStoreRequestViewModel : ViewModelBase
+    public class FileStoreRequestViewModel : FileStoreRequestViewModelBase
     {
         private long _progress;
         private FileStoreRequest.RequestStatus _status;
         private long _total;
 
-        public FileStoreRequestViewModel(string path, FileStoreRequest.RequestType type, FileStoreRequest.RequestStatus status, int requestId)
+        public FileStoreRequestViewModel(string path, FileStoreRequest.RequestType type, FileStoreRequest.RequestStatus status, int requestId) : base(requestId)
         {
             Path = path;
             Type = type;
             _status = status;
-            RequestId = requestId;
             Percent = 0;
         }
 
@@ -36,7 +36,6 @@ namespace MyOneDriveClient
         }
 
         #region Properties
-        public int RequestId { get; }
         public string Path { get; }
         public FileStoreRequest.RequestType Type { get; }
         public string Progress
