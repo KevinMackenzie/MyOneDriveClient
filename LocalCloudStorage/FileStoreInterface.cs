@@ -50,8 +50,7 @@ namespace MyOneDriveClient
 
             //if so, move on
             _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
-            request.Status = FileStoreRequest.RequestStatus.Cancelled;
-            InvokeStatusChanged(request);
+            InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
             return true;
         }
         private async Task ProcessQueueInternal(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
@@ -213,21 +212,22 @@ namespace MyOneDriveClient
         }
         public void CancelRequest(int requestId)
         {
+            var skipInvoke = false;
             //are there any queue items?
             var reqs = _requests.Where(item => item.RequestId == requestId);
-            if (!reqs.Any())
-            {
-                //no queue items... let's check limbo
-                if (_limboRequests.TryRemove(requestId, out FileStoreRequest value))
-                {
-                    value.Status = FileStoreRequest.RequestStatus.Cancelled;
-                    InvokeStatusChanged(value);
-                }
-            }
-            else
+            if (reqs.Any())
             {
                 //there is a queue item, so add it to the cancellation dictionary
                 _cancelledRequests.TryAdd(requestId, null);
+
+                skipInvoke = true;
+            }
+
+            //let's check limbo too
+            if (!_limboRequests.TryRemove(requestId, out FileStoreRequest value)) return;
+            if (!skipInvoke)
+            {
+                InvokeStatusChanged(value, FileStoreRequest.RequestStatus.Cancelled);
             }
         }
 
