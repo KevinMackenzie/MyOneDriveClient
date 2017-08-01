@@ -86,7 +86,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="AcknowledgeErrorRequestViewModel.cs" />
     <Compile Include="AwaitUserRequestViewModel.cs" />
+    <Compile Include="CloseAppRequestViewModel.cs" />
     <Compile Include="FileStoreRequestViewModel.cs" />
     <Compile Include="BaseRequestsViewModel.cs" />
     <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />

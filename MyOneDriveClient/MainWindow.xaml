@@ -8,7 +8,7 @@
         Title="MainWindow" Height="700" Width="750" 
         DataContext="{Binding}">
     <Window.Resources>
-        <DataTemplate x:Key="ActiveRequestTemplate" DataType="{x:Type local:FileStoreRequestViewModel}" >
+        <DataTemplate DataType="{x:Type local:FileStoreRequestViewModel}" >
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -35,6 +35,59 @@
                     <Label Grid.Row="0" HorizontalAlignment="Left" Content="{Binding Path}" />
                     <ProgressBar Grid.Row="1" Margin="1" HorizontalAlignment="Stretch" Height="3" Minimum="0" Maximum="1" Value="{Binding Percent, Mode=OneWay}"/>
                     <Label Grid.Row="2" HorizontalAlignment="Left" Content="{Binding Progress}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type local:AwaitUserRequestViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Label Grid.Row="0" Content="{Binding Path}" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Click="KeepLocal_OnClick" Content="Keep Local" Margin="2" />
+                    <Button Grid.Column="1" Click="KeepRemote_OnClick" Content="Keep Remote" Margin="2" />
+                    <Button Grid.Column="2" Click="KeepBoth_OnClick" Content="Keep Both" Margin="2" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type local:CloseAppRequestViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Label Grid.Row="0" Content="{Binding Path}" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Click="TryAgain_OnClick"  Content="Try Again" Margin="2" />
+                    <Button Grid.Column="1" Click="KeepLocal_OnClick"  Content="Keep Local" Margin="2" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type local:AcknowledgeErrorRequestViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Label Grid.Row="0" Content="{Binding Path}" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                <Label Grid.Row="1" Content="{Binding ErrorMessage}" />
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Click="AcknowledgeFailure_OnClick"  Content="Ok" Margin="2" />
                 </Grid>
             </Grid>
         </DataTemplate>
@@ -84,12 +137,8 @@
                 <Grid DataContext="{Binding LocalRequests}" Grid.Row="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="LocalUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" DataContext="{Binding AwaitUserRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="LocalFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" DataContext="{Binding FailedRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                 </Grid>
             </Grid>
             <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Gray"/>
@@ -102,12 +151,8 @@
                 <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="RemoteUserAwaitRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="1" DataContext="{Binding AwaitUserRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
-                    <ListBox x:Name="RemoteFailedRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="2" DataContext="{Binding FailedRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveRequestTemplate}" />
+                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                 </Grid>
             </Grid>
         </Grid>

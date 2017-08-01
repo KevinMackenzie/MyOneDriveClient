@@ -3,22 +3,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Input;
 
 namespace MyOneDriveClient
 {
-    /// <summary>
-    /// The viewmodel for the <see cref="FileStoreInterface.UserPrompts.KeepOverwriteOrRename"/> type
-    /// </summary>
-    public class AwaitUserRequestViewModel : ViewModelBase
+    public class AcknowledgeErrorRequestViewModel : ViewModelBase
     {
-        public AwaitUserRequestViewModel(FileStoreRequestViewModel me)
+        public AcknowledgeErrorRequestViewModel(FileStoreRequestViewModel me, string errorMessage)
         {
+            ErrorMessage = errorMessage;
             InnerRequest = me;
         }
 
         public string Path => InnerRequest.Path;
+        public FileStoreRequest.RequestType Type => InnerRequest.Type;
+        public string ErrorMessage { get; }
         public FileStoreRequestViewModel InnerRequest { get; }
     }
 }

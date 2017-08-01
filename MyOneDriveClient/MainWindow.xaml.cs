@@ -212,5 +212,131 @@ namespace MyOneDriveClient
         {
             await App.FileStore.SaveMetadataAsync();
         }
+
+        private void KeepLocal_OnClick(object sender, RoutedEventArgs e)
+        {
+            var request = (sender as Button)?.DataContext as AwaitUserRequestViewModel;
+            if (request != null)
+            {
+                if (LocalActiveRequests.Items.Contains(request))
+                {
+                    //local request
+                    App.FileStore.ResolveLocalConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                }
+                else if (RemoteActiveRequests.Items.Contains(request))
+                {
+                    //remote request
+                    App.FileStore.ResolveRemoteConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                }
+                else
+                {
+                    Debug.WriteLine("User-Prompting view model does not exist in local or remote lists");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"Sender DataContext is not of type {nameof(AwaitUserRequestViewModel)}");
+            }
+        }
+        private void KeepRemote_OnClick(object sender, RoutedEventArgs e)
+        {
+            var request = (sender as Button)?.DataContext as AwaitUserRequestViewModel;
+            if (request != null)
+            {
+                if (LocalActiveRequests.Items.Contains(request))
+                {
+                    //local request
+                    App.FileStore.ResolveLocalConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                }
+                else if (RemoteActiveRequests.Items.Contains(request))
+                {
+                    //remote request
+                    App.FileStore.ResolveRemoteConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                }
+                else
+                {
+                    Debug.WriteLine("User-Prompting view model does not exist in local or remote lists");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"Sender DataContext is not of type {nameof(AwaitUserRequestViewModel)}");
+            }
+        }
+        private void KeepBoth_OnClick(object sender, RoutedEventArgs e)
+        {
+            var request = (sender as Button)?.DataContext as AwaitUserRequestViewModel;
+            if (request != null)
+            {
+                if (LocalActiveRequests.Items.Contains(request))
+                {
+                    //local request
+                    App.FileStore.ResolveLocalConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                }
+                else if (RemoteActiveRequests.Items.Contains(request))
+                {
+                    //remote request
+                    App.FileStore.ResolveRemoteConflict(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                }
+                else
+                {
+                    Debug.WriteLine("User-Prompting view model does not exist in local or remote lists");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"Sender DataContext is not of type {nameof(AwaitUserRequestViewModel)}");
+            }
+        }
+        
+        private void TryAgain_OnClick(object sender, RoutedEventArgs e)
+        {
+            var request = (sender as Button)?.DataContext as CloseAppRequestViewModel;
+            if (request != null)
+            {
+                if (LocalActiveRequests.Items.Contains(request))
+                {
+                    //local request TODO
+                }
+                else if (RemoteActiveRequests.Items.Contains(request))
+                {
+                    //remote request TODO
+                }
+                else
+                {
+                    Debug.WriteLine("User-Prompting view model does not exist in local or remote lists");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"Sender DataContext is not of type {nameof(CloseAppRequestViewModel)}");
+            }
+        }
+
+        private void AcknowledgeFailure_OnClick(object sender, RoutedEventArgs e)
+        {
+            var request = (sender as Button)?.DataContext as AcknowledgeErrorRequestViewModel;
+            if (request != null)
+            {
+                if (LocalActiveRequests.Items.Contains(request))
+                {
+                    //local request
+                    App.LocalInterface.CancelRequest(request.InnerRequest.RequestId);
+                }
+                else if (RemoteActiveRequests.Items.Contains(request))
+                {
+                    //remote request
+                    App.RemoteInterface.CancelRequest(request.InnerRequest.RequestId);
+                }
+                else
+                {
+                    Debug.WriteLine("User-Prompting view model does not exist in local or remote lists");
+                }
+            }
+            else
+            {
+                Debug.WriteLine($"Sender DataContext is not of type {nameof(AcknowledgeErrorRequestViewModel)}");
+            }
+        }
     }
 }

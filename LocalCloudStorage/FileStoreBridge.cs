@@ -326,6 +326,36 @@ namespace MyOneDriveClient
             }
         }
 
+        public void ResolveLocalConflict(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        {
+            switch (resolution)
+            {
+                case FileStoreInterface.ConflictResolutions.KeepLocal:
+                    break;
+                case FileStoreInterface.ConflictResolutions.KeepRemote:
+                    break;
+                case FileStoreInterface.ConflictResolutions.KeepBoth:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(resolution), resolution, null);
+            }
+        }
+        public void ResolveRemoteConflict(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        {
+            //TODO: at this point no remote requests have conflict handling...
+            switch (resolution)
+            {
+                case FileStoreInterface.ConflictResolutions.KeepLocal:
+                    break;
+                case FileStoreInterface.ConflictResolutions.KeepRemote:
+                    break;
+                case FileStoreInterface.ConflictResolutions.KeepBoth:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(resolution), resolution, null);
+            }
+        }
+
         /// <summary>
         /// Loads the metadata from the disc
         /// </summary>

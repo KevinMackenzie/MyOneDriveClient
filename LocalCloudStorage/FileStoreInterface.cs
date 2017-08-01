@@ -18,6 +18,14 @@ namespace MyOneDriveClient
             Acknowledge
         }
 
+        public enum ConflictResolutions
+        {
+            KeepLocal,
+            KeepRemote,
+            KeepBoth
+        }
+
+
         #region Private Fields
         private ConcurrentQueue<FileStoreRequest> _requests = new ConcurrentQueue<FileStoreRequest>();
         private FileStoreRequestGraveyard _completedRequests = new FileStoreRequestGraveyard(TimeSpan.FromMinutes(5));

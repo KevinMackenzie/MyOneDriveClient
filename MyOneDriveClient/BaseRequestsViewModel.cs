@@ -39,15 +39,40 @@ namespace MyOneDriveClient
                 case FileStoreRequest.RequestStatus.WaitForUser:
                     if (request != null)
                     {
-                        ActiveRequests.Remove(request);
-                        AwaitUserRequests.Add(request);
+                        //it will ALWAYS be the top item
+                        if (Enum.TryParse(e.ErrorMessage, out FileStoreInterface.UserPrompts prompt))
+                        {
+                            switch (prompt)
+                            {
+                                case FileStoreInterface.UserPrompts.KeepOverwriteOrRename:
+                                    ActiveRequests[0] = new AwaitUserRequestViewModel(request);
+                                    break;
+                                case FileStoreInterface.UserPrompts.CloseApplication:
+                                    ActiveRequests[0] = new CloseAppRequestViewModel(request);
+                                    break;
+                                case FileStoreInterface.UserPrompts.Acknowledge:
+                                    ActiveRequests[0] =
+                                        new AcknowledgeErrorRequestViewModel(request, "No Error Message Given");
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            ActiveRequests[0] = new AcknowledgeErrorRequestViewModel(request, e.ErrorMessage);
+                        }
+
+                        //ActiveRequests.Remove(request);
+                        //AwaitUserRequests.Add(request);
                     }
                     break;
                 case FileStoreRequest.RequestStatus.Failure:
                     if (request != null)
                     {
-                        ActiveRequests.Remove(request);
-                        FailedRequests.Add(request);
+                        //it will ALWAYS be the top item
+                        ActiveRequests[0] = new AcknowledgeErrorRequestViewModel(request, e.ErrorMessage);
+
+                        //ActiveRequests.Remove(request);
+                        //FailedRequests.Add(request);
                     }
                     break;
                 default:
@@ -64,14 +89,13 @@ namespace MyOneDriveClient
                     {
                         //TODO: this throws an exception when called from the worker thread
                         request.OnStatusChanged(e.Status);
+                        ActiveRequests[0] = request; //TODO: is this always safe?
                     }
                     break;
             }
         }
 
 
-        public ObservableCollection<FileStoreRequestViewModel> ActiveRequests { get; } = new ObservableCollection<FileStoreRequestViewModel>();
-        public ObservableCollection<FileStoreRequestViewModel> AwaitUserRequests { get; } = new ObservableCollection<FileStoreRequestViewModel>();
-        public ObservableCollection<FileStoreRequestViewModel> FailedRequests { get; } = new ObservableCollection<FileStoreRequestViewModel>();
+        public ObservableCollection<ViewModelBase> ActiveRequests { get; } = new ObservableCollection<ViewModelBase>();
     }
 }
