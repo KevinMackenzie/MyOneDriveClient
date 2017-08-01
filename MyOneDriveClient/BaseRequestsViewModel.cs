@@ -65,16 +65,16 @@ namespace MyOneDriveClient
                         //AwaitUserRequests.Add(request);
                     }
                     break;
-                case FileStoreRequest.RequestStatus.Failure:
-                    if (request != null)
-                    {
-                        //it will ALWAYS be the top item
-                        ActiveRequests[0] = new AcknowledgeErrorRequestViewModel(request, e.ErrorMessage);
-
-                        //ActiveRequests.Remove(request);
-                        //FailedRequests.Add(request);
-                    }
-                    break;
+                //case FileStoreRequest.RequestStatus.Failure:
+                //    if (request != null)
+                //    {
+                //        //it will ALWAYS be the top item
+                //        ActiveRequests[0] = new AcknowledgeErrorRequestViewModel(request, e.ErrorMessage);
+                //
+                //        //ActiveRequests.Remove(request);
+                //        //FailedRequests.Add(request);
+                //    }
+                //    break;
                 default:
                     if (request == null)
                     {

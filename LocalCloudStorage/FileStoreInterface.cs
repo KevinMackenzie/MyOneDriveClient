@@ -85,6 +85,8 @@ namespace MyOneDriveClient
         }
         protected void InvokeStatusChanged(FileStoreRequest request, FileStoreRequest.RequestStatus status)
         {
+            if (request.Status == status)
+                return;//it didn't actually change...
             request.Status = status;
             InvokeStatusChanged(request);
         }

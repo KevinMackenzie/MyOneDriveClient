@@ -99,28 +99,20 @@ namespace MyOneDriveClient
             if (result == null)
             {
                 //didn't fail, but no network connection...
-                var oldStatus = request.Status;
-                request.Status = FileStoreRequest.RequestStatus.Pending;
-
-                //if we started something, make sure we let the listeners know that we stopped!
-                if(oldStatus != FileStoreRequest.RequestStatus.Pending)
-                    InvokeStatusChanged(request);
+                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Pending);
             }
             else
             {
                 if (result.IsSuccessStatusCode)
                 {
                     //success!
-                    request.Status = FileStoreRequest.RequestStatus.Success;
+                    InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
                 }
                 else
                 {
                     //failure...
-                    request.Status = FileStoreRequest.RequestStatus.Failure;
-                    request.ErrorMessage =
-                        $"Http Error \"{result.StatusCode}\" because: \"{result.ReasonPhrase}\"";
+                    FailRequest(request, $"Http Error \"{result.StatusCode}\" because: \"{result.ReasonPhrase}\"");
                 }
-                InvokeStatusChanged(request);
             }
         }
 

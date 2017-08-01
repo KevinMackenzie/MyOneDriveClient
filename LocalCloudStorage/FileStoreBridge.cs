@@ -46,8 +46,6 @@ namespace MyOneDriveClient
                     break;
                 case FileStoreRequest.RequestStatus.InProgress:
                     break;
-                case FileStoreRequest.RequestStatus.Failure:
-                    break;
                 case FileStoreRequest.RequestStatus.Cancelled:
                     break;
                 case FileStoreRequest.RequestStatus.WaitForUser:

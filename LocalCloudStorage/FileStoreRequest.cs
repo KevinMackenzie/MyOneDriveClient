@@ -48,7 +48,7 @@ namespace MyOneDriveClient
             /// <summary>
             /// Request did not successfully complete
             /// </summary>
-            Failure,
+            //Failure,
             /// <summary>
             /// Request was cancelled
             /// </summary>
@@ -104,7 +104,7 @@ namespace MyOneDriveClient
         /// Whether <see cref="Status"/> is an end-state status
         /// </summary>
         public bool Complete => Status == RequestStatus.Cancelled || 
-                                Status == RequestStatus.Failure ||
+                                //Status == RequestStatus.Failure ||
                                 Status == RequestStatus.Success;
 
         public IFileStoreRequestExtraData ExtraData { get; set; }
