@@ -181,6 +181,11 @@ namespace MyOneDriveClient
         {
             //TODO: this uses a deep search method instead of cumulative changes   
         }
+        public async Task GenerateLocalMetadataAsync()
+        {
+            //gets deltas, but doesn't do anything with them
+            await _local.GetDeltasAsync(true);
+        }
         public async Task ApplyLocalChangesAsync()
         {
             var localDeltas = await _local.GetDeltasAsync();

@@ -338,5 +338,9 @@ namespace MyOneDriveClient
                 Debug.WriteLine($"Sender DataContext is not of type {nameof(AcknowledgeErrorRequestViewModel)}");
             }
         }
+        private async void GenMetadataButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            await App.FileStore.GenerateLocalMetadataAsync();
+        }
     }
 }

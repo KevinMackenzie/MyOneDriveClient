@@ -91,14 +91,22 @@ namespace MyOneDriveClient
         }
         public IDictionary<string, DateTime> GetChildrenLastModified(string localPath)
         {
+            //only the root element
+            if(_data.LocalItems.Count == 1) return new Dictionary<string, DateTime>();
+
+            var retValues = new Dictionary<string, DateTime>();
             if (localPath == "/" || localPath == "")
             {
-                return (IDictionary<string, DateTime>) (from item in _data.LocalItems
-                    select new KeyValuePair<string, DateTime>(item.Value.Path, item.Value.LastModified));
+                foreach (var item in _data.LocalItems)
+                {
+                    retValues.Add(item.Value.Path, item.Value.LastModified);
+                }
+                return retValues;
+                //return (IDictionary<string, DateTime>) (from item in _data.LocalItems
+                //    select new KeyValuePair<string, DateTime>(item.Value.Path, item.Value.LastModified));
             }
             else
             {
-                var retValues = new Dictionary<string, DateTime>();
                 foreach (var item in _data.LocalItems)
                 {
                     var path = item.Value.Path;
