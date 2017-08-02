@@ -561,7 +561,8 @@ namespace MyOneDriveClient
                                 }
                                 else
                                 {
-                                    FailRequest(request, $"Attempt to download older version of \"{request.Path}\" than exists locally");
+                                    //FailRequest(request, $"Attempt to download older version of \"{request.Path}\" than exists locally");
+                                    RequestAwaitUser(request, UserPrompts.KeepOverwriteOrRename);
                                     return false;
                                 }
                             }
