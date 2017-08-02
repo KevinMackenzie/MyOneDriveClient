@@ -3,9 +3,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using LocalCloudStorage;
 using MyOneDriveClient.Events;
 
 namespace MyOneDriveClient
@@ -16,6 +18,13 @@ namespace MyOneDriveClient
 
         //private ObservableCollection<AwaitUserRequestViewModel> _awaitUserRequests = new ObservableCollection<AwaitUserRequestViewModel>();
         //private ObservableCollection<FileStoreRequestViewModel> _failedRequests = new ObservableCollection<FileStoreRequestViewModel>();
+
+        private int IndexOf(IFileStoreRequestIdentifiable request)
+        {
+            var activeReq = (from req in ActiveRequests where req.RequestId == request.RequestId select req).First();
+            if (activeReq == null) return -1;
+            return ActiveRequests.IndexOf(activeReq);
+        }
 
         public BaseRequestsViewModel(FileStoreInterface fileStoreInterface)
         {
@@ -35,36 +44,42 @@ namespace MyOneDriveClient
                     {
                         //the request might have a different type, so go by ID
 
-                        var activeReq = (from req in ActiveRequests where req.RequestId == request.RequestId select req).First();
-                        if (activeReq != null)
+                        var activeReqIndex = IndexOf(request);
+                        if (activeReqIndex != -1)
                         {
-                            ActiveRequests.Remove(activeReq);
+                            ActiveRequests.RemoveAt(activeReqIndex);
                         }
                     }
                     break;
                 case FileStoreRequest.RequestStatus.WaitForUser:
                     if (request != null)
                     {
-                        //it will ALWAYS be the top item TODO: will it?
+                        var requestPosition = IndexOf(request);
+                        if (requestPosition == -1)
+                        {
+                            Debug.WriteLine("Request callback received, but does not exist in request list!");
+                            return;
+                        }
+
                         if (Enum.TryParse(e.ErrorMessage, out FileStoreInterface.UserPrompts prompt))
                         {
                             switch (prompt)
                             {
                                 case FileStoreInterface.UserPrompts.KeepOverwriteOrRename:
-                                    ActiveRequests[0] = new AwaitUserRequestViewModel(request);
+                                    ActiveRequests[requestPosition] = new AwaitUserRequestViewModel(request);
                                     break;
                                 case FileStoreInterface.UserPrompts.CloseApplication:
-                                    ActiveRequests[0] = new CloseAppRequestViewModel(request);
+                                    ActiveRequests[requestPosition] = new CloseAppRequestViewModel(request);
                                     break;
                                 case FileStoreInterface.UserPrompts.Acknowledge:
-                                    ActiveRequests[0] =
+                                    ActiveRequests[requestPosition] =
                                         new AcknowledgeErrorRequestViewModel(request, "No Error Message Given");
                                     break;
                             }
                         }
                         else
                         {
-                            ActiveRequests[0] = new AcknowledgeErrorRequestViewModel(request, e.ErrorMessage);
+                            ActiveRequests[requestPosition] = new AcknowledgeErrorRequestViewModel(request, e.ErrorMessage);
                         }
 
                         //ActiveRequests.Remove(request);
