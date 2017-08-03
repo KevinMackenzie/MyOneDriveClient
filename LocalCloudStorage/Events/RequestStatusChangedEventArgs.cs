@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using LocalCloudStorage;
 
-namespace MyOneDriveClient.Events
+namespace LocalCloudStorage.Events
 {
     public class RequestStatusChangedEventArgs : EventArgs, IFileStoreRequestIdentifiable
     {

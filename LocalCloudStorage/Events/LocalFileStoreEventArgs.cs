@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MyOneDriveClient.Events
+namespace LocalCloudStorage.Events
 {
     /// <summary>
     /// Event arguments for a local file store change

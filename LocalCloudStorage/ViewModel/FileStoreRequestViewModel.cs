@@ -1,12 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MyOneDriveClient.Events;
-using LocalCloudStorage;
-
-namespace MyOneDriveClient
+﻿namespace LocalCloudStorage.ViewModel
 {
     public class FileStoreRequestViewModel : FileStoreRequestViewModelBase
     {

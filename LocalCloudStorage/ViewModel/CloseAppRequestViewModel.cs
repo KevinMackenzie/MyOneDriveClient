@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace MyOneDriveClient
+﻿namespace LocalCloudStorage.ViewModel
 {
-    class CloseAppRequestViewModel : FileStoreRequestViewModelBase
+    public class CloseAppRequestViewModel : FileStoreRequestViewModelBase
     {
         public CloseAppRequestViewModel(FileStoreRequestViewModel me) : base(me.RequestId)
         {

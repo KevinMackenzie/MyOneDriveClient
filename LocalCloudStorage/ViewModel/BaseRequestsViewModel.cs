@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using LocalCloudStorage;
-using MyOneDriveClient.Events;
+using LocalCloudStorage.Events;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage.ViewModel
 {
     public class BaseRequestsViewModel
     {

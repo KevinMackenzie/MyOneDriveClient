@@ -18,8 +18,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using LocalCloudStorage;
+using LocalCloudStorage.ViewModel;
 using MyOneDriveClient.Annotations;
-using MyOneDriveClient.Events;
 
 namespace MyOneDriveClient
 {

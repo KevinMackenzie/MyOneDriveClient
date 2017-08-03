@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     public class LocalCachedItemMetadata : ICachedItemMetadata
     {

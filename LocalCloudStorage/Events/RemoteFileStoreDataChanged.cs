@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MyOneDriveClient.Events
+namespace LocalCloudStorage.Events
 {
     /// <summary>
     /// Contains a string with important startup information of <see cref="IRemoteFileStoreConnection"/> changes

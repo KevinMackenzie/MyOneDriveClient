@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     public interface IFileStoreRequestExtraData
     { }

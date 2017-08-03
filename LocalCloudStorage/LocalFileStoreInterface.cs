@@ -4,12 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MyOneDriveClient.Events;
+using LocalCloudStorage.Events;
 using System.Threading;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     public class LocalFileStoreInterface : FileStoreInterface
     {

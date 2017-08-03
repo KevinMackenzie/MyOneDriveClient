@@ -6,9 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MyOneDriveClient.Events;
+using LocalCloudStorage.Events;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     public class FileStoreBridge
     {

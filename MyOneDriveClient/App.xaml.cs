@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Identity.Client;
 using MyOneDriveClient.OneDrive;
+using LocalCloudStorage;
 
 namespace MyOneDriveClient
 {
@@ -31,7 +32,7 @@ namespace MyOneDriveClient
             FileStore.LoadMetadataAsync().Wait();
         }
 
-        public static OneDrive.OneDriveRemoteFileStoreConnection OneDriveConnection;
+        public static OneDriveRemoteFileStoreConnection OneDriveConnection;
         public static DownloadedFileStore LocalFileStore;
         public static BufferedRemoteFileStoreInterface RemoteInterface;
         public static LocalFileStoreInterface LocalInterface;

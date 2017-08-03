@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using System.Security.Cryptography;
 using System.Collections.Concurrent;
-using MyOneDriveClient.Events;
+using LocalCloudStorage.Events;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     public class DownloadedFileStore : ILocalFileStore, IDisposable
     {

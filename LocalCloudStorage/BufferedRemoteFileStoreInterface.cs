@@ -9,9 +9,9 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MyOneDriveClient.Events;
+using LocalCloudStorage.Events;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     /// <summary>
     /// This is responsible for buffering requests to the server, recognizing when they fail, and notifying of conflicts while letting unaffected requests pass through

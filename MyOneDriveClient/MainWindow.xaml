@@ -4,11 +4,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MyOneDriveClient"
+        xmlns:viewModel="clr-namespace:LocalCloudStorage.ViewModel;assembly=LocalCloudStorage"
         mc:Ignorable="d"
         Title="MainWindow" Height="700" Width="750" 
         DataContext="{Binding}">
     <Window.Resources>
-        <DataTemplate DataType="{x:Type local:FileStoreRequestViewModel}" >
+        <DataTemplate DataType="{x:Type viewModel:FileStoreRequestViewModel}" >
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -38,7 +39,7 @@
                 </Grid>
             </Grid>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type local:AwaitUserRequestViewModel}">
+        <DataTemplate DataType="{x:Type viewModel:AwaitUserRequestViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
@@ -57,7 +58,7 @@
                 </Grid>
             </Grid>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type local:CloseAppRequestViewModel}">
+        <DataTemplate DataType="{x:Type viewModel:CloseAppRequestViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
@@ -74,7 +75,7 @@
                 </Grid>
             </Grid>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type local:AcknowledgeErrorRequestViewModel}">
+        <DataTemplate DataType="{x:Type viewModel:AcknowledgeErrorRequestViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
