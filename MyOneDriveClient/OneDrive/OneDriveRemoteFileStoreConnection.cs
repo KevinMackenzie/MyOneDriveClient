@@ -307,7 +307,7 @@ namespace MyOneDriveClient.OneDrive
         /// Gets the file store connection authenticated
         /// </summary>
         /// <returns></returns>
-        public async Task PromptUserLoginAsync()
+        public async Task LogUserInAsync()
         {
             string resultText = string.Empty;
             AuthenticationResult newAuthenticationResult = null;

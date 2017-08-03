@@ -17,16 +17,13 @@ namespace LocalCloudStorage
         /// </summary>
         /// <param name="data">the data needed for initialization.  Typically comes from a previous <see cref="OnUpdate"/> event</param>
         //void Initialize(string data);
-
+        
         /// <summary>
-        /// Prompts the user to authenticate
+        /// Authenticates the user with implementation-specific authentication
+        ///  information
         /// </summary>
         /// <returns></returns>
-        /// <remarks>
-        /// This isn't the most portable option.  Perhaps this should instead take authentication information
-        /// and be replaced by an "authenticate" method.
-        /// </remarks>
-        Task PromptUserLoginAsync();
+        Task LogUserInAsync();
         /// <summary>
         /// Forgets the user authentication information
         /// </summary>

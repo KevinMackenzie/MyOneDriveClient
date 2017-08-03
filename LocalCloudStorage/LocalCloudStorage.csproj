@@ -53,6 +53,7 @@
     <Compile Include="Contracts\ILocalItemHandle.cs" />
     <Compile Include="Contracts\ILocalItemUpdate.cs" />
     <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />
+    <Compile Include="Contracts\IRemoteFileStoreConnectionFactory.cs" />
     <Compile Include="Contracts\IRemoteItemHandle.cs" />
     <Compile Include="Contracts\IRemoteItemUpdate.cs" />
     <Compile Include="DeltaPage.cs" />
@@ -70,6 +71,7 @@
     <Compile Include="HttpResult.cs" />
     <Compile Include="ItemDelta.cs" />
     <Compile Include="ItemMetadataCache.cs" />
+    <Compile Include="LocalCloudStorage.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="LocalItemMetadataCache.cs" />
     <Compile Include="NotifyDisposedStream.cs" />

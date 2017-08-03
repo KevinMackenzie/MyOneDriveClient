@@ -141,13 +141,13 @@ namespace MyOneDriveClient
         DeltaPage _deltaPage = null;
         private async void GetDeltasButton_Click(object sender, RoutedEventArgs e)
         {
-            await App.OneDriveConnection.PromptUserLoginAsync();
+            await App.OneDriveConnection.LogUserInAsync();
             await App.FileStore.ApplyRemoteChangesAsync();
         }
 
         private async void ScanForChangesButton_OnClick(object sender, RoutedEventArgs e)
         {
-            await App.OneDriveConnection.PromptUserLoginAsync();
+            await App.OneDriveConnection.LogUserInAsync();
             await App.FileStore.ApplyLocalChangesAsync();
         }
 
@@ -194,7 +194,7 @@ namespace MyOneDriveClient
 
         private async void StartRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
         {
-            await App.OneDriveConnection.PromptUserLoginAsync();
+            await App.OneDriveConnection.LogUserInAsync();
             //App.RemoteInterface.StartRequestProcessing();
         }
         private async void StopRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
