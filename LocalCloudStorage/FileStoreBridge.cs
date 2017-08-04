@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using LocalCloudStorage.Contracts;
 using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage
@@ -14,15 +15,15 @@ namespace LocalCloudStorage
     {
         #region Private Fields
         private IEnumerable<string> _blacklist;
-        private LocalFileStoreInterface _local;
-        private BufferedRemoteFileStoreInterface _remote;
+        private ILocalFileStoreInterface _local;
+        private IRemoteFileStoreInterface _remote;
         private const string RemoteMetadataCachePath = ".remotemetadata";
         private const string LocalMetadataCachePath = ".localmetadata";
         private ConcurrentDictionary<int, IItemHandle> _uploadRequests = new ConcurrentDictionary<int, IItemHandle>();
         #endregion
 
-        public FileStoreBridge(IEnumerable<string> blacklist, LocalFileStoreInterface local,
-            BufferedRemoteFileStoreInterface remote)
+        public FileStoreBridge(IEnumerable<string> blacklist, ILocalFileStoreInterface local,
+            IRemoteFileStoreInterface remote)
         {
             _blacklist = blacklist;
             _local = local;
@@ -188,7 +189,7 @@ namespace LocalCloudStorage
         }
         public async Task ApplyLocalChangesAsync()
         {
-            var localDeltas = await _local.GetDeltasAsync();
+            var localDeltas = await _local.GetDeltasAsync(false);
             foreach (var delta in localDeltas)
             {
                 if(IsBlacklisted(delta.Handle.Path))
@@ -300,7 +301,7 @@ namespace LocalCloudStorage
                         }
                         break;
                     case ItemDelta.DeltaType.Deleted:
-                        _local.RequestDeleteItem(delta.Handle.Path); //TODO: check timestamps
+                        _local.RequestDelete(delta.Handle.Path); //TODO: check timestamps
                         break;
                     case ItemDelta.DeltaType.Modified:
                         if (delta.Handle.IsFolder)
@@ -333,10 +334,10 @@ namespace LocalCloudStorage
                         }
                         break;
                     case ItemDelta.DeltaType.Renamed:
-                        _local.RequestRenameItem(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
+                        _local.RequestRename(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
                     case ItemDelta.DeltaType.Moved:
-                        _local.RequestMoveItem(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
+                        _local.RequestMove(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
@@ -452,7 +453,7 @@ namespace LocalCloudStorage
                             default:
                                 break;
                         }
-                        _local.ResolveRequest(request.RequestId);
+                        _local.SignalConflictResolved(request.RequestId);
                         break;
                     case FileStoreInterface.ConflictResolutions.KeepBoth:
                         switch (request.Type)
@@ -500,7 +501,7 @@ namespace LocalCloudStorage
                             default:
                                 break;
                         }
-                        _local.ResolveRequest(request.RequestId);
+                        _local.SignalConflictResolved(request.RequestId);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(resolution), resolution, null);

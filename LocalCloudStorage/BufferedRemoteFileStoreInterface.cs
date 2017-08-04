@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using LocalCloudStorage.Contracts;
 using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage
@@ -17,7 +18,7 @@ namespace LocalCloudStorage
     /// This is responsible for buffering requests to the server, recognizing when they fail, and notifying of conflicts while letting unaffected requests pass through
     /// This is also responsible for maintaining the local cache of the remote file metadata
     /// </summary>
-    public class BufferedRemoteFileStoreInterface : FileStoreInterface
+    public class BufferedRemoteFileStoreInterface : FileStoreInterface, IRemoteFileStoreInterface
     {
 
         /// <summary>
@@ -511,7 +512,15 @@ namespace LocalCloudStorage
             await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
                 new RequestDownloadExtraData(streamTo)));
         }
-        
+        public async Task RequestDeleteItemImmediateAsync(string path)
+        {
+            throw new NotImplementedException();
+        }
+        public async Task RequestRenameItemImmediateAsync(string path, string newName)
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// Requests the remote deltas since the previous request
         /// </summary>
@@ -646,7 +655,7 @@ namespace LocalCloudStorage
         /// <summary>
         /// When an existing request's progress changes
         /// </summary>
-        public EventDelegates.RemoteRequestProgressChangedHandler OnRequestProgressChanged;
+        public event EventDelegates.RemoteRequestProgressChangedHandler OnRequestProgressChanged;
 
         /*
          * TODO: support remote change events

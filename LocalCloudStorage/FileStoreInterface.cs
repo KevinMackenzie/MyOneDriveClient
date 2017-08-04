@@ -231,7 +231,7 @@ namespace LocalCloudStorage
             }
         }
 
-        public void ResolveRequest(int requestId)
+        public void SignalConflictResolved(int requestId)
         {
             if (!_limboRequests.TryRemove(requestId, out FileStoreRequest request)) return;
             request.Status = FileStoreRequest.RequestStatus.Pending;
@@ -288,6 +288,6 @@ namespace LocalCloudStorage
         /// that if the status has been changed to <see cref="FileStoreRequest.RequestStatus.Success"/>, there
         /// is no guarantee that the request still exists.
         /// </summary>
-        public EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;
+        public event EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;
     }
 }

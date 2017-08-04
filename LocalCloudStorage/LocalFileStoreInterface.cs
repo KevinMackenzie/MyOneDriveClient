@@ -8,10 +8,11 @@ using LocalCloudStorage.Events;
 using System.Threading;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using LocalCloudStorage.Contracts;
 
 namespace LocalCloudStorage
 {
-    public class LocalFileStoreInterface : FileStoreInterface
+    public class LocalFileStoreInterface : FileStoreInterface, ILocalFileStoreInterface
     {
         private class DeletedItemHandle : IItemHandle
         {
@@ -962,6 +963,7 @@ namespace LocalCloudStorage
         #endregion
 
         #region Public Properties
+        /// <inheritdoc />
         public string MetadataCache
         {
             get => _metadata.Serialize();
@@ -1029,7 +1031,7 @@ namespace LocalCloudStorage
             /// </summary>
             /// <param name="path">the path of the item to delete</param>
             /// <returns>the request id</returns>
-        public void RequestDeleteItem(string path)
+        public void RequestDelete(string path)
         {
             EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
         }
@@ -1049,7 +1051,7 @@ namespace LocalCloudStorage
         /// <param name="path">the current path of the item</param>
         /// <param name="newParentPath">the new location of the item post-move</param>
         /// <returns>the request id</returns>
-        public void RequestMoveItem(string path, string newParentPath)
+        public void RequestMove(string path, string newParentPath)
         {
             EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
@@ -1060,7 +1062,7 @@ namespace LocalCloudStorage
         /// <param name="path">the current path of the item</param>
         /// <param name="newName">the new name of the item</param>
         /// <returns>the request id</returns>
-        public void RequestRenameItem(string path, string newName)
+        public void RequestRename(string path, string newName)
         {
             EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
                 new RequestRenameExtraData(newName)));
