@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LocalCloudStorage
@@ -25,7 +26,7 @@ namespace LocalCloudStorage
         
         bool ItemExists(string localPath);
 
-        Task<List<ILocalItemHandle>> EnumerateItemsAsync(string localPath);
+        Task<List<ILocalItemHandle>> EnumerateItemsAsync(string localPath, CancellationToken ct);
 
         event EventDelegates.LocalFileStoreChangedHandler OnChanged;
     }

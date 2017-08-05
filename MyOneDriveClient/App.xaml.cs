@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Identity.Client;
@@ -29,7 +30,8 @@ namespace MyOneDriveClient
             }, 
             LocalInterface, RemoteInterface);
 
-            FileStore.LoadMetadataAsync().Wait();
+            CancellationTokenSource cts = new CancellationTokenSource();
+            FileStore.LoadMetadataAsync(cts.Token).Wait();
         }
 
         public static OneDriveRemoteFileStoreConnection OneDriveConnection;

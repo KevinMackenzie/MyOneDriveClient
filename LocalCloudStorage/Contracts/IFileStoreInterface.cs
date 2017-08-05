@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Events;
 
@@ -18,7 +19,7 @@ namespace LocalCloudStorage.Contracts
         void CancelRequest(int requestId);
         void SignalConflictResolved(int requestId);
 
-        Task<bool> ProcessQueueAsync();
+        Task<bool> ProcessQueueAsync(CancellationToken ct);
 
         /// <summary>
         /// When the status of an existing request changes or a new request is started.  Note

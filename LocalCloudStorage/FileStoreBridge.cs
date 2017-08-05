@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Contracts;
 using LocalCloudStorage.Events;
@@ -63,12 +64,17 @@ namespace LocalCloudStorage
             return _blacklist.Where(item => item.Length <= len).Any(item => path.Substring(item.Length) == item);
         }
 
-        private async Task CreateOrDownloadFile(ItemDelta delta)
+        private async Task CreateOrDownloadFile(ItemDelta delta, CancellationToken ct)
         {
-            _local.RequestWritableStream(delta.Handle.Path, await delta.Handle.GetSha1HashAsync(), delta.Handle.LastModified, OnGetWritableStream);
+            ct.ThrowIfCancellationRequested();
+
+            var sha1 = await delta.Handle.GetSha1HashAsync(ct);
+            if(ct.IsCancellationRequested)
+                return;
+            _local.RequestWritableStream(delta.Handle.Path, sha1, delta.Handle.LastModified, OnGetWritableStream);
         }
 
-        private async Task OnGetReadOnlyStream(FileStoreRequest request, bool immediate)
+        private bool AssertStreamStatus(FileStoreRequest request, out LocalFileStoreInterface.RequestStreamExtraData streamData)
         {
             if (request.Status == FileStoreRequest.RequestStatus.Cancelled)
             {
@@ -77,17 +83,10 @@ namespace LocalCloudStorage
             else if (request.Status == FileStoreRequest.RequestStatus.Success)
             {
                 //successfully got the read stream
-                var streamData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
+                streamData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
                 if (streamData != null)
                 {
-                    if (immediate)
-                    {
-                        await _remote.RequestUploadImmediateAsync(request.Path, streamData.Stream);
-                    }
-                    else
-                    {
-                        _remote.RequestUpload(request.Path, streamData.Stream);
-                    }
+                    return true;
                 }
                 else
                 {
@@ -98,78 +97,73 @@ namespace LocalCloudStorage
             {
                 Debug.WriteLine($"Awaited stream request for \"{request.Path}\" was neither successful nor cancelled!");
             }
+            streamData = null;
+            return false;
+        }
+
+        private async Task OnGetReadOnlyStream(FileStoreRequest request, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!AssertStreamStatus(request, out LocalFileStoreInterface.RequestStreamExtraData streamData)) return;
+            
+            await _remote.RequestUploadImmediateAsync(request.Path, streamData.Stream, ct);
         }
         private void OnGetReadOnlyStream(FileStoreRequest request)
         {
-            OnGetReadOnlyStream(request, false).Wait();
+            if (!AssertStreamStatus(request, out LocalFileStoreInterface.RequestStreamExtraData streamData)) return;
+
+            _remote.RequestUpload(request.Path, streamData.Stream);
         }
 
-        private async Task OnGetWritableStream(FileStoreRequest request, bool immediate)
+        private async Task OnGetWritableStream(FileStoreRequest request, CancellationToken ct)
         {
-            if (request.Status == FileStoreRequest.RequestStatus.Cancelled)
-            {
-                //cancelled request, so that mean's we'll skip this delta... (this can happen when the local and remote files are the same or if the user choses to keep the local)
-            }
-            else if (request.Status == FileStoreRequest.RequestStatus.Success)
-            {
-                //successful request, so overwrite/create local
-                var extraData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
-                if (extraData != null)
-                {
-                    if (immediate)
-                    {
-                        await _remote.RequestFileDownloadImmediateAsync(request.Path, extraData.Stream);
-                    }
-                    else
-                    {
-                        _remote.RequestFileDownload(request.Path, extraData.Stream);
-                    }
-                }
-                else
-                {
-                    Debug.WriteLine($"Request data from stream request \"{request.Path}\" was not a stream!");
-                }
-            }
-            else
-            {
-                Debug.WriteLine($"Awaited stream request for \"{request.Path}\" was neither successful nor cancelled!");
-            }
+            ct.ThrowIfCancellationRequested();
+            if (!AssertStreamStatus(request, out LocalFileStoreInterface.RequestStreamExtraData streamData)) return;
+
+            await _remote.RequestFileDownloadImmediateAsync(request.Path, streamData.Stream, ct);
         }
         private void OnGetWritableStream(FileStoreRequest request)
         {
-            OnGetWritableStream(request, false).Wait();
+            if (!AssertStreamStatus(request, out LocalFileStoreInterface.RequestStreamExtraData streamData)) return;
+
+            _remote.RequestFileDownload(request.Path, streamData.Stream);
         }
 
-        private async Task UploadImmediateAsync(string path)
+        private async Task UploadImmediateAsync(string path, CancellationToken ct)
         {
-            var result = await _local.RequestReadOnlyStreamImmediateAsync(path);
-            await OnGetReadOnlyStream(result, true);
+            ct.ThrowIfCancellationRequested();
+
+            var result = await _local.RequestReadOnlyStreamImmediateAsync(path, ct);
+
+            ct.ThrowIfCancellationRequested();
+
+            await OnGetReadOnlyStream(result, ct);
         }
 
-        private async Task SaveRemoteItemMetadataCacheAsync()
+        private async Task SaveRemoteItemMetadataCacheAsync(CancellationToken ct)
         {
-            await _local.SaveNonSyncFile(RemoteMetadataCachePath, _remote.MetadataCache);
+            await _local.SaveNonSyncFile(RemoteMetadataCachePath, _remote.MetadataCache, ct);
         }
-        private async Task SaveLocalItemMetadataCacheAsync()
+        private async Task SaveLocalItemMetadataCacheAsync(CancellationToken ct)
         {
-            await _local.SaveNonSyncFile(LocalMetadataCachePath, _local.MetadataCache);
+            await _local.SaveNonSyncFile(LocalMetadataCachePath, _local.MetadataCache, ct);
         }
-        private async Task LoadRemoteItemMetadataCacheAsync()
+        private async Task LoadRemoteItemMetadataCacheAsync(CancellationToken ct)
         {
             //if the metadata doesn't exist, then it's a new install
             if (_local.ItemExists(RemoteMetadataCachePath))
             {
                 //TODO: this does NO exception handling
-                _remote.MetadataCache = await _local.ReadNonSyncFile(RemoteMetadataCachePath);
+                _remote.MetadataCache = await _local.ReadNonSyncFile(RemoteMetadataCachePath, ct);
             }
         }
-        private async Task LoadLocalItemMetadataCacheAsync()
+        private async Task LoadLocalItemMetadataCacheAsync(CancellationToken ct)
         {
             //if the metadata doesn't exist, then it's a new install
             if (_local.ItemExists(LocalMetadataCachePath))
             {
                 //TODO: this does NO exception handling
-                _local.MetadataCache = await _local.ReadNonSyncFile(LocalMetadataCachePath);
+                _local.MetadataCache = await _local.ReadNonSyncFile(LocalMetadataCachePath, ct);
             }
         }
         #endregion
@@ -178,21 +172,27 @@ namespace LocalCloudStorage
         #endregion
 
         #region Public Methods
-        public void ForceLocalChanges()
+        public async Task ForceLocalChangesAsync(CancellationToken ct)
         {
             //TODO: this uses a deep search method instead of cumulative changes   
+            throw new NotImplementedException();
         }
-        public async Task GenerateLocalMetadataAsync()
+        public async Task GenerateLocalMetadataAsync(CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
             //gets deltas, but doesn't do anything with them
-            await _local.GetDeltasAsync(true);
+            await _local.GetDeltasAsync(true, ct);
         }
-        public async Task ApplyLocalChangesAsync()
+        public async Task ApplyLocalChangesAsync(CancellationToken ct)
         {
-            var localDeltas = await _local.GetDeltasAsync(false);
+            ct.ThrowIfCancellationRequested();
+
+            var localDeltas = await _local.GetDeltasAsync(false, ct);
             foreach (var delta in localDeltas)
             {
-                if(IsBlacklisted(delta.Handle.Path))
+                ct.ThrowIfCancellationRequested();
+
+                if (IsBlacklisted(delta.Handle.Path))
                     continue;
 
                 switch (delta.Type)
@@ -239,25 +239,29 @@ namespace LocalCloudStorage
                 }
             }
 
-            while (!await _remote.ProcessQueueAsync())
+            while (!await _remote.ProcessQueueAsync(ct))
             {
                 //TODO: wait for user intervention
-                await Task.Delay(1000);
+                await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
             }
 
             //also process the local requests, because we may have made
             //  some writable stream requests
-            while (!await _local.ProcessQueueAsync())
+            while (!await _local.ProcessQueueAsync(ct))
             {
                 //TODO: wait for user intervention
-                await Task.Delay(1000);
+                await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
             }
         }
-        public async Task ApplyRemoteChangesAsync()
+        public async Task ApplyRemoteChangesAsync(CancellationToken ct)
         {
-            var remoteDeltas = await _remote.RequestDeltasAsync();
+            ct.ThrowIfCancellationRequested();
+
+            var remoteDeltas = await _remote.RequestDeltasAsync(ct);
             foreach (var delta in remoteDeltas)
             {
+                ct.ThrowIfCancellationRequested();
+
                 if (IsBlacklisted(delta.Handle.Path))
                     continue;
 
@@ -295,7 +299,7 @@ namespace LocalCloudStorage
                             */
                             
                             //this is the same for both creating files and downloading existing ones
-                            await CreateOrDownloadFile(delta);
+                            await CreateOrDownloadFile(delta, ct);
 
                             ////////// END CODE UNDER MAINTINANCE
                         }
@@ -328,7 +332,7 @@ namespace LocalCloudStorage
 
 
                             //this is the same for both creating files and downloading existing ones
-                            await CreateOrDownloadFile(delta);
+                            await CreateOrDownloadFile(delta, ct);
 
                             ////////// END CODE UNDER MAINTINANCE
                         }
@@ -343,24 +347,24 @@ namespace LocalCloudStorage
                         throw new ArgumentOutOfRangeException();
                 }
             }
-
-            while (!await _local.ProcessQueueAsync())
+            while (!await _local.ProcessQueueAsync(ct))
             {
                 //TODO: wait for user intervention
-                await Task.Delay(1000);
+                await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
             }
             
             //also process the remote requests, because we may have made
             //  some download requests
-            while (!await _remote.ProcessQueueAsync())
+            while (!await _remote.ProcessQueueAsync(ct))
             {
                 //TODO: wait for user intervention
-                await Task.Delay(1000);
+                await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
             }
         }
 
-        public async Task ResolveLocalConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        public async Task ResolveLocalConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
             if (_local.TryGetRequest(requestId, out FileStoreRequest request))
             {
                 if (request.Complete)
@@ -374,7 +378,7 @@ namespace LocalCloudStorage
                             case FileStoreRequest.RequestType.Delete: //don't delete the local file and upload it
                             case FileStoreRequest.RequestType.Write:
                                 //cancel the download and submit an upload request
-                                await UploadImmediateAsync(request.Path);
+                                await UploadImmediateAsync(request.Path, ct);
                                 break;
                             case FileStoreRequest.RequestType.Rename:
                                 //don't rename the file and upload both local files
@@ -382,8 +386,8 @@ namespace LocalCloudStorage
                                 var extraData = (request.ExtraData as RequestRenameExtraData);
                                 if (extraData != null)
                                 {
-                                    await UploadImmediateAsync(request.Path);
-                                    await UploadImmediateAsync(PathUtils.GetRenamedPath(request.Path, extraData.NewName));
+                                    await UploadImmediateAsync(request.Path, ct);
+                                    await UploadImmediateAsync(PathUtils.GetRenamedPath(request.Path, extraData.NewName), ct);
                                 }
                                 else
                                 {
@@ -397,8 +401,8 @@ namespace LocalCloudStorage
                                 var extraData = (request.ExtraData as RequestMoveExtraData);
                                 if (extraData != null)
                                 {
-                                    await UploadImmediateAsync(request.Path);
-                                    await UploadImmediateAsync($"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}");
+                                    await UploadImmediateAsync(request.Path, ct);
+                                    await UploadImmediateAsync($"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}", ct);
                                 }
                                 else
                                 {
@@ -418,7 +422,7 @@ namespace LocalCloudStorage
                             case FileStoreRequest.RequestType.Delete: //delete the local file
                             case FileStoreRequest.RequestType.Write:
                                 //delete local file
-                                await _local.RequestDeleteItemImmediateAsync(request.Path);
+                                await _local.RequestDeleteItemImmediateAsync(request.Path, ct);
                                 break;
                             case FileStoreRequest.RequestType.Rename:
                                 //Delete the destination file
@@ -426,7 +430,7 @@ namespace LocalCloudStorage
                                 var extraData = (request.ExtraData as RequestRenameExtraData);
                                 if (extraData != null)
                                 {
-                                    await _local.RequestDeleteItemImmediateAsync(PathUtils.GetRenamedPath(request.Path, extraData.NewName));
+                                    await _local.RequestDeleteItemImmediateAsync(PathUtils.GetRenamedPath(request.Path, extraData.NewName), ct);
                                 }
                                 else
                                 {
@@ -440,7 +444,7 @@ namespace LocalCloudStorage
                                 var extraData = (request.ExtraData as RequestMoveExtraData);
                                 if (extraData != null)
                                 {
-                                    await _local.RequestDeleteItemImmediateAsync($"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}");
+                                    await _local.RequestDeleteItemImmediateAsync($"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}", ct);
                                 }
                                 else
                                 {
@@ -461,7 +465,7 @@ namespace LocalCloudStorage
                             case FileStoreRequest.RequestType.Write:
                                 //rename the local file
                                 await _local.RequestRenameItemImmediateAsync(request.Path,
-                                    PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()));
+                                    PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()), ct);
                                 break;
                             case FileStoreRequest.RequestType.Rename:
                                 //rename the existing destination file
@@ -471,7 +475,7 @@ namespace LocalCloudStorage
                                 {
                                     await _local.RequestRenameItemImmediateAsync(
                                         PathUtils.GetRenamedPath(request.Path, extraData.NewName),
-                                        PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()));
+                                        PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()), ct);
                                 }
                                 else
                                 {
@@ -487,7 +491,7 @@ namespace LocalCloudStorage
                                 {
                                     await _local.RequestRenameItemImmediateAsync(
                                         $"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}",
-                                        PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()));
+                                        PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()), ct);
                                 }
                                 else
                                 {
@@ -512,7 +516,7 @@ namespace LocalCloudStorage
                 Debug.WriteLine($"Cannot resolve local conflict with request id: {requestId} because it could not be found");
             }
         }
-        public async Task ResolveRemoteConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        public async Task ResolveRemoteConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution, CancellationToken ct)
         {
             throw new NotImplementedException();
             //TODO: at this point no remote requests have conflict handling...
@@ -533,10 +537,10 @@ namespace LocalCloudStorage
         /// Loads the metadata from the disc
         /// </summary>
         /// <returns></returns>
-        public async Task LoadMetadataAsync()
+        public async Task LoadMetadataAsync(CancellationToken ct)
         {
-            var task1 = LoadRemoteItemMetadataCacheAsync();
-            var task2 = LoadLocalItemMetadataCacheAsync();
+            var task1 = LoadRemoteItemMetadataCacheAsync(ct);
+            var task2 = LoadLocalItemMetadataCacheAsync(ct);
             await task1;
             await task2;
         }
@@ -544,10 +548,10 @@ namespace LocalCloudStorage
         /// Saves the metadata to the disc
         /// </summary>
         /// <returns></returns>
-        public async Task SaveMetadataAsync()
+        public async Task SaveMetadataAsync(CancellationToken ct)
         {
-            var task1 = SaveRemoteItemMetadataCacheAsync();
-            var task2 = SaveLocalItemMetadataCacheAsync();
+            var task1 = SaveRemoteItemMetadataCacheAsync(ct);
+            var task2 = SaveLocalItemMetadataCacheAsync(ct);
             await task1;
             await task2;
         }

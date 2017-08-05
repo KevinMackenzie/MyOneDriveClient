@@ -11,6 +11,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using LocalCloudStorage;
@@ -56,15 +57,16 @@ namespace MyOneDriveClient.OneDrive
         }
 
         #region IRemoteFileStoreConnection
-        public async Task<DeltaPage> GetDeltasAsync(string deltaLink)
+        public async Task<DeltaPage> GetDeltasAsync(string deltaLink, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
             List<IRemoteItemUpdate> allDeltas = new List<IRemoteItemUpdate>();
             var nextPage = deltaLink;
             DeltaPage deltaPage = null;
             do
             {
                 //get the delta page
-                deltaPage = await GetDeltasPageAsync(nextPage);
+                deltaPage = await GetDeltasPageAsync(nextPage, ct);
 
                 //copy its contents to our list
                 allDeltas.AddRange(deltaPage);
@@ -79,8 +81,9 @@ namespace MyOneDriveClient.OneDrive
             ret.AddRange(allDeltas);
             return ret;
         }
-        public async Task<DeltaPage> GetDeltasPageAsync(string deltaLink)
+        public async Task<DeltaPage> GetDeltasPageAsync(string deltaLink, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
             string downloadUrl = "";
             if (string.IsNullOrEmpty(deltaLink))
             {
@@ -90,22 +93,23 @@ namespace MyOneDriveClient.OneDrive
             {
                 downloadUrl = deltaLink;
             }
-            return await GetDeltasPageInternalAsync(downloadUrl);
+            return await GetDeltasPageInternalAsync(downloadUrl, ct);
         }
-        public async Task<DeltaPage> GetDeltasPageAsync(DeltaPage prevPage)
+        public async Task<DeltaPage> GetDeltasPageAsync(DeltaPage prevPage, CancellationToken ct)
         {
             if (prevPage == null)
-                return await GetDeltasAsync("");
+                return await GetDeltasAsync("", ct);
 
-            return await GetDeltasPageInternalAsync(prevPage.NextPage ?? prevPage.DeltaLink);
+            return await GetDeltasPageInternalAsync(prevPage.NextPage ?? prevPage.DeltaLink, ct);
         }
-        private async Task<DeltaPage> GetDeltasPageInternalAsync(string downloadUrl)
+        private async Task<DeltaPage> GetDeltasPageInternalAsync(string downloadUrl, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
             string nextPage = null;
             string deltaLink = null;
 
 
-            var httpResponse = await AuthenticatedHttpRequestAsync(downloadUrl, HttpMethod.Get);
+            var httpResponse = await AuthenticatedHttpRequestAsync(downloadUrl, HttpMethod.Get, ct);
             string json = await ReadResponseAsStringAsync(httpResponse);
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
@@ -129,11 +133,11 @@ namespace MyOneDriveClient.OneDrive
         }
 
 
-        public async Task<HttpResult<string>> GetItemMetadataAsync(string remotePath)
+        public async Task<HttpResult<string>> GetItemMetadataAsync(string remotePath, CancellationToken ct)
         {
-            return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
+            return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}", ct);
         }
-        public async Task<HttpResult<IRemoteItemHandle>> GetItemHandleAsync(string remotePath)
+        public async Task<HttpResult<IRemoteItemHandle>> GetItemHandleAsync(string remotePath, CancellationToken ct)
         {
             string url;
             if (remotePath == "" || remotePath == "/")
@@ -144,14 +148,14 @@ namespace MyOneDriveClient.OneDrive
             {
                 url = $"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}";
             }
-            return await GetItemHandleByUrlAsync(url);
+            return await GetItemHandleByUrlAsync(url, ct);
         }
         private static int _4MB = 4 * 1024 * 1024;
-        public async Task<HttpResult<IRemoteItemHandle>> UploadFileAsync(string remotePath, Stream data)
+        public async Task<HttpResult<IRemoteItemHandle>> UploadFileAsync(string remotePath, Stream data, CancellationToken ct)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data, ct);
         }
-        public async Task<HttpResult<IRemoteItemHandle>> CreateFolderAsync(string remotePath)
+        public async Task<HttpResult<IRemoteItemHandle>> CreateFolderAsync(string remotePath, CancellationToken ct)
         {
             //var httpEncodedPath = HttpUtility.UrlEncode(remotePath);
             //if (httpEncodedPath == null)
@@ -175,7 +179,7 @@ namespace MyOneDriveClient.OneDrive
                 }
             }
 
-            var httpResponse = await AuthenticatedHttpRequestAsync(parentUrl, HttpMethod.Get);
+            var httpResponse = await AuthenticatedHttpRequestAsync(parentUrl, HttpMethod.Get, ct);
             string json = await ReadResponseAsStringAsync(httpResponse);
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
@@ -183,40 +187,40 @@ namespace MyOneDriveClient.OneDrive
             if (parentId == null)
                 return null;
 
-            return await CreateFolderByIdAsync(parentId, folderName);
+            return await CreateFolderByIdAsync(parentId, folderName, ct);
         }
-        public async Task<HttpResult<bool>> DeleteItemAsync(string remotePath)
+        public async Task<HttpResult<bool>> DeleteItemAsync(string remotePath, CancellationToken ct)
         {
-            return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}");
+            return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}", ct);
         }
-        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json)
+        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json, CancellationToken ct)
         {
-            return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}", json);
+            return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/root:{HttpUtility.UrlEncode(remotePath)}", json, ct);
         }
-        public async Task<HttpResult<IRemoteItemHandle>> RenameItemAsync(string remotePath, string newName)
+        public async Task<HttpResult<IRemoteItemHandle>> RenameItemAsync(string remotePath, string newName, CancellationToken ct)
         {
-            return await UpdateItemAsync(remotePath, $"{{ \"name\": \"{newName}\" }}");
+            return await UpdateItemAsync(remotePath, $"{{ \"name\": \"{newName}\" }}", ct);
         }
 
 
-        public async Task<HttpResult<string>> GetItemMetadataByIdAsync(string id)
+        public async Task<HttpResult<string>> GetItemMetadataByIdAsync(string id, CancellationToken ct)
         {
-            return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/items/{id}");
+            return await GetItemMetadataByUrlAsync($"{_onedriveEndpoint}/items/{id}", ct);
         }
-        public async Task<HttpResult<IRemoteItemHandle>> GetItemHandleByIdAsync(string id)
+        public async Task<HttpResult<IRemoteItemHandle>> GetItemHandleByIdAsync(string id, CancellationToken ct)
         {
-            return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/items/{id}");
+            return await GetItemHandleByUrlAsync($"{_onedriveEndpoint}/items/{id}", ct);
         }
-        public async Task<HttpResult<IRemoteItemHandle>> UploadFileByIdAsync(string parentId, string name, Stream data)
+        public async Task<HttpResult<IRemoteItemHandle>> UploadFileByIdAsync(string parentId, string name, Stream data, CancellationToken ct)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data, ct);
         }
-        public async Task<HttpResult<IRemoteItemHandle>> CreateFolderByIdAsync(string parentId, string name)
+        public async Task<HttpResult<IRemoteItemHandle>> CreateFolderByIdAsync(string parentId, string name, CancellationToken ct)
         {
             string requestUrl = $"{_onedriveEndpoint}/items/{parentId}/children";
             string requestJson = $"{{\"name\": \"{name}\", \"folder\": {{}} }}";
 
-            var httpResponse = await AuthenticatedHttpRequestAsync(requestUrl, HttpMethod.Post, requestJson);
+            var httpResponse = await AuthenticatedHttpRequestAsync(requestUrl, HttpMethod.Post, requestJson, ct);
             if (!httpResponse.IsSuccessStatusCode)
             {
                 return new HttpResult<IRemoteItemHandle>(httpResponse, null);
@@ -227,36 +231,36 @@ namespace MyOneDriveClient.OneDrive
 
             return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, obj));
         }
-        public async Task<HttpResult<bool>> DeleteItemByIdAsync(string id)
+        public async Task<HttpResult<bool>> DeleteItemByIdAsync(string id, CancellationToken ct)
         {
-            return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/items/{id}");
+            return await DeleteFileByUrlAsync($"{_onedriveEndpoint}/items/{id}", ct);
         }
-        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json)
+        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json, CancellationToken ct)
         {
-            return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/items/{id}", json);
+            return await UpdateItemByUrlAsync($"{_onedriveEndpoint}/items/{id}", json, ct);
         }
-        public async Task<HttpResult<IRemoteItemHandle>> RenameItemByIdAsync(string id, string newName)
+        public async Task<HttpResult<IRemoteItemHandle>> RenameItemByIdAsync(string id, string newName, CancellationToken ct)
         {
-            return await UpdateItemByIdAsync(id, $"{{ \"name\": \"{newName}\" }}");
+            return await UpdateItemByIdAsync(id, $"{{ \"name\": \"{newName}\" }}", ct);
         }
-        public async Task<HttpResult<IRemoteItemHandle>> MoveItemByIdAsync(string id, string newParentId)
+        public async Task<HttpResult<IRemoteItemHandle>> MoveItemByIdAsync(string id, string newParentId, CancellationToken ct)
         {
-            return await UpdateItemByIdAsync(id, $"{{ \"parentReference\": {{ \"id\": \"{newParentId}\" }} }}");
+            return await UpdateItemByIdAsync(id, $"{{ \"parentReference\": {{ \"id\": \"{newParentId}\" }} }}", ct);
         }
 
 
         #region Helper Methods
-        private async Task<HttpResult<string>> GetItemMetadataByUrlAsync(string url)
+        private async Task<HttpResult<string>> GetItemMetadataByUrlAsync(string url, CancellationToken ct)
         {
-            var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Get);
+            var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Get, ct);
             return !httpResponse.IsSuccessStatusCode ? 
                 new HttpResult<string>(httpResponse, null) : 
                 new HttpResult<string>(httpResponse, await ReadResponseAsStringAsync(httpResponse));
         }
-        private async Task<HttpResult<IRemoteItemHandle>> GetItemHandleByUrlAsync(string url)
+        private async Task<HttpResult<IRemoteItemHandle>> GetItemHandleByUrlAsync(string url, CancellationToken ct)
         {
             //get the download URL
-            var result = await GetItemMetadataByUrlAsync(url);
+            var result = await GetItemMetadataByUrlAsync(url, ct);
             if (result.Value == null)
                 return new HttpResult<IRemoteItemHandle>(result.HttpMessage, null);
 
@@ -266,7 +270,7 @@ namespace MyOneDriveClient.OneDrive
             //now download the text
             return new HttpResult<IRemoteItemHandle>(result.HttpMessage, new OneDriveRemoteFileHandle(this, metadataObj));
         }
-        private async Task<HttpResult<IRemoteItemHandle>> UploadFileByUrlAsync(string url, Stream data)
+        private async Task<HttpResult<IRemoteItemHandle>> UploadFileByUrlAsync(string url, Stream data, CancellationToken ct)
         {
             if (data.Length > _4MB) //if data > 4MB, then use chunked upload
             {
@@ -274,7 +278,7 @@ namespace MyOneDriveClient.OneDrive
             }
             else //use regular upload
             {
-                var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Put, data);
+                var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Put, data, ct);
                 if (!httpResponse.IsSuccessStatusCode) 
                     return new HttpResult<IRemoteItemHandle>(httpResponse, null);
 
@@ -283,17 +287,17 @@ namespace MyOneDriveClient.OneDrive
                 return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, metadataObj));
             }
         }
-        private async Task<HttpResult<bool>> DeleteFileByUrlAsync(string url)
+        private async Task<HttpResult<bool>> DeleteFileByUrlAsync(string url, CancellationToken ct)
         {
-            var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Delete);
+            var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Delete, ct);
             return new HttpResult<bool>(httpResponse,
                 httpResponse.StatusCode == HttpStatusCode.NotFound ||
                 httpResponse.StatusCode == HttpStatusCode.NoContent);
         }
         private HttpMethod _patch = new HttpMethod("PATCH");
-        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemByUrlAsync(string url, string json)
+        private async Task<HttpResult<IRemoteItemHandle>> UpdateItemByUrlAsync(string url, string json, CancellationToken ct)
         {
-            var httpResponse = await AuthenticatedHttpRequestAsync(url, _patch, json);
+            var httpResponse = await AuthenticatedHttpRequestAsync(url, _patch, json, ct);
             if (!httpResponse.IsSuccessStatusCode) 
                 return new HttpResult<IRemoteItemHandle>(httpResponse, null);
 
@@ -359,9 +363,9 @@ namespace MyOneDriveClient.OneDrive
         #endregion
 
 
-        private async Task<HttpResult<Stream>> DownloadFileWithLinkAsync(string downloadUrl)
+        private async Task<HttpResult<Stream>> DownloadFileWithLinkAsync(string downloadUrl, CancellationToken ct)
         {
-            var result = await AuthenticatedHttpRequestAsync(downloadUrl, HttpMethod.Get);
+            var result = await AuthenticatedHttpRequestAsync(downloadUrl, HttpMethod.Get, ct);
             if (!result.IsSuccessStatusCode)
             {
                 return new HttpResult<Stream>(result, null);
@@ -489,6 +493,11 @@ namespace MyOneDriveClient.OneDrive
             {
                 return Sha1;
             }
+            public async Task<string> GetSha1HashAsync(CancellationToken ct)
+            {
+                ct.ThrowIfCancellationRequested();
+                return _sha1Hash;
+            }
             public DateTime LastModified
             {
                 get
@@ -510,13 +519,13 @@ namespace MyOneDriveClient.OneDrive
                     return _lastModified;
                 }
             }
-            public async Task<Stream> GetFileDataAsync()
+            public async Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
-                return (await TryGetFileDataAsync())?.Value;
+                return (await TryGetFileDataAsync(ct))?.Value;
             }
-            public async Task<HttpResult<Stream>> TryGetFileDataAsync()
+            public async Task<HttpResult<Stream>> TryGetFileDataAsync(CancellationToken ct)
             {
-                return await _fileStore.DownloadFileWithLinkAsync(_downloadUrl);
+                return await _fileStore.DownloadFileWithLinkAsync(_downloadUrl, ct);
             }
             #endregion
         }
@@ -527,40 +536,40 @@ namespace MyOneDriveClient.OneDrive
         /// <param name="url"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, Stream body, IEnumerable<KeyValuePair<string, string>> headers = null)
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, Stream body, CancellationToken ct, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
             if (body != null)
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, new StreamContent(body), headers);
+                return await AuthenticatedHttpRequestAsync(url, verb, ct, new StreamContent(body), headers);
             }
             else
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null, headers);
+                return await AuthenticatedHttpRequestAsync(url, verb, ct, (HttpContent)null, headers);
             }
         }
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, string body, IEnumerable<KeyValuePair<string, string>> headers = null)
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, string body, CancellationToken ct, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
             if (body != null)
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, new StringContent(body, Encoding.UTF8, "application/json"), headers);
+                return await AuthenticatedHttpRequestAsync(url, verb, ct, new StringContent(body, Encoding.UTF8, "application/json"), headers);
             }
             else
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null, headers);
+                return await AuthenticatedHttpRequestAsync(url, verb, ct, (HttpContent)null, headers);
             }
         }
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, byte[] body, IEnumerable<KeyValuePair<string, string>> headers = null)
+        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, byte[] body, CancellationToken ct, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
             if (body != null)
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, new MemoryStream(body), headers);
+                return await AuthenticatedHttpRequestAsync(url, verb, new MemoryStream(body), ct, headers);
             }
             else
             {
-                return await AuthenticatedHttpRequestAsync(url, verb, (HttpContent)null, headers);
+                return await AuthenticatedHttpRequestAsync(url, verb, ct, (HttpContent)null, headers);
             }
         }
-        private async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, HttpContent content = null, IEnumerable<KeyValuePair<string, string>> headers = null)
+        private async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, CancellationToken ct, HttpContent content = null, IEnumerable<KeyValuePair<string, string>> headers = null)
         {
             if(_httpClient == null)
                 throw new Exception("Attempt to call http request before authentication!");
@@ -578,7 +587,7 @@ namespace MyOneDriveClient.OneDrive
                 }
             }
             var response = await _httpClient.SendAsync(request, 
-                HttpCompletionOption.ResponseHeadersRead); //ONLY Read the headers, because reading the content will make this function last until the contents are downloaded (see issue #28)
+                HttpCompletionOption.ResponseHeadersRead, ct); //ONLY Read the headers, because reading the content will make this function last until the contents are downloaded (see issue #28)
             return response;
         }
         public async Task<string> ReadResponseAsStringAsync(HttpResponseMessage message)

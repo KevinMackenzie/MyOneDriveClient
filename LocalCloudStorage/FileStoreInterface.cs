@@ -60,7 +60,7 @@ namespace LocalCloudStorage
                 if (ct.IsCancellationRequested)
                     break;
 
-                while (!await ProcessQueueAsync())
+                while (!await ProcessQueueAsync(ct))
                 {
                     //something failed (failed request, or limbo), so we should wait a little bit before trying again
                     await Utils.DelayNoThrow(errorDelay, ct);
@@ -72,7 +72,7 @@ namespace LocalCloudStorage
         #endregion
 
         #region Abstract Methods
-        protected abstract Task<bool> ProcessQueueItemAsync(FileStoreRequest request);
+        protected abstract Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct);
         #endregion
 
         #region Protected Methods
@@ -110,10 +110,10 @@ namespace LocalCloudStorage
             InvokeStatusChanged(request);
             return request.RequestId;
         }
-        protected async Task<FileStoreRequest> ProcessRequestAsync(FileStoreRequest request)
+        protected async Task<FileStoreRequest> ProcessRequestAsync(FileStoreRequest request, CancellationToken ct)
         {
             InvokeStatusChanged(request);
-            if (await ProcessQueueItemAsync(request))
+            if (await ProcessQueueItemAsync(request, ct))
             {
                 _completedRequests.Add(request);
             }
@@ -152,7 +152,7 @@ namespace LocalCloudStorage
         /// </summary>
         /// <param name="requestId">the id of the request to wait for</param>
         /// <returns>the request with that id</returns>
-        public async Task<FileStoreRequest> AwaitRequest(int requestId)
+        public async Task<FileStoreRequest> AwaitRequest(int requestId, CancellationToken ct)
         {
             if (TryGetRequest(requestId, out FileStoreRequest request))
             {
@@ -169,6 +169,8 @@ namespace LocalCloudStorage
 
                 while (!cts.IsCancellationRequested)
                 {
+                    ct.ThrowIfCancellationRequested();
+
                     if (request.Complete)//if the event handler didn't catch it
                         break;
                     await Utils.DelayNoThrow(TimeSpan.FromMilliseconds(50), cts.Token);
@@ -243,10 +245,12 @@ namespace LocalCloudStorage
         ///  the user needs to be prompted
         /// </summary>
         /// <returns>whether the queue was successfully emptied</returns>
-        public async Task<bool> ProcessQueueAsync()
+        public async Task<bool> ProcessQueueAsync(CancellationToken ct)
         {
             while (_requests.TryPeek(out FileStoreRequest request))
             {
+                ct.ThrowIfCancellationRequested();
+
                 if (!_limboRequests.IsEmpty)
                     return false; //stop on a limbo request
 
@@ -257,7 +261,7 @@ namespace LocalCloudStorage
                     continue;
                 }
 
-                var dequeue = await ProcessQueueItemAsync(request);
+                var dequeue = await ProcessQueueItemAsync(request, ct);
 
                 //should we dequeue the item?
                 if (dequeue)

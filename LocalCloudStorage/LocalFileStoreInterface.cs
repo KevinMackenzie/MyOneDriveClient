@@ -32,15 +32,18 @@ namespace LocalCloudStorage
             /// <inheritdoc />
             public long Size => throw new NotSupportedException();
             /// <inheritdoc />
-            public Task<string> GetSha1HashAsync() => throw new NotSupportedException();
+            public Task<string> GetSha1HashAsync(CancellationToken ct) => throw new NotSupportedException();
+            /// <inheritdoc />
             public string SHA1Hash => throw new NotSupportedException();
             /// <inheritdoc />
             public DateTime LastModified { get; }
             /// <inheritdoc />
-            public Task<Stream> GetFileDataAsync()
+            public Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
                 throw new NotSupportedException();
             }
+            /// <inheritdoc />
+            public Task<string> GetSha1HashAsync() => throw new NotSupportedException();
         }
         private class LocalRemoteItemHandle : IRemoteItemHandle
         {
@@ -67,7 +70,7 @@ namespace LocalCloudStorage
             /// <inheritdoc />
             public DateTime LastModified => _handle.LastModified;
             /// <inheritdoc />
-            public Task<Stream> GetFileDataAsync()
+            public Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
                 throw new NotSupportedException();
             }
@@ -75,9 +78,14 @@ namespace LocalCloudStorage
             public string Id { get; }
             /// <inheritdoc />
             public string ParentId { get; }
+            /// <inheritdoc />
+            public async Task<string> GetSha1HashAsync(CancellationToken ct)
+            {
+                return _sha1;
+            }
 
             /// <inheritdoc />
-            public Task<HttpResult<Stream>> TryGetFileDataAsync()
+            public Task<HttpResult<Stream>> TryGetFileDataAsync(CancellationToken ct)
             {
                 throw new NotSupportedException();
             }
@@ -148,6 +156,10 @@ namespace LocalCloudStorage
         }
 
         #region Private Methods
+        private async Task<IRemoteItemHandle> GetMetadataHandleAsync(IItemHandle handle, string id, string parentId, CancellationToken ct)
+        {
+            return new LocalRemoteItemHandle(handle, id, parentId, await handle.GetSha1HashAsync(ct));
+        }
         private async Task<IRemoteItemHandle> GetMetadataHandleAsync(IItemHandle handle, string id, string parentId)
         {
             return new LocalRemoteItemHandle(handle, id, parentId, await handle.GetSha1HashAsync());
@@ -385,10 +397,10 @@ namespace LocalCloudStorage
                 return true;
             }
         }
-        private bool CreateReadOnlyHandle(FileStoreRequest request)
+        private async Task<bool> CreateReadOnlyHandleAsync(FileStoreRequest request, CancellationToken ct)
         {
             var itemHandle = _local.GetFileHandle(request.Path);
-            var stream = itemHandle.GetFileDataAsync().Result;
+            var stream = await itemHandle.GetFileDataAsync(ct);
             if (stream == null)
             {
                 //this means something is blocking the file from being read from...
@@ -480,7 +492,7 @@ namespace LocalCloudStorage
             return success;
         }
 
-        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request)
+        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct)
         {
             /*
              * 
@@ -633,10 +645,10 @@ namespace LocalCloudStorage
                                 else
                                 {
                                     _metadata.AddItemMetadata(await GetMetadataHandleAsync(fileHandle,
-                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id, ct));
                                 }
                             }
-                            return CreateReadOnlyHandle(request);
+                            return await CreateReadOnlyHandleAsync(request, ct);
 
                         }
                     }
@@ -744,7 +756,7 @@ namespace LocalCloudStorage
                                     //no metadata though, so add it
                                     _metadata.AddOrUpdateItemMetadata(await GetMetadataHandleAsync(
                                         folderHandle, _metadata.GetNextItemId().ToString(),
-                                        parentMetadata.Id));
+                                        parentMetadata.Id, ct));
                                 }
                                 return ret;
                             }
@@ -781,7 +793,7 @@ namespace LocalCloudStorage
             }
         }
 
-        private async Task<IEnumerable<ItemDelta>> GetEventDeltas()
+        private async Task<IEnumerable<ItemDelta>> GetEventDeltas(CancellationToken ct)
         {
             List<ItemDelta> filteredDeltas = new List<ItemDelta>();
             while (_localDeltas.TryDequeue(out ItemDelta result))
@@ -796,12 +808,12 @@ namespace LocalCloudStorage
                             if (_local.ItemExists(result.Handle.Path))
                             {
                                 _metadata.AddItemMetadata(await GetMetadataHandleAsync(result.Handle,
-                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id, ct));
 
                                 if (result.Handle.IsFolder)
                                 {
                                     //when creating a folder, scan its contents because it may have been copied over
-                                    await DeepScanForChanges(result.Handle.Path);
+                                    await DeepScanForChanges(result.Handle.Path, ct);
                                 }
                             }
                             else
@@ -894,7 +906,7 @@ namespace LocalCloudStorage
                         if (itemMetadata == null)
                         {
                             _metadata.AddItemMetadata(await GetMetadataHandleAsync(result.Handle,
-                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                _metadata.GetNextItemId().ToString(), parentMetadata.Id, ct));
                         }
                         else
                         {
@@ -903,7 +915,7 @@ namespace LocalCloudStorage
                         break;
                     case ItemDelta.DeltaType.Modified:
                         itemMetadata.LastModified = result.Handle.LastModified;
-                        itemMetadata.Sha1 = await result.Handle.GetSha1HashAsync();
+                        itemMetadata.Sha1 = await result.Handle.GetSha1HashAsync(ct);
                         break;
                     case ItemDelta.DeltaType.Moved:
                         break;
@@ -918,10 +930,10 @@ namespace LocalCloudStorage
 
             return (IEnumerable<ItemDelta>)filteredDeltas;
         }
-        private async Task DeepScanForChanges(string path)
+        private async Task DeepScanForChanges(string path, CancellationToken ct)
         {
             //get the local items
-            var items = await _local.EnumerateItemsAsync(path);
+            var items = await _local.EnumerateItemsAsync(path, ct);
             
             //remove the first item
             items.RemoveAt(0);
@@ -996,13 +1008,13 @@ namespace LocalCloudStorage
         /// <remarks>Call this method with <see cref="comprehensive"/> as true only
         ///  when there is a high likely hood that there were local changes that were 
         /// missed while the application was closed</remarks>
-        public async Task<IEnumerable<ItemDelta>> GetDeltasAsync(bool comprehensive = false)
+        public async Task<IEnumerable<ItemDelta>> GetDeltasAsync(bool comprehensive, CancellationToken ct)
         {
             if (comprehensive)
             {
-                await DeepScanForChanges("/");
+                await DeepScanForChanges("/", ct);
             }
-            return await GetEventDeltas();
+            return await GetEventDeltas(ct);
         }
 
         /// <summary>
@@ -1069,7 +1081,7 @@ namespace LocalCloudStorage
         }
 
 
-        public async Task<FileStoreRequest> RequestWritableStreamImmediateAsync(string path, string sha1, DateTime lastModified)
+        public async Task<FileStoreRequest> RequestWritableStreamImmediateAsync(string path, string sha1, DateTime lastModified, CancellationToken ct)
         {
             FileStoreRequest ret = null;
             await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, 
@@ -1077,10 +1089,10 @@ namespace LocalCloudStorage
                 (request) =>
                 {
                     ret = request;
-                })));
+                })), ct);
             return ret;
         }
-        public async Task<FileStoreRequest> RequestReadOnlyStreamImmediateAsync(string path)
+        public async Task<FileStoreRequest> RequestReadOnlyStreamImmediateAsync(string path, CancellationToken ct)
         {
             FileStoreRequest ret = null;
             await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
@@ -1088,37 +1100,37 @@ namespace LocalCloudStorage
                     (request) =>
                     {
                         ret = request;
-                    })));
+                    })), ct);
             return ret;
         }
-        public async Task RequestDeleteItemImmediateAsync(string path)
+        public async Task RequestDeleteItemImmediateAsync(string path, CancellationToken ct)
         {
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null), ct);
         }
-        public async Task RequestRenameItemImmediateAsync(string path, string newName)
+        public async Task RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct)
         {
             await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
-                new RequestRenameExtraData(newName)));
+                new RequestRenameExtraData(newName)), ct);
         }
 
         
         //TODO: the two methods below are REALLY bad b/c they do no null/exception checking
 
-        public async Task SaveNonSyncFile(string path, string content)
+        public async Task SaveNonSyncFile(string path, string content, CancellationToken ct)
         {
             var itemHandle = _local.GetFileHandle(path);
             using (var writableStream = itemHandle.GetWritableStream())
             {
                 using (var contentStream = content.ToStream(Encoding.UTF8))
                 {
-                    await contentStream.CopyToStreamAsync(writableStream);
+                    await contentStream.CopyToStreamAsync(writableStream, ct);
                 }
             }
             _local.SetItemAttributes(path, FileAttributes.Hidden);
         }
-        public async Task<string> ReadNonSyncFile(string path)
+        public async Task<string> ReadNonSyncFile(string path, CancellationToken ct)
         {
-            return await (await _local.GetFileHandle(path).GetFileDataAsync()).ReadAllToStringAsync(Encoding.UTF8);
+            return await (await _local.GetFileHandle(path).GetFileDataAsync(ct)).ReadAllToStringAsync(Encoding.UTF8);
         }
         #endregion
 

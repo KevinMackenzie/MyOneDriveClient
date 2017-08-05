@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LocalCloudStorage
@@ -13,6 +14,7 @@ namespace LocalCloudStorage
         string Path { get; }
         string Name { get; }
         long Size { get; }
+        Task<string> GetSha1HashAsync(CancellationToken ct);
         Task<string> GetSha1HashAsync();
         DateTime LastModified { get; }
         //DateTime Created { get; } (less important)
@@ -20,6 +22,6 @@ namespace LocalCloudStorage
         /// Gets a stream to this item's data, null if failed or <see cref="IsFolder"/> is true
         /// </summary>
         /// <returns></returns>
-        Task<Stream> GetFileDataAsync();
+        Task<Stream> GetFileDataAsync(CancellationToken ct);
     }
 }

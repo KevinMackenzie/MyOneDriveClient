@@ -45,11 +45,16 @@ namespace LocalCloudStorage
                 return await _itemHandle.GetSha1HashAsync();
             }
             /// <inheritdoc />
+            public async Task<string> GetSha1HashAsync(CancellationToken ct)
+            {
+                return await _itemHandle.GetSha1HashAsync(ct);
+            }
+            /// <inheritdoc />
             public DateTime LastModified => _itemHandle.LastModified;
             /// <inheritdoc />
-            public Task<Stream> GetFileDataAsync()
+            public Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
-                return _itemHandle.GetFileDataAsync();
+                return _itemHandle.GetFileDataAsync(ct);
             }
 
             public string Path { get; }
@@ -120,8 +125,10 @@ namespace LocalCloudStorage
             }
         }
 
-        private async Task<bool> UploadFileWithProgressAsync(string parentId, bool isNew, Stream readFrom, FileStoreRequest request)
+        private async Task<bool> UploadFileWithProgressAsync(string parentId, bool isNew, Stream readFrom, FileStoreRequest request, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
+
             HttpResult<IRemoteItemHandle> uploadResult; 
             //wrap the local stream to track read progress of local file
             using (readFrom)
@@ -135,7 +142,7 @@ namespace LocalCloudStorage
                 InvokeStatusChanged(request);
 
                 //make the upload request
-                uploadResult = await _remote.UploadFileByIdAsync(parentId, PathUtils.GetItemName(request.Path), wrapper);
+                uploadResult = await _remote.UploadFileByIdAsync(parentId, PathUtils.GetItemName(request.Path), wrapper, ct);
             }
 
             //set the request status and error
@@ -149,9 +156,11 @@ namespace LocalCloudStorage
 
             return success;
         }
-        private async Task<bool> DownloadFileWithProgressAsync(string itemId, Stream writeTo, FileStoreRequest request)
+        private async Task<bool> DownloadFileWithProgressAsync(string itemId, Stream writeTo, FileStoreRequest request, CancellationToken ct)
         {
-            var getHandleRequest = await _remote.GetItemHandleByIdAsync(itemId);
+            ct.ThrowIfCancellationRequested();
+
+            var getHandleRequest = await _remote.GetItemHandleByIdAsync(itemId, ct);
             if (!getHandleRequest.Success)
             {
                 SetStatusFromHttpResponse(request, getHandleRequest.HttpMessage);
@@ -162,7 +171,7 @@ namespace LocalCloudStorage
             var remoteItem = getHandleRequest.Value;
 
             //try to get the item
-            var getDataRequest = await remoteItem.TryGetFileDataAsync();
+            var getDataRequest = await remoteItem.TryGetFileDataAsync(ct);
             if (!getDataRequest.Success)
             {
                 //if we failed, then that's what the request should say
@@ -190,7 +199,7 @@ namespace LocalCloudStorage
                     using (writeTo)
                     {
                     //TODO: there are a lot of exceptions to think about here...
-                        await wrapper.CopyToStreamAsync(writeTo);
+                        await wrapper.CopyToStreamAsync(writeTo, ct);
                     }
                     //successfully completed stream
                     request.Status = FileStoreRequest.RequestStatus.Success;
@@ -210,9 +219,9 @@ namespace LocalCloudStorage
 
             return success;
         }
-        private async Task<bool> RenameItemAsync(string itemId, string newName, FileStoreRequest request)
+        private async Task<bool> RenameItemAsync(string itemId, string newName, FileStoreRequest request, CancellationToken ct)
         {
-            var response = await _remote.RenameItemByIdAsync(itemId, newName);
+            var response = await _remote.RenameItemByIdAsync(itemId, newName, ct);
             SetStatusFromHttpResponse(request, response.HttpMessage);
             var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
@@ -222,9 +231,9 @@ namespace LocalCloudStorage
 
             return success;
         }
-        private async Task<bool> MoveItemAsync(string itemId, string newParentId, FileStoreRequest request)
+        private async Task<bool> MoveItemAsync(string itemId, string newParentId, FileStoreRequest request, CancellationToken ct)
         {
-            var response = await _remote.MoveItemByIdAsync(itemId, newParentId);
+            var response = await _remote.MoveItemByIdAsync(itemId, newParentId, ct);
             SetStatusFromHttpResponse(request, response.HttpMessage);
             var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
@@ -234,9 +243,9 @@ namespace LocalCloudStorage
 
             return success;
         }
-        private async Task<bool> CreateItemAsync(string parentId, string name, FileStoreRequest request)
+        private async Task<bool> CreateItemAsync(string parentId, string name, FileStoreRequest request, CancellationToken ct)
         {
-            var response = await _remote.CreateFolderByIdAsync(parentId, name);
+            var response = await _remote.CreateFolderByIdAsync(parentId, name, ct);
             SetStatusFromHttpResponse(request, response.HttpMessage);
             var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
@@ -246,9 +255,9 @@ namespace LocalCloudStorage
 
             return success;
         }
-        private async Task<bool> DeleteItemAsync(string itemId, FileStoreRequest request)
+        private async Task<bool> DeleteItemAsync(string itemId, FileStoreRequest request, CancellationToken ct)
         {
-            var response = await _remote.DeleteItemByIdAsync(itemId);
+            var response = await _remote.DeleteItemByIdAsync(itemId, ct);
             SetStatusFromHttpResponse(request, response.HttpMessage);
             var success = request.Status == FileStoreRequest.RequestStatus.Success;
 
@@ -259,8 +268,10 @@ namespace LocalCloudStorage
             return success;
         }
 
-        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request)
+        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
+
             var itemMetadata = _metadata.GetItemMetadata(request.Path);
             //since only this class has access to the queue, we have good confidence that 
             //the appropriate extra data will be with the appropriate request type
@@ -287,14 +298,14 @@ namespace LocalCloudStorage
                             {
                                 //We found the parent, so upload this child to it
                                 return await UploadFileWithProgressAsync(parentMetadata.Id, true,
-                                    data.StreamFrom, request);
+                                    data.StreamFrom, request, ct);
                             }
                         }
                         else
                         {
                             //the item already exists, so upload a new version
                             return await UploadFileWithProgressAsync(itemMetadata.ParentId, false,
-                                data.StreamFrom, request);
+                                data.StreamFrom, request, ct);
                         }
 
                     }
@@ -314,7 +325,7 @@ namespace LocalCloudStorage
                         if (itemMetadata != null)
                         {
                             //item exists already, so download it
-                            return await DownloadFileWithProgressAsync(itemMetadata.Id, data.StreamTo, request);
+                            return await DownloadFileWithProgressAsync(itemMetadata.Id, data.StreamTo, request, ct);
                         }
                         else
                         {
@@ -344,7 +355,7 @@ namespace LocalCloudStorage
                         else
                         {
                             //rename the file
-                            return await RenameItemAsync(itemMetadata.Id, data.NewName, request);
+                            return await RenameItemAsync(itemMetadata.Id, data.NewName, request, ct);
                         }
                     }
                     else
@@ -377,7 +388,7 @@ namespace LocalCloudStorage
                             else
                             {
                                 //item exists, so move it
-                                return await MoveItemAsync(itemMetadata.Id, parentMetadata.Id, request);
+                                return await MoveItemAsync(itemMetadata.Id, parentMetadata.Id, request, ct);
                             }
                         }
                     }
@@ -399,7 +410,7 @@ namespace LocalCloudStorage
                     }
                     else
                     {
-                        return await CreateItemAsync(parentMetadata.Id, PathUtils.GetItemName(request.Path), request);
+                        return await CreateItemAsync(parentMetadata.Id, PathUtils.GetItemName(request.Path), request, ct);
                     }
                 }
                     break;
@@ -413,7 +424,7 @@ namespace LocalCloudStorage
                     }
                     else
                     {
-                        return await DeleteItemAsync(itemMetadata.Id, request);
+                        return await DeleteItemAsync(itemMetadata.Id, request, ct);
                     }
                 }
                     break;
@@ -502,21 +513,21 @@ namespace LocalCloudStorage
         }
 
 
-        public async Task RequestUploadImmediateAsync(string path, Stream streamFrom)
+        public async Task RequestUploadImmediateAsync(string path, Stream streamFrom, CancellationToken ct)
         {
             await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path,
-                new RequestUploadExtraData(streamFrom)));
+                new RequestUploadExtraData(streamFrom)), ct);
         }
-        public async Task RequestFileDownloadImmediateAsync(string path, Stream streamTo)
+        public async Task RequestFileDownloadImmediateAsync(string path, Stream streamTo, CancellationToken ct)
         {
             await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
-                new RequestDownloadExtraData(streamTo)));
+                new RequestDownloadExtraData(streamTo)), ct);
         }
-        public async Task RequestDeleteItemImmediateAsync(string path)
+        public async Task RequestDeleteItemImmediateAsync(string path, CancellationToken ct)
         {
             throw new NotImplementedException();
         }
-        public async Task RequestRenameItemImmediateAsync(string path, string newName)
+        public async Task RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct)
         {
             throw new NotImplementedException();
         }
@@ -525,10 +536,10 @@ namespace LocalCloudStorage
         /// Requests the remote deltas since the previous request
         /// </summary>
         /// <returns></returns>
-        public async Task<IEnumerable<ItemDelta>> RequestDeltasAsync()
+        public async Task<IEnumerable<ItemDelta>> RequestDeltasAsync(CancellationToken ct)
         {
             //TODO: this should pause the processing of the queue
-            var deltas = await _remote.GetDeltasAsync(_metadata.DeltaLink);
+            var deltas = await _remote.GetDeltasAsync(_metadata.DeltaLink, ct);
             _metadata.DeltaLink = deltas.DeltaLink;
 
             var filteredDeltas = new List<ItemDelta>();

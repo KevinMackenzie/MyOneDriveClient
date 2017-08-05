@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LocalCloudStorage
@@ -15,6 +16,6 @@ namespace LocalCloudStorage
         string Id { get; }
         string ParentId { get; }
         string Sha1 { get; }
-        Task<HttpResult<Stream>> TryGetFileDataAsync();
+        Task<HttpResult<Stream>> TryGetFileDataAsync(CancellationToken ct);
     }
 }

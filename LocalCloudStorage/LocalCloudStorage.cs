@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LocalCloudStorage
@@ -13,15 +14,7 @@ namespace LocalCloudStorage
     {
         #region Singleton Implementation
         private static LocalCloudStorage _instance;
-        public LocalCloudStorage Instance
-        {
-            get
-            {
-                if(_instance == null)
-                    _instance = new LocalCloudStorage();
-                return _instance;
-            }
-        }
+        public static LocalCloudStorage Instance => _instance ?? (_instance = new LocalCloudStorage());
         #endregion
 
         #region Application-Wide Settings
@@ -37,6 +30,10 @@ namespace LocalCloudStorage
         /// Whether to start the application on startup
         /// </summary>
         public bool StartOnBoot { get; set; }
+        #endregion
+
+        #region Internal variables
+        public CancellationToken AppClosingCancellationToken { get; }
         #endregion
 
         //TODO: implement dependency-injection for cloud storage services

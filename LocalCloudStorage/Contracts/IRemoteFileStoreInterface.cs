@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Events;
 
@@ -10,7 +11,7 @@ namespace LocalCloudStorage.Contracts
 {
     public interface IRemoteFileStoreInterface : IFileStoreInterface
     {
-        Task<IEnumerable<ItemDelta>> RequestDeltasAsync();
+        Task<IEnumerable<ItemDelta>> RequestDeltasAsync(CancellationToken ct);
 
         void RequestUpload(string path, Stream streamFrom);
         void RequestFileDownload(string path, Stream streamTo);
@@ -19,10 +20,10 @@ namespace LocalCloudStorage.Contracts
         void RequestMove(string path, string newParentPath);
         void RequestRename(string path, string newName);
 
-        Task RequestUploadImmediateAsync(string path, Stream streamFrom);
-        Task RequestFileDownloadImmediateAsync(string path, Stream streamTo);
-        Task RequestDeleteItemImmediateAsync(string path);
-        Task RequestRenameItemImmediateAsync(string path, string newName);
+        Task RequestUploadImmediateAsync(string path, Stream streamFrom, CancellationToken ct);
+        Task RequestFileDownloadImmediateAsync(string path, Stream streamTo, CancellationToken ct);
+        Task RequestDeleteItemImmediateAsync(string path, CancellationToken ct);
+        Task RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct);
 
         /// <summary>
         /// When an existing request's progress changes

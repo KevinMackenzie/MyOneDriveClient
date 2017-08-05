@@ -22,6 +22,15 @@ namespace LocalCloudStorage
 
         public static async Task<string> ReadAllToStringAsync(this Stream source, Encoding encoding)
         {
+            return await ReadAllToStringInternalAsync(source, encoding, null);
+        }
+        //public static async Task<string> ReadAllToStringAsync(this Stream source, Encoding encoding,
+        //    CancellationToken ct)
+        //{
+        //    return await ReadAllToStringInternalAsync(source, encoding, ct);
+        //}
+        private static async Task<string> ReadAllToStringInternalAsync(this Stream source, Encoding encoding, CancellationToken? ct)
+        {
             return await (new StreamReader(source, encoding)).ReadToEndAsync();
         }
 
@@ -37,6 +46,18 @@ namespace LocalCloudStorage
         /// </remarks>
         public static async Task CopyToStreamAsync(this Stream source, Stream destination, int chunkSize = 4096)
         {
+            await CopyToStreamInternalAsync(source, destination, null, chunkSize);
+        }
+        public static async Task CopyToStreamAsync(this Stream source, Stream destination, CancellationToken ct,
+            int chunkSize = 4096)
+        {
+            await CopyToStreamInternalAsync(source, destination, ct, chunkSize);
+        }
+        private static async Task CopyToStreamInternalAsync(this Stream source, Stream destination, CancellationToken? ct,
+            int chunkSize = 4096)
+        {
+            ct?.ThrowIfCancellationRequested();
+
             //parameter checks
             if (source == null)
                 throw new ArgumentNullException(nameof(source), "Source stream must not be null");
@@ -81,6 +102,7 @@ namespace LocalCloudStorage
              * an error in this case.) */
             while (!canSeek || remaining > 0)
             {
+                ct?.ThrowIfCancellationRequested();
                 var bytesRead = await source.ReadAsync(buffer, 0, size);
 
                 if (bytesRead <= 0)
@@ -90,6 +112,8 @@ namespace LocalCloudStorage
                     else
                         break;
                 }
+
+                ct?.ThrowIfCancellationRequested();
 
                 await destination.WriteAsync(buffer, 0, bytesRead);
                 remaining -= canSeek ? bytesRead : 0;
@@ -105,7 +129,6 @@ namespace LocalCloudStorage
             catch (TaskCanceledException)
             { }
         }
-
         public static async Task DelayNoThrow(TimeSpan delay, TimeSpan resolution, CancellationToken ct)
         {
             var now = DateTime.UtcNow;
@@ -113,6 +136,16 @@ namespace LocalCloudStorage
             while (now < later)
             {
                 await DelayNoThrow(resolution, ct);
+                now = DateTime.UtcNow;
+            }
+        }
+        public static async Task Delay(TimeSpan delay, TimeSpan resolution)
+        {
+            var now = DateTime.UtcNow;
+            var later = now + delay;
+            while (now < later)
+            {
+                await Task.Delay(resolution);
                 now = DateTime.UtcNow;
             }
         }

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using System.Security.Cryptography;
 using System.Collections.Concurrent;
+using System.Threading;
 using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage
@@ -121,14 +122,30 @@ namespace LocalCloudStorage
                 }
             }
         }
-
-        private void EnumerateItemsRecursive(ref List<ILocalItemHandle> items, string fqp)
+        private async Task<string> GetLocalSHA1Async(string localPath, CancellationToken ct)
         {
+            using (var fs = GetLocalFileStream(localPath))
+            {
+                if (fs == null)
+                    return ""; //TODO :when will this happen?
+                var cancellableFs = new CancellableStream(fs, ct);
+                using (var cryptoProvider = new SHA1CryptoServiceProvider())
+                {
+                    return await Task.Run(
+                        () => BitConverter.ToString(cryptoProvider.ComputeHash(cancellableFs)), ct);
+                }
+            }
+        }
+
+        private void EnumerateItemsRecursive(ref List<ILocalItemHandle> items, string fqp, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
             var directories = Directory.EnumerateDirectories(fqp);
             foreach (var directory in directories)
             {
                 items.Add(new DownloadedFileHandle(this, UnBuildPath(directory)));
-                EnumerateItemsRecursive(ref items, directory);
+                EnumerateItemsRecursive(ref items, directory, ct);
             }
 
             var files = Directory.EnumerateFiles(fqp);
@@ -231,7 +248,7 @@ namespace LocalCloudStorage
             string fqp = BuildPath(localPath);
             return Directory.Exists(fqp) || File.Exists(fqp);
         }
-        public async Task<List<ILocalItemHandle>> EnumerateItemsAsync(string localPath)
+        public async Task<List<ILocalItemHandle>> EnumerateItemsAsync(string localPath, CancellationToken ct)
         {
             string fqp = BuildPath(localPath);
             if (!Directory.Exists(fqp))
@@ -239,7 +256,7 @@ namespace LocalCloudStorage
 
             List<ILocalItemHandle> ret = new List<ILocalItemHandle>();
             ret.Add(new DownloadedFileHandle(this, localPath));//add the root item of the request
-            await Task.Run(() => EnumerateItemsRecursive(ref ret, fqp));
+            await Task.Run(() => EnumerateItemsRecursive(ref ret, fqp, ct), ct);
             return ret;
         }
         public event EventDelegates.LocalFileStoreChangedHandler OnChanged;
@@ -360,6 +377,14 @@ namespace LocalCloudStorage
                 }
                 return _sha1Hash;
             }
+            public async Task<string> GetSha1HashAsync(CancellationToken ct)
+            {
+                if (_sha1Hash == null)
+                {
+                    _sha1Hash = IsFolder ? "" : await _fs.GetLocalSHA1Async(_path, ct);
+                }
+                return _sha1Hash;
+            }
             public DateTime LastModified
             {
                 get
@@ -395,8 +420,9 @@ namespace LocalCloudStorage
                 
             }
 
-            public async Task<Stream> GetFileDataAsync()
+            public async Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
+                ct.ThrowIfCancellationRequested();
                 return _fs.GetLocalFileStream(_path);
             }
 
