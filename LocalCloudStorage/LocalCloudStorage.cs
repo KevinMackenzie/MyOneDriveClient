@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Threading;
 
 namespace LocalCloudStorage
 {
     /// <summary>
     /// 
     /// </summary>
-    public class LocalCloudStorage
+    public sealed class LocalCloudStorage
     {
         #region Singleton Implementation
         private static LocalCloudStorage _instance;
@@ -37,5 +32,7 @@ namespace LocalCloudStorage
         #endregion
 
         //TODO: implement dependency-injection for cloud storage services
+        //[ImportMany()]
+        //private IEnumerable<Lazy<IRemoteFileStoreConnectionFactory>>
     }
 }

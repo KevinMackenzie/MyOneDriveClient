@@ -86,9 +86,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
     <Compile Include="Properties\Annotations.cs" />
-    <Compile Include="TokenCacheHelper.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -148,6 +146,9 @@
       <Project>{8ec13552-65ca-4c05-95b7-3ed3498611e0}</Project>
       <Name>LocalCloudStorage</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="OneDrive\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

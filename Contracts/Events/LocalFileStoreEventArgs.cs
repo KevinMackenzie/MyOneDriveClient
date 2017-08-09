@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace LocalCloudStorage.Events
 {
@@ -32,7 +29,7 @@ namespace LocalCloudStorage.Events
         /// </summary>
         public WatcherChangeTypes ChangeType { get; }
         public string LocalPath { get; }
-        public string Name => PathUtils.GetItemName(LocalPath);
+        public string Name => LocalPath.Split('/').Last();
         public string OldLocalPath { get; }
     }
 }

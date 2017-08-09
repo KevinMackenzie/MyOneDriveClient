@@ -1,15 +1,10 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using LocalCloudStorage.Contracts;
 using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage
@@ -79,18 +74,6 @@ namespace LocalCloudStorage
         }
         #endregion
 
-        public class RemoteItemDelta : ItemDelta
-        {
-            public RemoteItemDelta(int requestId)
-            {
-                RequestId = requestId;
-            }
-            /// <summary>
-            /// The request Id of the item if <see cref="Type"/> is <see cref="ItemDelta.DeltaType.ModifiedOrCreated"/>
-            /// </summary>
-            public int RequestId { get; }
-        }
-
         #region Private Fields
         private IRemoteFileStoreConnection _remote;
         private RemoteItemMetadataCache _metadata = new RemoteItemMetadataCache();
@@ -108,14 +91,14 @@ namespace LocalCloudStorage
             if (result == null)
             {
                 //didn't fail, but no network connection...
-                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Pending);
+                InvokeStatusChanged(request, RequestStatus.Pending);
             }
             else
             {
                 if (result.IsSuccessStatusCode)
                 {
                     //success!
-                    InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+                    InvokeStatusChanged(request, RequestStatus.Success);
                 }
                 else
                 {
@@ -138,7 +121,7 @@ namespace LocalCloudStorage
                     new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
 
                 //request is in progress now
-                request.Status = FileStoreRequest.RequestStatus.InProgress;
+                request.Status = RequestStatus.InProgress;
                 InvokeStatusChanged(request);
 
                 //make the upload request
@@ -148,7 +131,7 @@ namespace LocalCloudStorage
             //set the request status and error
             SetStatusFromHttpResponse(request, uploadResult.HttpMessage);
 
-            var success = request.Status == FileStoreRequest.RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
             if(success)
@@ -188,7 +171,7 @@ namespace LocalCloudStorage
                 using (var stream = getDataRequest.Value)
                 {
                     //request is in progress now
-                    request.Status = FileStoreRequest.RequestStatus.InProgress;
+                    request.Status = RequestStatus.InProgress;
                     InvokeStatusChanged(request);
 
                     //wrap the read stream around the progress notifier
@@ -202,7 +185,7 @@ namespace LocalCloudStorage
                         await wrapper.CopyToStreamAsync(writeTo, ct);
                     }
                     //successfully completed stream
-                    request.Status = FileStoreRequest.RequestStatus.Success;
+                    request.Status = RequestStatus.Success;
                     InvokeStatusChanged(request);
                 }
             //}
@@ -211,7 +194,7 @@ namespace LocalCloudStorage
                 //write stream is null, which means the file cannot be opened at this time, so put in limbo
             //    RequestAwaitUser(request);
             //}
-            var success = request.Status == FileStoreRequest.RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -223,7 +206,7 @@ namespace LocalCloudStorage
         {
             var response = await _remote.RenameItemByIdAsync(itemId, newName, ct);
             SetStatusFromHttpResponse(request, response.HttpMessage);
-            var success = request.Status == FileStoreRequest.RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -235,7 +218,7 @@ namespace LocalCloudStorage
         {
             var response = await _remote.MoveItemByIdAsync(itemId, newParentId, ct);
             SetStatusFromHttpResponse(request, response.HttpMessage);
-            var success = request.Status == FileStoreRequest.RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -247,7 +230,7 @@ namespace LocalCloudStorage
         {
             var response = await _remote.CreateFolderByIdAsync(parentId, name, ct);
             SetStatusFromHttpResponse(request, response.HttpMessage);
-            var success = request.Status == FileStoreRequest.RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -259,7 +242,7 @@ namespace LocalCloudStorage
         {
             var response = await _remote.DeleteItemByIdAsync(itemId, ct);
             SetStatusFromHttpResponse(request, response.HttpMessage);
-            var success = request.Status == FileStoreRequest.RequestStatus.Success;
+            var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata
             if (success)
@@ -277,7 +260,7 @@ namespace LocalCloudStorage
             //the appropriate extra data will be with the appropriate request type
             switch (request.Type)
             {
-                case FileStoreRequest.RequestType.Write: //(upload)
+                case RequestType.Write: //(upload)
                 {
                     var data = request.ExtraData as RequestUploadExtraData;
                     if (data != null)
@@ -316,7 +299,7 @@ namespace LocalCloudStorage
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Read: // (Download)
+                case RequestType.Read: // (Download)
                 {
                     var data = request.ExtraData as RequestDownloadExtraData;
                     if (data != null)
@@ -341,7 +324,7 @@ namespace LocalCloudStorage
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Rename:
+                case RequestType.Rename:
                 {
                     var data = request.ExtraData as RequestRenameExtraData;
                     if (data != null)
@@ -365,7 +348,7 @@ namespace LocalCloudStorage
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Move:
+                case RequestType.Move:
                 {
                     var data = request.ExtraData as RequestMoveExtraData;
                     if (data != null)
@@ -399,7 +382,7 @@ namespace LocalCloudStorage
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Create:
+                case RequestType.Create:
                 {
                     var parentMetadata = _metadata.GetParentItemMetadata(request.Path);
                     if (parentMetadata == null)
@@ -414,7 +397,7 @@ namespace LocalCloudStorage
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Delete:
+                case RequestType.Delete:
                 {
                     if (itemMetadata == null)
                     {
@@ -456,7 +439,7 @@ namespace LocalCloudStorage
         /// <remarks><see cref="streamFrom"/> gets disposed in this method</remarks>
         public void RequestUpload(string path, Stream streamFrom)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Write, path,
                 new RequestUploadExtraData(streamFrom)));
         }
         /// <summary>
@@ -468,7 +451,7 @@ namespace LocalCloudStorage
         /// <remarks><see cref="streamTo"/> gets disposed in this method</remarks>
         public void RequestFileDownload(string path, Stream streamTo)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Read, path,
                 new RequestDownloadExtraData(streamTo)));
         }
         /// <summary>
@@ -478,7 +461,7 @@ namespace LocalCloudStorage
         /// <returns>the request id</returns>
         public void RequestFolderCreate(string path)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path, null));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Create, path, null));
         }
         /// <summary>
         /// Deletes a remote item and its children
@@ -487,7 +470,7 @@ namespace LocalCloudStorage
         /// <returns>the request id</returns>
         public void RequestDelete(string path)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Delete, path, null));
         }
         /// <summary>
         /// Renames a remote item
@@ -497,7 +480,7 @@ namespace LocalCloudStorage
         /// <returns>the request id</returns>
         public void RequestRename(string path, string newName)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Rename, path,
                 new RequestRenameExtraData(newName)));
         }
         /// <summary>
@@ -508,19 +491,19 @@ namespace LocalCloudStorage
         /// <returns>the request id</returns>
         public void RequestMove(string path, string newParentPath)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
 
 
         public async Task RequestUploadImmediateAsync(string path, Stream streamFrom, CancellationToken ct)
         {
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path,
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Write, path,
                 new RequestUploadExtraData(streamFrom)), ct);
         }
         public async Task RequestFileDownloadImmediateAsync(string path, Stream streamTo, CancellationToken ct)
         {
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Read, path,
                 new RequestDownloadExtraData(streamTo)), ct);
         }
         public async Task RequestDeleteItemImmediateAsync(string path, CancellationToken ct)
@@ -536,13 +519,13 @@ namespace LocalCloudStorage
         /// Requests the remote deltas since the previous request
         /// </summary>
         /// <returns></returns>
-        public async Task<IEnumerable<ItemDelta>> RequestDeltasAsync(CancellationToken ct)
+        public async Task<IEnumerable<IItemDelta>> RequestDeltasAsync(CancellationToken ct)
         {
             //TODO: this should pause the processing of the queue
             var deltas = await _remote.GetDeltasAsync(_metadata.DeltaLink, ct);
-            _metadata.DeltaLink = deltas.DeltaLink;
+            _metadata.DeltaLink = deltas.NextRequestData;
 
-            var filteredDeltas = new List<ItemDelta>();
+            var filteredDeltas = new List<IItemDelta>();
             foreach (var delta in deltas)
             {
                 var itemMetadata = _metadata.GetItemMetadataById(delta.ItemHandle.Id);
@@ -553,7 +536,7 @@ namespace LocalCloudStorage
                         filteredDeltas.Add(new ItemDelta
                         {
                             Handle = new DeletedItemHandle(delta.ItemHandle, itemMetadata.Path),
-                            Type = ItemDelta.DeltaType.Deleted
+                            Type = DeltaType.Deleted
                         });
                     }
                     else
@@ -570,7 +553,7 @@ namespace LocalCloudStorage
                         filteredDeltas.Add(new ItemDelta
                         {
                             Handle = delta.ItemHandle,
-                            Type = ItemDelta.DeltaType.Created
+                            Type = DeltaType.Created
                         });
 
                         if (delta.ItemHandle.Path == "/")
@@ -614,7 +597,7 @@ namespace LocalCloudStorage
                                 {
                                     Handle = delta.ItemHandle,
                                     OldPath = itemMetadata.Path,
-                                    Type = ItemDelta.DeltaType.Moved
+                                    Type = DeltaType.Moved
                                 });
 
                                 //and update the metadata
@@ -630,7 +613,7 @@ namespace LocalCloudStorage
                                 filteredDeltas.Add(new ItemDelta
                                 {
                                     Handle = delta.ItemHandle,
-                                    Type = ItemDelta.DeltaType.Modified
+                                    Type = DeltaType.Modified
                                 });
 
                                 //and update the metadata
@@ -647,7 +630,7 @@ namespace LocalCloudStorage
                             {
                                 Handle = delta.ItemHandle,
                                 OldPath = itemMetadata.Path,
-                                Type = ItemDelta.DeltaType.Renamed
+                                Type = DeltaType.Renamed
                             });
 
                             //and update the metadata

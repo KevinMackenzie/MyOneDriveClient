@@ -3,10 +3,10 @@
     public class FileStoreRequestViewModel : FileStoreRequestViewModelBase
     {
         private long _progress;
-        private FileStoreRequest.RequestStatus _status;
+        private RequestStatus _status;
         private long _total;
 
-        public FileStoreRequestViewModel(string path, FileStoreRequest.RequestType type, FileStoreRequest.RequestStatus status, int requestId) : base(requestId)
+        public FileStoreRequestViewModel(string path, RequestType type, RequestStatus status, int requestId) : base(requestId)
         {
             Path = path;
             Type = type;
@@ -14,7 +14,7 @@
             Percent = 0;
         }
 
-        public void OnStatusChanged(FileStoreRequest.RequestStatus newStatus)
+        public void OnStatusChanged(RequestStatus newStatus)
         {
             Status = newStatus;
         }
@@ -29,23 +29,23 @@
 
         #region Properties
         public string Path { get; }
-        public FileStoreRequest.RequestType Type { get; }
+        public RequestType Type { get; }
         public string Progress
         {
             get
             {
                 switch (Type)
                 {
-                    case FileStoreRequest.RequestType.Write:
+                    case RequestType.Write:
                         return $"Uploading ... {_progress} out of {_total} bytes";
-                    case FileStoreRequest.RequestType.Read:
+                    case RequestType.Read:
                         return $"Downloading ... {_progress} out of {_total} bytes";
                 }
                 return $"";
             }
         }
         public double Percent { get; private set; }
-        public FileStoreRequest.RequestStatus Status
+        public RequestStatus Status
         {
             get => _status;
             private set

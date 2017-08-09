@@ -2,12 +2,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using LocalCloudStorage.Contracts;
 using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage
@@ -42,15 +39,15 @@ namespace LocalCloudStorage
         {
             switch (e.Status)
             {
-                case FileStoreRequest.RequestStatus.Success:
+                case RequestStatus.Success:
                     break;
-                case FileStoreRequest.RequestStatus.Pending:
+                case RequestStatus.Pending:
                     break;
-                case FileStoreRequest.RequestStatus.InProgress:
+                case RequestStatus.InProgress:
                     break;
-                case FileStoreRequest.RequestStatus.Cancelled:
+                case RequestStatus.Cancelled:
                     break;
-                case FileStoreRequest.RequestStatus.WaitForUser:
+                case RequestStatus.WaitForUser:
                     break;
             }
         }
@@ -64,7 +61,7 @@ namespace LocalCloudStorage
             return _blacklist.Where(item => item.Length <= len).Any(item => path.Substring(item.Length) == item);
         }
 
-        private async Task CreateOrDownloadFile(ItemDelta delta, CancellationToken ct)
+        private async Task CreateOrDownloadFile(IItemDelta delta, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -76,11 +73,11 @@ namespace LocalCloudStorage
 
         private bool AssertStreamStatus(FileStoreRequest request, out LocalFileStoreInterface.RequestStreamExtraData streamData)
         {
-            if (request.Status == FileStoreRequest.RequestStatus.Cancelled)
+            if (request.Status == RequestStatus.Cancelled)
             {
                 //should this even be an option for the user?
             }
-            else if (request.Status == FileStoreRequest.RequestStatus.Success)
+            else if (request.Status == RequestStatus.Success)
             {
                 //successfully got the read stream
                 streamData = request.ExtraData as LocalFileStoreInterface.RequestStreamExtraData;
@@ -197,8 +194,8 @@ namespace LocalCloudStorage
 
                 switch (delta.Type)
                 {
-                    case ItemDelta.DeltaType.Modified:
-                    case ItemDelta.DeltaType.Created:
+                    case DeltaType.Modified:
+                    case DeltaType.Created:
                         /*if (_local.TryGetItemHandle(delta.Handle.Path, out ILocalItemHandle itemHandle))
                         {
                             if (itemHandle.IsFolder)
@@ -225,13 +222,13 @@ namespace LocalCloudStorage
                             _local.RequestReadOnlyStream(delta.Handle.Path, OnGetReadOnlyStream);
                         }
                         break;
-                    case ItemDelta.DeltaType.Deleted:
+                    case DeltaType.Deleted:
                         _remote.RequestDelete(delta.OldPath);// item handle doesn't exist, so use old path
                         break;
-                    case ItemDelta.DeltaType.Renamed:
+                    case DeltaType.Renamed:
                         _remote.RequestRename(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
-                    case ItemDelta.DeltaType.Moved:
+                    case DeltaType.Moved:
                         _remote.RequestMove(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
@@ -267,7 +264,7 @@ namespace LocalCloudStorage
 
                 switch (delta.Type)
                 {
-                    case ItemDelta.DeltaType.Created:
+                    case DeltaType.Created:
                         if (delta.Handle.IsFolder)
                         {
                             //item is folder...
@@ -304,10 +301,10 @@ namespace LocalCloudStorage
                             ////////// END CODE UNDER MAINTINANCE
                         }
                         break;
-                    case ItemDelta.DeltaType.Deleted:
+                    case DeltaType.Deleted:
                         _local.RequestDelete(delta.Handle.Path); //TODO: check timestamps
                         break;
-                    case ItemDelta.DeltaType.Modified:
+                    case DeltaType.Modified:
                         if (delta.Handle.IsFolder)
                         {
                             //item is a folder ... so set it's last modified
@@ -337,10 +334,10 @@ namespace LocalCloudStorage
                             ////////// END CODE UNDER MAINTINANCE
                         }
                         break;
-                    case ItemDelta.DeltaType.Renamed:
+                    case DeltaType.Renamed:
                         _local.RequestRename(delta.OldPath, PathUtils.GetItemName(delta.Handle.Path));
                         break;
-                    case ItemDelta.DeltaType.Moved:
+                    case DeltaType.Moved:
                         _local.RequestMove(delta.OldPath, PathUtils.GetParentItemPath(delta.Handle.Path));
                         break;
                     default:
@@ -375,12 +372,12 @@ namespace LocalCloudStorage
                         _local.CancelRequest(request.RequestId);
                         switch (request.Type)
                         {
-                            case FileStoreRequest.RequestType.Delete: //don't delete the local file and upload it
-                            case FileStoreRequest.RequestType.Write:
+                            case RequestType.Delete: //don't delete the local file and upload it
+                            case RequestType.Write:
                                 //cancel the download and submit an upload request
                                 await UploadImmediateAsync(request.Path, ct);
                                 break;
-                            case FileStoreRequest.RequestType.Rename:
+                            case RequestType.Rename:
                                 //don't rename the file and upload both local files
                             {
                                 var extraData = (request.ExtraData as RequestRenameExtraData);
@@ -395,7 +392,7 @@ namespace LocalCloudStorage
                                 }
                             }
                                 break;
-                            case FileStoreRequest.RequestType.Move:
+                            case RequestType.Move:
                                 //don't move the file and upload both local files
                             {
                                 var extraData = (request.ExtraData as RequestMoveExtraData);
@@ -410,8 +407,8 @@ namespace LocalCloudStorage
                                 }
                             }
                                 break;
-                            case FileStoreRequest.RequestType.Create:
-                            case FileStoreRequest.RequestType.Read:
+                            case RequestType.Create:
+                            case RequestType.Read:
                             default:
                                 break;
                         }
@@ -419,12 +416,12 @@ namespace LocalCloudStorage
                     case FileStoreInterface.ConflictResolutions.KeepRemote:
                         switch (request.Type)
                         {
-                            case FileStoreRequest.RequestType.Delete: //delete the local file
-                            case FileStoreRequest.RequestType.Write:
+                            case RequestType.Delete: //delete the local file
+                            case RequestType.Write:
                                 //delete local file
                                 await _local.RequestDeleteItemImmediateAsync(request.Path, ct);
                                 break;
-                            case FileStoreRequest.RequestType.Rename:
+                            case RequestType.Rename:
                                 //Delete the destination file
                             {
                                 var extraData = (request.ExtraData as RequestRenameExtraData);
@@ -438,7 +435,7 @@ namespace LocalCloudStorage
                                 }
                             }
                                 break;
-                            case FileStoreRequest.RequestType.Move:
+                            case RequestType.Move:
                                 //Delete the destination file
                             {
                                 var extraData = (request.ExtraData as RequestMoveExtraData);
@@ -452,8 +449,8 @@ namespace LocalCloudStorage
                                 }
                             }
                                 break;
-                            case FileStoreRequest.RequestType.Create:
-                            case FileStoreRequest.RequestType.Read:
+                            case RequestType.Create:
+                            case RequestType.Read:
                             default:
                                 break;
                         }
@@ -462,12 +459,12 @@ namespace LocalCloudStorage
                     case FileStoreInterface.ConflictResolutions.KeepBoth:
                         switch (request.Type)
                         {
-                            case FileStoreRequest.RequestType.Write:
+                            case RequestType.Write:
                                 //rename the local file
                                 await _local.RequestRenameItemImmediateAsync(request.Path,
                                     PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()), ct);
                                 break;
-                            case FileStoreRequest.RequestType.Rename:
+                            case RequestType.Rename:
                                 //rename the existing destination file
                             {
                                 var extraData = (request.ExtraData as RequestRenameExtraData);
@@ -483,7 +480,7 @@ namespace LocalCloudStorage
                                 }
                             }
                                 break;
-                            case FileStoreRequest.RequestType.Move:
+                            case RequestType.Move:
                                 //rename the existing destination file
                             {
                                 var extraData = (request.ExtraData as RequestMoveExtraData);
@@ -499,9 +496,9 @@ namespace LocalCloudStorage
                                 }
                             }
                                 break;
-                            case FileStoreRequest.RequestType.Delete:
-                            case FileStoreRequest.RequestType.Create:
-                            case FileStoreRequest.RequestType.Read:
+                            case RequestType.Delete:
+                            case RequestType.Create:
+                            case RequestType.Read:
                             default:
                                 break;
                         }

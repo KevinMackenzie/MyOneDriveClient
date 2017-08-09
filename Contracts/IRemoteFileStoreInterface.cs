@@ -1,17 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Events;
 
-namespace LocalCloudStorage.Contracts
+namespace LocalCloudStorage
 {
     public interface IRemoteFileStoreInterface : IFileStoreInterface
     {
-        Task<IEnumerable<ItemDelta>> RequestDeltasAsync(CancellationToken ct);
+        Task<IEnumerable<IItemDelta>> RequestDeltasAsync(CancellationToken ct);
 
         void RequestUpload(string path, Stream streamFrom);
         void RequestFileDownload(string path, Stream streamTo);

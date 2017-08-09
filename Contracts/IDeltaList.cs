@@ -4,9 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace LocalCloudStorage.Contracts
+namespace LocalCloudStorage
 {
-    public interface ILocalItemUpdate
+    public interface IDeltaList : IList<IRemoteItemUpdate>
     {
+        string NextRequestData { get; }
     }
 }

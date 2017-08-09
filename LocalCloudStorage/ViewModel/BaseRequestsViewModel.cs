@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
-using LocalCloudStorage;
 using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage.ViewModel
@@ -32,8 +31,8 @@ namespace LocalCloudStorage.ViewModel
 
             switch (e.Status)
             {
-                case FileStoreRequest.RequestStatus.Success:
-                case FileStoreRequest.RequestStatus.Cancelled:
+                case RequestStatus.Success:
+                case RequestStatus.Cancelled:
                     if (!Requests.TryRemove(e.RequestId, out request)) return;
 
                     if (request != null)
@@ -47,7 +46,7 @@ namespace LocalCloudStorage.ViewModel
                         }
                     }
                     break;
-                case FileStoreRequest.RequestStatus.WaitForUser:
+                case RequestStatus.WaitForUser:
                     if (request != null)
                     {
                         var requestPosition = IndexOf(request);
@@ -82,7 +81,7 @@ namespace LocalCloudStorage.ViewModel
                         //AwaitUserRequests.Add(request);
                     }
                     break;
-                //case FileStoreRequest.RequestStatus.Failure:
+                //case RequestStatus.Failure:
                 //    if (request != null)
                 //    {
                 //        //it will ALWAYS be the top item

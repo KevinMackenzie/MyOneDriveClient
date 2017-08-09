@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 using System.Web;
 using LocalCloudStorage;
 
-namespace MyOneDriveClient.OneDrive
+namespace LocalCloudStorage.OneDrive
 {
     public class OneDriveRemoteFileStoreConnection : IRemoteFileStoreConnection
     {
@@ -57,7 +57,7 @@ namespace MyOneDriveClient.OneDrive
         }
 
         #region IRemoteFileStoreConnection
-        public async Task<DeltaPage> GetDeltasAsync(string deltaLink, CancellationToken ct)
+        public async Task<IDeltaList> GetDeltasAsync(string deltaLink, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             List<IRemoteItemUpdate> allDeltas = new List<IRemoteItemUpdate>();
@@ -77,7 +77,7 @@ namespace MyOneDriveClient.OneDrive
             } while (nextPage != null);
 
             //TODO: I'd like to avoid this copying
-            var ret = new DeltaPage(null, deltaPage.DeltaLink);
+            var ret = new DeltaPage(null, deltaPage.NextRequestData);
             ret.AddRange(allDeltas);
             return ret;
         }
@@ -95,12 +95,12 @@ namespace MyOneDriveClient.OneDrive
             }
             return await GetDeltasPageInternalAsync(downloadUrl, ct);
         }
-        public async Task<DeltaPage> GetDeltasPageAsync(DeltaPage prevPage, CancellationToken ct)
+        public async Task<IDeltaList> GetDeltasPageAsync(DeltaPage prevPage, CancellationToken ct)
         {
             if (prevPage == null)
                 return await GetDeltasAsync("", ct);
 
-            return await GetDeltasPageInternalAsync(prevPage.NextPage ?? prevPage.DeltaLink, ct);
+            return await GetDeltasPageInternalAsync(prevPage.NextPage ?? prevPage.NextRequestData, ct);
         }
         private async Task<DeltaPage> GetDeltasPageInternalAsync(string downloadUrl, CancellationToken ct)
         {

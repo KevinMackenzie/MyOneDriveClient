@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
+﻿using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -33,9 +29,9 @@ namespace LocalCloudStorage
         /// <summary>
         /// Pulls all of remote deltas
         /// </summary>
-        /// <param name="deltaLink">the delta link from the previous page</param>
+        /// <param name="nextRequestData">the delta link from the previous request</param>
         /// <returns>The next page of deltas since the last check for deltas</returns>
-        Task<DeltaPage> GetDeltasAsync(string deltaLink, CancellationToken ct);
+        Task<IDeltaList> GetDeltasAsync(string nextRequestData, CancellationToken ct);
         
         /// <summary>
         /// Gets item metadata with a given path.  Can be used to check if an item exists

@@ -29,7 +29,7 @@ using System.IO;
 using System.Security.Cryptography;
 using Microsoft.Identity.Client;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage.OneDrive
 {
     static class TokenCacheHelper
     {

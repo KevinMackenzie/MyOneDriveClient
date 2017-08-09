@@ -1,6 +1,4 @@
-﻿using LocalCloudStorage;
-
-namespace LocalCloudStorage.ViewModel
+﻿namespace LocalCloudStorage.ViewModel
 {
     /// <summary>
     /// The viewmodel for the <see cref="FileStoreInterface.UserPrompts.KeepOverwriteOrRename"/> type

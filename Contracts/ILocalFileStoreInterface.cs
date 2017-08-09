@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using LocalCloudStorage.Events;
 
-namespace LocalCloudStorage.Contracts
+namespace LocalCloudStorage
 {
     /// <summary>
     /// Responsible for keeping track of local file changes and conflicts.  Recognizes and notifies when file system actions fail.
@@ -14,7 +11,7 @@ namespace LocalCloudStorage.Contracts
     public interface ILocalFileStoreInterface : IFileStoreInterface
     {
         bool ItemExists(string path);
-        Task<IEnumerable<ItemDelta>> GetDeltasAsync(bool comprehensive, CancellationToken ct);
+        Task<IEnumerable<IItemDelta>> GetDeltasAsync(bool comprehensive, CancellationToken ct);
 
         void RequestWritableStream(string path, string sha1, DateTime lastModified,
             Action<FileStoreRequest> onCompleteFunc);

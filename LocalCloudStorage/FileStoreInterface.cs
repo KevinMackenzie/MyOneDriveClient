@@ -2,7 +2,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Events;
@@ -50,7 +49,7 @@ namespace LocalCloudStorage
 
             //if so, move on
             _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
-            InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
+            InvokeStatusChanged(request, RequestStatus.Cancelled);
             return true;
         }
         private async Task ProcessQueueInternal(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
@@ -82,7 +81,7 @@ namespace LocalCloudStorage
             if (request.Complete)
                 _completedRequests.Add(request);
         }
-        protected void InvokeStatusChanged(FileStoreRequest request, FileStoreRequest.RequestStatus status)
+        protected void InvokeStatusChanged(FileStoreRequest request, RequestStatus status)
         {
             if (request.Status == status)
                 return;//it didn't actually change...
@@ -92,14 +91,14 @@ namespace LocalCloudStorage
         protected void FailRequest(FileStoreRequest request, string errorMessage)
         {
             RequestAwaitUser(request, UserPrompts.Acknowledge, errorMessage);
-            /*request.Status = FileStoreRequest.RequestStatus.Failure;
+            /*request.Status = RequestStatus.Failure;
             request.ErrorMessage = errorMessage;
             _limboRequests[request.RequestId] = request;
             InvokeStatusChanged(request);*/
         }
         protected void RequestAwaitUser(FileStoreRequest request, UserPrompts prompt, string message = null)
         {
-            request.Status = FileStoreRequest.RequestStatus.WaitForUser;
+            request.Status = RequestStatus.WaitForUser;
             request.ErrorMessage = string.IsNullOrEmpty(message) ? prompt.ToString() : message;
             _limboRequests[request.RequestId] = request;
             InvokeStatusChanged(request);
@@ -146,9 +145,9 @@ namespace LocalCloudStorage
 
         /// <summary>
         /// Waits for the given request status to reach a conclusive statis
-        ///  (<see cref="FileStoreRequest.RequestStatus.Cancelled"/>
-        ///  or <see cref="FileStoreRequest.RequestStatus.Success"/>
-        ///  or <see cref="FileStoreRequest.RequestStatus.Failure"/>
+        ///  (<see cref="RequestStatus.Cancelled"/>
+        ///  or <see cref="RequestStatus.Success"/>
+        ///  or <see cref="RequestStatus.Failure"/>
         /// </summary>
         /// <param name="requestId">the id of the request to wait for</param>
         /// <returns>the request with that id</returns>
@@ -229,14 +228,14 @@ namespace LocalCloudStorage
             if (!_limboRequests.TryRemove(requestId, out FileStoreRequest value)) return;
             if (!skipInvoke)
             {
-                InvokeStatusChanged(value, FileStoreRequest.RequestStatus.Cancelled);
+                InvokeStatusChanged(value, RequestStatus.Cancelled);
             }
         }
 
         public void SignalConflictResolved(int requestId)
         {
             if (!_limboRequests.TryRemove(requestId, out FileStoreRequest request)) return;
-            request.Status = FileStoreRequest.RequestStatus.Pending;
+            request.Status = RequestStatus.Pending;
             request.ErrorMessage = "";
         }
 
@@ -289,7 +288,7 @@ namespace LocalCloudStorage
         #endregion
         /// <summary>
         /// When the status of an existing request changes or a new request is started.  Note
-        /// that if the status has been changed to <see cref="FileStoreRequest.RequestStatus.Success"/>, there
+        /// that if the status has been changed to <see cref="RequestStatus.Success"/>, there
         /// is no guarantee that the request still exists.
         /// </summary>
         public event EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;

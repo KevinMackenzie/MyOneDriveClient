@@ -1,6 +1,4 @@
-﻿using LocalCloudStorage;
-
-namespace LocalCloudStorage.ViewModel
+﻿namespace LocalCloudStorage.ViewModel
 {
     public class AcknowledgeErrorRequestViewModel : FileStoreRequestViewModelBase
     {
@@ -11,7 +9,7 @@ namespace LocalCloudStorage.ViewModel
         }
 
         public string Path => InnerRequest.Path;
-        public FileStoreRequest.RequestType Type => InnerRequest.Type;
+        public RequestType Type => InnerRequest.Type;
         public string ErrorMessage { get; }
         public FileStoreRequestViewModel InnerRequest { get; }
     }

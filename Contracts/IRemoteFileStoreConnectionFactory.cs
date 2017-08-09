@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace LocalCloudStorage.Contracts
+﻿namespace LocalCloudStorage
 {
     /// <summary>
     /// Creates a remote file store connection for a given type

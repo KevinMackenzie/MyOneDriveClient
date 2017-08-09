@@ -1,30 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace LocalCloudStorage
+﻿namespace LocalCloudStorage
 {
-    public class ItemDelta
+    class ItemDelta : IItemDelta
     {
-        public enum DeltaType
-        {
-            Created,
-            Deleted,
-            Modified,
-            Renamed,
-            Moved
-        }
-        
+        /// <inheritdoc />
         public IItemHandle Handle { get; set; }
-        /// <summary>
-        /// The type of delta
-        /// </summary>
+        /// <inheritdoc />
         public DeltaType Type { get; set; }
-        /// <summary>
-        /// The old path of the item if <see cref="Type"/> is <see cref="DeltaType.Renamed"/> or <see cref="DeltaType.Moved"/>
-        /// </summary>
+        /// <inheritdoc />
         public string OldPath { get; set; }
     }
 }

@@ -1,9 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using LocalCloudStorage;
 
 namespace LocalCloudStorage.Events
 {
@@ -31,7 +26,7 @@ namespace LocalCloudStorage.Events
         /// <summary>
         /// The current status of the request
         /// </summary>
-        public FileStoreRequest.RequestStatus Status { get; }
+        public RequestStatus Status { get; }
         /// <summary>
         /// If <see cref="Status"/> is <see cref="FileStoreRequest.RequestStatus.Failure"/>, this will tell why
         /// </summary>
@@ -39,7 +34,7 @@ namespace LocalCloudStorage.Events
         /// <summary>
         /// The type of the request
         /// </summary>
-        public FileStoreRequest.RequestType Type { get; }
+        public RequestType Type { get; }
         /// <summary>
         /// Whether <see cref="Status"/> is an end-state status
         /// </summary>

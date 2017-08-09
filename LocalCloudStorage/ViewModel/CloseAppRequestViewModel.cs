@@ -8,7 +8,7 @@
         }
 
         public string Path => InnerRequest.Path;
-        public FileStoreRequest.RequestType Type => InnerRequest.Type;
+        public RequestType Type => InnerRequest.Type;
         public FileStoreRequestViewModel InnerRequest { get; }
     }
 }
