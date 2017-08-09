@@ -1,4 +1,7 @@
-﻿using System.Threading;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.Composition;
+using System.Threading;
 
 namespace LocalCloudStorage
 {
@@ -32,7 +35,7 @@ namespace LocalCloudStorage
         #endregion
 
         //TODO: implement dependency-injection for cloud storage services
-        //[ImportMany()]
-        //private IEnumerable<Lazy<IRemoteFileStoreConnectionFactory>>
+        [ImportMany()]
+        private IEnumerable<Lazy<IRemoteFileStoreConnectionFactory, RemoteFileStoreConnectionFactoryMetadataAttribute>> RemoteConnectionFactories { get; set; }
     }
 }
