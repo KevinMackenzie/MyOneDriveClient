@@ -539,6 +539,9 @@ namespace LocalCloudStorage
                             Handle = new DeletedItemHandle(delta.ItemHandle, itemMetadata.Path),
                             Type = DeltaType.Deleted
                         });
+
+                        //We weren't deleting this metadata before...
+                        _metadata.RemoveItemMetadataById(itemMetadata.Id);
                     }
                     else
                     {
@@ -588,7 +591,8 @@ namespace LocalCloudStorage
                             if (itemMetadata.ParentId == delta.ItemHandle.ParentId)
                             {
                                 //... with the same parent so do nothing
-                                //TODO: when does this happen
+                                //      This will happen when the app gets closed partway through the
+                                //          delta queue
                                 Debug.WriteLine("Delta found with same name, location, and timestamp");
                             }
                             else
