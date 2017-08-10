@@ -46,6 +46,7 @@
     <Compile Include="PathUtils.cs" />
     <Compile Include="ProgressableStreamWrapper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SingleTimer.cs" />
     <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>

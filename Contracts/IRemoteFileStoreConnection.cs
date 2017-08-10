@@ -6,7 +6,8 @@ using LocalCloudStorage.Threading;
 namespace LocalCloudStorage
 {
     /// <summary>
-    /// A remote file server with read/write access 
+    /// A remote file server with read/write access.  Implementations
+    ///  should only throw <see cref="TaskCanceledException"/>s
     /// </summary>
     public interface IRemoteFileStoreConnection
     {
