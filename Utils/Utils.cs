@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -146,6 +147,14 @@ namespace LocalCloudStorage
                 await Task.Delay(resolution);
                 now = DateTime.UtcNow;
             }
+        }
+        
+        public static void LogException(Exception e)
+        {
+            Debug.WriteLine($"Exception of type {e.GetType()} when calling \"{e.TargetSite}\" with message \"{e.Message}\"");
+            Debug.Indent();
+            Debug.WriteLine(e.StackTrace);
+            Debug.Unindent();
         }
     }
 }

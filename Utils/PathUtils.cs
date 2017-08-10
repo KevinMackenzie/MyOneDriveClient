@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace LocalCloudStorage
 {
-    static class PathUtils
+    public static class PathUtils
     {
         public static string GetParentItemPath(string path)
         {

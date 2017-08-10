@@ -1114,23 +1114,63 @@ namespace LocalCloudStorage
         }
 
         
-        //TODO: the two methods below are REALLY bad b/c they do no null/exception checking
-
         public async Task SaveNonSyncFile(string path, string content, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentException("Path for non-sync file is null or empty!", nameof(path));
+            if (content == null)
+                throw new ArgumentNullException(nameof(content), "Content for non-sync file is null!");
+
             var itemHandle = _local.GetFileHandle(path);
             using (var writableStream = itemHandle.GetWritableStream())
             {
-                using (var contentStream = content.ToStream(Encoding.UTF8))
+                if(writableStream == null)
+                    throw new Exception("Writable stream for non-sync file is null!");
+                Stream contentStream = null;
+                try
                 {
-                    await contentStream.CopyToStreamAsync(writableStream, ct);
+                    contentStream = content.ToStream(Encoding.UTF8);
+                }
+                catch (Exception)
+                {
+                    writableStream.Dispose();
+                    throw;
+                }
+
+                using (contentStream)
+                {
+                    try
+                    {
+                        await contentStream.CopyToStreamAsync(writableStream, ct);
+                    }
+                    catch (Exception)
+                    {
+                        contentStream.Dispose();
+                        writableStream.Dispose();
+                        throw;
+                    }
                 }
             }
             _local.SetItemAttributes(path, FileAttributes.Hidden);
         }
         public async Task<string> ReadNonSyncFile(string path, CancellationToken ct)
         {
-            return await (await _local.GetFileHandle(path).GetFileDataAsync(ct)).ReadAllToStringAsync(Encoding.UTF8);
+            ct.ThrowIfCancellationRequested();
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentException("Path for non-sync file is null or empty!", nameof(path));
+            var fileData = await _local.GetFileHandle(path).GetFileDataAsync(ct);
+            if (fileData == null)
+                throw new ArgumentException($"File does not exist or is not accessable at \"{path}\"");
+            try
+            {
+                return await fileData.ReadAllToStringAsync(Encoding.UTF8);
+            }
+            catch (Exception)
+            {
+                fileData.Dispose();
+                throw;
+            }
         }
         #endregion
 

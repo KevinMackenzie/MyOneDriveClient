@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Events;
 using LocalCloudStorage.Threading;
+using Utils;
 
 namespace LocalCloudStorage
 {
@@ -125,8 +126,20 @@ namespace LocalCloudStorage
                 request.Status = RequestStatus.InProgress;
                 InvokeStatusChanged(request);
 
-                //make the upload request
-                uploadResult = await _remote.UploadFileByIdAsync(parentId, PathUtils.GetItemName(request.Path), wrapper, ct);
+                try
+                {
+                    //make the upload request
+                    uploadResult = await _remote.UploadFileByIdAsync(parentId, PathUtils.GetItemName(request.Path), wrapper, ct);
+                }
+                catch (Exception e)
+                {
+                    readFrom.Dispose();
+                    Utils.LogException(e);
+                    Debug.WriteLine("Cancelling ...");
+
+                    //convert this to a task cancel exception
+                    throw new ConvertedTaskCancelledException(e);
+                }
             }
 
             //set the request status and error
@@ -163,38 +176,42 @@ namespace LocalCloudStorage
                 return false;
             }
             
+            
+            //Start trying to stream item
+            using (var stream = getDataRequest.Value)
+            {
+                //request is in progress now
+                request.Status = RequestStatus.InProgress;
+                InvokeStatusChanged(request);
 
-            //get the write stream
-            //var writeStream = item.GetWritableStream();
-            //if (writeStream != null)
-            //{
-                //write stream isn't null, so start trying to stream item
-                using (var stream = getDataRequest.Value)
-                {
-                    //request is in progress now
-                    request.Status = RequestStatus.InProgress;
-                    InvokeStatusChanged(request);
-
-                    //wrap the read stream around the progress notifier
-                    var wrapper = new ProgressableStreamWrapper(stream, remoteItem.Size);
-                    wrapper.OnReadProgressChanged += (sender, args) => OnRequestProgressChanged?.Invoke(this,
-                        new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
+                //wrap the read stream around the progress notifier
+                var wrapper = new ProgressableStreamWrapper(stream, remoteItem.Size);
+                wrapper.OnReadProgressChanged += (sender, args) => OnRequestProgressChanged?.Invoke(this,
+                    new RemoteRequestProgressChangedEventArgs(args.Complete, args.Total, request.RequestId));
                     
-                    using (writeTo)
+                using (writeTo)
+                {
+                    try
                     {
-                    //TODO: there are a lot of exceptions to think about here...
                         await wrapper.CopyToStreamAsync(writeTo, ct);
                     }
-                    //successfully completed stream
-                    request.Status = RequestStatus.Success;
-                    InvokeStatusChanged(request);
+                    catch (Exception e)
+                    {
+                        //When will this happen?  How to handle, each case will be different
+                        writeTo.Dispose();
+                        stream.Dispose();
+
+                        Utils.LogException(e);
+                        Debug.WriteLine("Cancelling ...");
+
+                        //convert this to a task cancel exception
+                        throw new ConvertedTaskCancelledException(e);
+                    }
                 }
-            //}
-            //else
-            //{
-                //write stream is null, which means the file cannot be opened at this time, so put in limbo
-            //    RequestAwaitUser(request);
-            //}
+                //successfully completed stream
+                request.Status = RequestStatus.Success;
+                InvokeStatusChanged(request);
+            }
             var success = request.Status == RequestStatus.Success;
 
             //if we were successful, update the metadata

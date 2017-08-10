@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -78,7 +79,16 @@ namespace LocalCloudStorage
         #region Protected Methods
         protected void InvokeStatusChanged(FileStoreRequest request)
         {
-            OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
+            try
+            {
+                //make sure this method never throws an exception
+                OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine($"Status Changed event handler threw an exception of type {e.GetType()} with message \"{e.Message}\"");
+                Debug.WriteLine(e.StackTrace);
+            }
             if (request.Complete)
                 _completedRequests.Add(request);
         }

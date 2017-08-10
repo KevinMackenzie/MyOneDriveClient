@@ -58,11 +58,9 @@
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="LocalItemMetadataCache.cs" />
     <Compile Include="NotifyDisposedStream.cs" />
-    <Compile Include="PathUtils.cs" />
     <Compile Include="ProgressableStreamWrapper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RemoteItemMetadataCache.cs" />
-    <Compile Include="Utils.cs" />
     <Compile Include="ViewModel\AcknowledgeErrorRequestViewModel.cs" />
     <Compile Include="ViewModel\AwaitUserRequestViewModel.cs" />
     <Compile Include="ViewModel\BaseRequestsViewModel.cs" />
@@ -83,6 +81,10 @@
     <ProjectReference Include="..\Contracts\Contracts.csproj">
       <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
       <Name>Contracts</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Utils\Utils.csproj">
+      <Project>{932f3279-f5ca-4806-9e60-7cb55e3d1e9e}</Project>
+      <Name>Utils</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
