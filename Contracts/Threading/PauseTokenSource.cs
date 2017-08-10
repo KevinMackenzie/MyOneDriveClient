@@ -95,6 +95,10 @@ namespace LocalCloudStorage.Threading
     public struct PauseToken
     {
         private readonly PauseTokenSource _source;
+        private static async Task ThrowIfCancellationRequested(PauseTokenSource pts)
+        {
+            pts.ThrowIfCancellationRequested();
+        }
         internal PauseToken(PauseTokenSource source)
         {
             _source = source;
@@ -107,7 +111,10 @@ namespace LocalCloudStorage.Threading
         /// <returns></returns>
         public Task WaitWhilePausedAsync()
         {
-            return IsPaused ? _source.WaitWhilePausedAsync() : PauseTokenSource.CompletedTask;
+            _source.ThrowIfCancellationRequested();
+            return IsPaused ? _source.WaitWhilePausedAsync()
+                .ContinueWith((task, o) => ThrowIfCancellationRequested(o as PauseTokenSource), _source)  //TODO: will this work?
+                : PauseTokenSource.CompletedTask;
         }
         public CancellationToken CancellationToken => _source.CToken;
 
