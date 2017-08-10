@@ -11,8 +11,14 @@ namespace LocalCloudStorage
     public sealed class LocalCloudStorage
     {
         #region Singleton Implementation
+        private LocalCloudStorage()
+        {
+            foreach (var factory in RemoteConnectionFactories)
+            {
+            }
+        }
         private static LocalCloudStorage _instance;
-        public static LocalCloudStorage Instance => _instance ?? (_instance = new LocalCloudStorage());
+        //public static LocalCloudStorage Instance => _instance ?? (_instance = new LocalCloudStorage());
         #endregion
 
         #region Application-Wide Settings
@@ -33,8 +39,7 @@ namespace LocalCloudStorage
         #region Internal variables
         public CancellationToken AppClosingCancellationToken { get; }
         #endregion
-
-        //TODO: implement dependency-injection for cloud storage services
+        
         [ImportMany()]
         private IEnumerable<Lazy<IRemoteFileStoreConnectionFactory, RemoteFileStoreConnectionFactoryMetadataAttribute>> RemoteConnectionFactories { get; set; }
     }

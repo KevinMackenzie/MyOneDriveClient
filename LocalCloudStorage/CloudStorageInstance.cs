@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LocalCloudStorage.Threading;
 
 namespace LocalCloudStorage
 {
@@ -19,26 +20,26 @@ namespace LocalCloudStorage
         private CancellationTokenSource _remoteSyncLoopCTS;
         #endregion
 
-        public CloudStorageInstance(IRemoteFileStoreInterface remoteInterface, ILocalFileStore local)
+        public CloudStorageInstance(IRemoteFileStoreInterface remoteInterface, ILocalFileStore local, CancellationToken appClosingToken)
         {
             _remoteInterface = remoteInterface;
             _local = local;
             _bridge = new FileStoreBridge(new List<string>(), new LocalFileStoreInterface(local), remoteInterface);
 
             //make sure we cancel when the app is closing
-            LocalCloudStorage.Instance.AppClosingCancellationToken.Register(() => _instanceCts.Cancel());
+            appClosingToken.Register(() => _instanceCts.Cancel());
         }
 
         #region Private Methods
-        private async Task SyncLoopMethod(CancellationToken ct)
+        private async Task SyncLoopMethod(PauseToken pt)
         {
+            var ct = pt.CancellationToken;
             while (!ct.IsCancellationRequested)
             {
-                //TODO: how to support pausing?  some sort of a "PausableCancellationToken"?
                 try
                 {
-                    await _bridge.ApplyLocalChangesAsync(ct);
-                    await _bridge.ApplyLocalChangesAsync(ct);
+                    await _bridge.ApplyLocalChangesAsync(pt);
+                    await _bridge.ApplyLocalChangesAsync(pt);
                 }
                 catch (TaskCanceledException)
                 {

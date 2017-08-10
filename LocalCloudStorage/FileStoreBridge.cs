@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Events;
+using LocalCloudStorage.Threading;
 
 namespace LocalCloudStorage
 {
@@ -180,9 +181,10 @@ namespace LocalCloudStorage
             //gets deltas, but doesn't do anything with them
             await _local.GetDeltasAsync(true, ct);
         }
-        public async Task ApplyLocalChangesAsync(CancellationToken ct)
+        public async Task ApplyLocalChangesAsync(PauseToken pt)
         {
-            ct.ThrowIfCancellationRequested();
+            await pt.WaitWhilePausedAsync();
+            var ct = pt.CancellationToken;
 
             var localDeltas = await _local.GetDeltasAsync(false, ct);
             foreach (var delta in localDeltas)
@@ -236,7 +238,7 @@ namespace LocalCloudStorage
                 }
             }
 
-            while (!await _remote.ProcessQueueAsync(ct))
+            while (!await _remote.ProcessQueueAsync(pt))
             {
                 //TODO: wait for user intervention
                 await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
@@ -244,15 +246,16 @@ namespace LocalCloudStorage
 
             //also process the local requests, because we may have made
             //  some writable stream requests
-            while (!await _local.ProcessQueueAsync(ct))
+            while (!await _local.ProcessQueueAsync(pt))
             {
                 //TODO: wait for user intervention
                 await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
             }
         }
-        public async Task ApplyRemoteChangesAsync(CancellationToken ct)
+        public async Task ApplyRemoteChangesAsync(PauseToken pt)
         {
-            ct.ThrowIfCancellationRequested();
+            await pt.WaitWhilePausedAsync();
+            var ct = pt.CancellationToken;
 
             var remoteDeltas = await _remote.RequestDeltasAsync(ct);
             foreach (var delta in remoteDeltas)
@@ -344,7 +347,7 @@ namespace LocalCloudStorage
                         throw new ArgumentOutOfRangeException();
                 }
             }
-            while (!await _local.ProcessQueueAsync(ct))
+            while (!await _local.ProcessQueueAsync(pt))
             {
                 //TODO: wait for user intervention
                 await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
@@ -352,7 +355,7 @@ namespace LocalCloudStorage
             
             //also process the remote requests, because we may have made
             //  some download requests
-            while (!await _remote.ProcessQueueAsync(ct))
+            while (!await _remote.ProcessQueueAsync(pt))
             {
                 //TODO: wait for user intervention
                 await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);

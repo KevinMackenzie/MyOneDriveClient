@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,10 +14,12 @@ namespace LocalCloudStorage.Threading
      * 
      */
 
-    public class PauseTokenSource
+    public class PauseTokenSource : IDisposable
     {
         #region Private Fields
         private volatile TaskCompletionSource<bool> _paused;
+        private CancellationTokenSource _cts = new CancellationTokenSource();
+        private ConcurrentBag<Action> _onPauseActions = new ConcurrentBag<Action>();
         #endregion
 
         internal static readonly Task CompletedTask = Task.FromResult(true);
@@ -25,6 +28,18 @@ namespace LocalCloudStorage.Threading
             var cur = _paused;
             return cur != null ? cur.Task : CompletedTask;
         }
+        internal void Register(Action onPauseAction)
+        {
+            _onPauseActions.Add(onPauseAction);
+        }
+        internal void ThrowIfCancellationRequested()
+        {
+            if (_cts.IsCancellationRequested)
+            {
+                throw new OperationCanceledException("Paused task has been cancelled!");
+            }
+        }
+        internal CancellationToken CToken => _cts.Token;
 
         public bool IsPaused
         {
@@ -34,6 +49,17 @@ namespace LocalCloudStorage.Threading
                 if (value)
                 {
                     Interlocked.CompareExchange(ref _paused, new TaskCompletionSource<bool>(), null);
+                    foreach (var action in _onPauseActions)
+                    {
+                        try
+                        {
+                            action.Invoke();
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                    }
                 }
                 else
                 {
@@ -51,6 +77,19 @@ namespace LocalCloudStorage.Threading
             }
         }
         public PauseToken Token => new PauseToken(this);
+        public void Cancel()
+        {
+            //cancel...
+            _cts.Cancel();
+
+            //... then un-pause
+            IsPaused = false;
+        }
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            _cts?.Dispose();
+        }
     }
 
     public struct PauseToken
@@ -62,9 +101,19 @@ namespace LocalCloudStorage.Threading
         }
 
         public bool IsPaused => _source?.IsPaused ?? false;
+        /// <summary>
+        /// Always check for cancellation after pause is complete
+        /// </summary>
+        /// <returns></returns>
         public Task WaitWhilePausedAsync()
         {
             return IsPaused ? _source.WaitWhilePausedAsync() : PauseTokenSource.CompletedTask;
+        }
+        public CancellationToken CancellationToken => _source.CToken;
+
+        public void Register(Action onPausedAction)
+        {
+            _source.Register(onPausedAction);
         }
     }
 }

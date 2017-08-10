@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Events;
+using LocalCloudStorage.Threading;
 
 namespace LocalCloudStorage
 {
@@ -52,7 +53,7 @@ namespace LocalCloudStorage
             InvokeStatusChanged(request, RequestStatus.Cancelled);
             return true;
         }
-        private async Task ProcessQueueInternal(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
+        /*private async Task ProcessQueueInternal(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
             {
@@ -67,7 +68,7 @@ namespace LocalCloudStorage
 
                 await Utils.DelayNoThrow(delay, ct);
             }
-        }
+        }*/
         #endregion
 
         #region Abstract Methods
@@ -141,7 +142,7 @@ namespace LocalCloudStorage
         //    _processQueueCancellationTokenSource.Cancel();
         //    await _processQueueTask;
         //}
-        
+
 
         /// <summary>
         /// Waits for the given request status to reach a conclusive statis
@@ -244,11 +245,12 @@ namespace LocalCloudStorage
         ///  the user needs to be prompted
         /// </summary>
         /// <returns>whether the queue was successfully emptied</returns>
-        public async Task<bool> ProcessQueueAsync(CancellationToken ct)
+        public async Task<bool> ProcessQueueAsync(PauseToken pt)
         {
             while (_requests.TryPeek(out FileStoreRequest request))
             {
-                ct.ThrowIfCancellationRequested();
+                await pt.WaitWhilePausedAsync();
+                pt.CancellationToken.ThrowIfCancellationRequested();
 
                 if (!_limboRequests.IsEmpty)
                     return false; //stop on a limbo request
@@ -260,7 +262,7 @@ namespace LocalCloudStorage
                     continue;
                 }
 
-                var dequeue = await ProcessQueueItemAsync(request, ct);
+                var dequeue = await ProcessQueueItemAsync(request, pt.CancellationToken);
 
                 //should we dequeue the item?
                 if (dequeue)

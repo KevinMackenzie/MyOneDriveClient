@@ -8,6 +8,7 @@ using LocalCloudStorage.Events;
 using System.Threading;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using LocalCloudStorage.Threading;
 
 namespace LocalCloudStorage
 {
