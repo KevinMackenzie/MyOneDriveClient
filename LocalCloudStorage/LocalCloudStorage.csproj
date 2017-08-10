@@ -45,7 +45,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BufferedRemoteFileStoreInterface.cs" />
-    <Compile Include="CancellableStream.cs" />
     <Compile Include="CloudStorageInstance.cs" />
     <Compile Include="Contracts\ICachedItemMetadata.cs" />
     <Compile Include="DownloadedFileStore.cs" />

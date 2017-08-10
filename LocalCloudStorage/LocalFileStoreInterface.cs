@@ -1164,7 +1164,7 @@ namespace LocalCloudStorage
                 throw new ArgumentException($"File does not exist or is not accessable at \"{path}\"");
             try
             {
-                return await fileData.ReadAllToStringAsync(Encoding.UTF8);
+                return await fileData.ReadAllToStringAsync(Encoding.UTF8, ct);
             }
             catch (Exception)
             {

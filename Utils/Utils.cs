@@ -21,16 +21,16 @@ namespace LocalCloudStorage
 
         public static async Task<string> ReadAllToStringAsync(this Stream source, Encoding encoding)
         {
-            return await ReadAllToStringInternalAsync(source, encoding, null);
+            return await (new StreamReader(source, encoding)).ReadToEndAsync();
         }
         //public static async Task<string> ReadAllToStringAsync(this Stream source, Encoding encoding,
         //    CancellationToken ct)
         //{
         //    return await ReadAllToStringInternalAsync(source, encoding, ct);
         //}
-        private static async Task<string> ReadAllToStringInternalAsync(this Stream source, Encoding encoding, CancellationToken? ct)
+        public static async Task<string> ReadAllToStringAsync(this Stream source, Encoding encoding, CancellationToken ct)
         {
-            return await (new StreamReader(source, encoding)).ReadToEndAsync();
+            return await (new StreamReader(new CancellableStream(source, ct), encoding)).ReadToEndAsync();
         }
 
         /// <summary>
