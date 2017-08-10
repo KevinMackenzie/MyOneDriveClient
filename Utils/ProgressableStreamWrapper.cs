@@ -3,7 +3,7 @@ using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage
 {
-    class ProgressableStreamWrapper : Stream
+    public class ProgressableStreamWrapper : Stream
     {
         private Stream _stream;
         private long _length;

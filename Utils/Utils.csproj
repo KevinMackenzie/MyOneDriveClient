@@ -42,9 +42,17 @@
   <ItemGroup>
     <Compile Include="CancellableStream.cs" />
     <Compile Include="Exceptions.cs" />
+    <Compile Include="NotifyDisposedStream.cs" />
     <Compile Include="PathUtils.cs" />
+    <Compile Include="ProgressableStreamWrapper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utils.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Contracts\Contracts.csproj">
+      <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
+      <Name>Contracts</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

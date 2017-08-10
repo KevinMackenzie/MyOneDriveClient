@@ -56,8 +56,6 @@
     <Compile Include="LocalCloudStorage.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="LocalItemMetadataCache.cs" />
-    <Compile Include="NotifyDisposedStream.cs" />
-    <Compile Include="ProgressableStreamWrapper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RemoteItemMetadataCache.cs" />
     <Compile Include="ViewModel\AcknowledgeErrorRequestViewModel.cs" />
