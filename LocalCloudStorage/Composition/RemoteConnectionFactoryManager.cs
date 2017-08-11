@@ -29,7 +29,7 @@ namespace LocalCloudStorage.Composition
                 .Shared();
 
             var configuration = new ContainerConfiguration()
-                .WithAssembliesInPath(pluginPath);
+                .WithAssembliesInPath(pluginPath, conventions);
 
             using (var container = configuration.CreateContainer())
             {

@@ -36,7 +36,7 @@ namespace MyOneDriveClient
             FileStore.LoadMetadataAsync(cts.Token).Wait();*/
 
             var data = new LocalCloudStorageData();
-            _connectionFactoryManager.ImportFactories(typeof(App).Assembly.Location);
+            _connectionFactoryManager.ImportFactories(AppDomain.CurrentDomain.BaseDirectory);
 
             LocalCloudStorage = new LocalCloudStorageViewModel(data, _connectionFactoryManager);
         }
