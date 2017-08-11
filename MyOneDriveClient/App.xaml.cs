@@ -36,12 +36,14 @@ namespace MyOneDriveClient
             FileStore.LoadMetadataAsync(cts.Token).Wait();*/
 
             var data = new LocalCloudStorageData();
-            _connectionFactoryManager.ImportFactories(AppDomain.CurrentDomain.BaseDirectory);
+            var connectionFactoryManager = new RemoteConnectionFactoryManager();
+            connectionFactoryManager.ImportFactories(AppDomain.CurrentDomain.BaseDirectory);
 
-            LocalCloudStorage = new LocalCloudStorageViewModel(data, _connectionFactoryManager);
+            ConnectionFactoryManager = new RemoteFileStoreConnectionFactoriesViewModel(connectionFactoryManager);
+            LocalCloudStorage = new LocalCloudStorageViewModel(data, connectionFactoryManager);
         }
 
-        public static LocalCloudStorageViewModel LocalCloudStorage;
-        private static RemoteConnectionFactoryManager _connectionFactoryManager = new RemoteConnectionFactoryManager();
+        public static LocalCloudStorageViewModel LocalCloudStorage { get; }
+        public static RemoteFileStoreConnectionFactoriesViewModel ConnectionFactoryManager { get; }
     }
 }

@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage.Composition
 {
@@ -34,7 +35,10 @@ namespace LocalCloudStorage.Composition
             using (var container = configuration.CreateContainer())
             {
                 Factories = container.GetExports<IRemoteFileStoreConnectionFactory>();
+                OnFactoryImport?.Invoke(this, new ImportEventArgs());
             }
         }
+
+        public event EventDelegates.ImportRFSCFactoryHandler OnFactoryImport;
     }
 }

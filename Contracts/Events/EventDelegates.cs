@@ -13,5 +13,7 @@ namespace LocalCloudStorage.Events
         public delegate void RequestStatusChangedHandler(object sender, RequestStatusChangedEventArgs e);
 
         public delegate Task NotifyStreamDisposedHandler(object sender);
+
+        public delegate void ImportRFSCFactoryHandler(object sender, ImportEventArgs e);
     }
 }

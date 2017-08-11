@@ -29,10 +29,13 @@ namespace MyOneDriveClient
     /// </summary>
     public partial class MainWindow : Window
     {
+        private RemoteFileStoreConnectionFactoriesViewModel _factories;
+        private LocalCloudStorageViewModel _localCloudStorageViewModel;
         public MainWindow()
         {
             InitializeComponent();
             
+            SetViewModels(App.ConnectionFactoryManager, App.LocalCloudStorage);
 
             /*LocalActiveRequests.ItemsSource = Requests.LocalRequests.ActiveRequests;
             LocalUserAwaitRequests.ItemsSource = Requests.LocalRequests.AwaitUserRequests;
@@ -45,6 +48,13 @@ namespace MyOneDriveClient
             Debug.Listeners.Add(new DebugListener(this));
 
             Debug.WriteLine("Debug initialized");
+        }
+
+        public void SetViewModels(RemoteFileStoreConnectionFactoriesViewModel factories,
+            LocalCloudStorageViewModel localCloudStorageViewModel)
+        {
+            _factories = factories;
+            _localCloudStorageViewModel = localCloudStorageViewModel;
         }
         
 
@@ -218,6 +228,15 @@ namespace MyOneDriveClient
         private async void GenMetadataButton_OnClick(object sender, RoutedEventArgs e)
         {
             //await App.FileStore.GenerateLocalMetadataAsync();
+        }
+        private void NewInstanceButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            var popup = new NewCloudStorageInstance(_factories);
+            var result = popup.ShowDialog() ?? false;
+            if (result)
+            {
+                _localCloudStorageViewModel.AddCloudStorageInstance(popup.Data);
+            }
         }
     }
 }

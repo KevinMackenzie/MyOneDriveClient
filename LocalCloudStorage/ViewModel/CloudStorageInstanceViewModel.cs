@@ -39,6 +39,9 @@ namespace LocalCloudStorage.ViewModel
             _localInterface = localInterface;
             _bridge = new FileStoreBridge(data.BlackList, _localInterface, remoteInterface);
 
+            //TODO: is there a better place to be doing this?
+            _bridge.LoadMetadataAsync(_instancePts.Token.CancellationToken).Wait();
+
             //create the requests viewmodels
             Requests = new RequestsViewModel(this);
             
@@ -50,10 +53,6 @@ namespace LocalCloudStorage.ViewModel
         }
 
         #region EventHandlers
-        private void BlackList_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-        {
-            throw new NotImplementedException();
-        }
         #endregion
 
         #region Private Methods

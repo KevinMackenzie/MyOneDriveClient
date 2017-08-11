@@ -28,11 +28,14 @@ namespace LocalCloudStorage.ViewModel
             //TODO: someone should be responsible for saving the settings when the changed
             _data = data;
             CloudStorageInstances = new ReadOnlyObservableCollection<CloudStorageInstanceViewModel>(_cloudStorageInstances);
-            
-            //create a viewmodel for each of the cloud storage instances
-            foreach (var cloudStorageInstace in data.CloudStorageInstances)
+
+            if (data.CloudStorageInstances != null)
             {
-                AddCloudStorageInstance(cloudStorageInstace);
+                //create a viewmodel for each of the cloud storage instances
+                foreach (var cloudStorageInstace in data.CloudStorageInstances)
+                {
+                    AddCloudStorageInstance(cloudStorageInstace);
+                }
             }
 
             //make sure to update the data list when the instances list changes
