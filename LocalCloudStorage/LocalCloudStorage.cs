@@ -41,6 +41,6 @@ namespace LocalCloudStorage
         #endregion
         
         [ImportMany()]
-        private IEnumerable<Lazy<IRemoteFileStoreConnectionFactory, RemoteFileStoreConnectionFactoryMetadataAttribute>> RemoteConnectionFactories { get; set; }
+        public IEnumerable<Lazy<IRemoteFileStoreConnectionFactory, RemoteFileStoreConnectionFactoryMetadataAttribute>> RemoteConnectionFactories { get; }
     }
 }

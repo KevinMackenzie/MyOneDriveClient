@@ -21,9 +21,9 @@ namespace LocalCloudStorage.ViewModel
             return ActiveRequests.IndexOf(activeReq);
         }
 
-        public BaseRequestsViewModel(FileStoreInterface fileStoreInterface)
+        public BaseRequestsViewModel(Action<EventDelegates.RequestStatusChangedHandler> registerStatusChangedEventAction)
         {
-            fileStoreInterface.OnRequestStatusChanged += OnRequestStatusChanged;
+            registerStatusChangedEventAction.Invoke(OnRequestStatusChanged);
         }
         private void OnRequestStatusChanged(object sender, RequestStatusChangedEventArgs e)
         {

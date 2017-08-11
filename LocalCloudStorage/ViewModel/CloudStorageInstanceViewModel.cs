@@ -4,14 +4,18 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using LocalCloudStorage.Data;
+using LocalCloudStorage.Events;
 using LocalCloudStorage.Threading;
 
 namespace LocalCloudStorage
 {
-    public class CloudStorageInstance : IDisposable
+    public class CloudStorageInstanceViewModel : IDisposable
     {
         private IRemoteFileStoreInterface _remoteInterface;
-        private ILocalFileStore _local;
+        private readonly CloudStorageInstanceData _data;
+        private ILocalFileStoreInterface _localInterface;
+        //private ILocalFileStore _local;
 
         private FileStoreBridge _bridge;
 
@@ -26,11 +30,16 @@ namespace LocalCloudStorage
         private SingleTimer _pauseTimer = new SingleTimer();
         #endregion
 
-        public CloudStorageInstance(IRemoteFileStoreInterface remoteInterface, ILocalFileStore local, CancellationToken appClosingToken)
+        public CloudStorageInstanceViewModel(IRemoteFileStoreInterface remoteInterface, ILocalFileStore local, CloudStorageInstanceData data, CancellationToken appClosingToken)
         {
             _remoteInterface = remoteInterface;
-            _local = local;
-            _bridge = new FileStoreBridge(new List<string>(), new LocalFileStoreInterface(local), remoteInterface);
+            _data = data;
+            //_local = local;
+            _localInterface = new LocalFileStoreInterface(local);
+            _bridge = new FileStoreBridge(new List<string>(), _localInterface, remoteInterface);
+
+            //create the requests viewmodels
+            Requests = new RequestsViewModel(this);
 
             //make sure we cancel when the app is closing
             appClosingToken.Register(() => _instancePts.Cancel());
@@ -56,7 +65,7 @@ namespace LocalCloudStorage
                 }
                 catch (Exception e)
                 {
-                    Debug.WriteLine($"Uncaught exception in {nameof(CloudStorageInstance)}.{nameof(SyncLoopMethod)} of type {e.GetType()} with message {e.Message}");
+                    Debug.WriteLine($"Uncaught exception in {nameof(CloudStorageInstanceViewModel)}.{nameof(SyncLoopMethod)} of type {e.GetType()} with message {e.Message}");
                     Debug.Indent();
                     Debug.WriteLine(e.StackTrace);
                     Debug.Unindent();
@@ -74,7 +83,7 @@ namespace LocalCloudStorage
         /// <summary>
         /// The view model to the active requests
         /// </summary>
-        public RequestsViewModel ViewModel { get; }
+        public RequestsViewModel Requests { get; }
         #endregion
 
         #region Settings
@@ -90,6 +99,33 @@ namespace LocalCloudStorage
         /// How frequently to check for remote deltas
         /// </summary>
         public TimeSpan RemoteDeltaFrequency { get; set; } = TimeSpan.FromMinutes(1);
+        #endregion
+
+        #region Public Events
+        /// <summary>
+        /// When the status of a local request changes
+        /// </summary>
+        public event EventDelegates.RequestStatusChangedHandler OnLocalRequestStatusChanged
+        {
+            add => _localInterface.OnRequestStatusChanged += value;
+            remove => _localInterface.OnRequestStatusChanged -= value;
+        }
+        /// <summary>
+        /// When the status of a remote request changes
+        /// </summary>
+        public event EventDelegates.RequestStatusChangedHandler OnRemoteRequestStatusChanged
+        {
+            add => _remoteInterface.OnRequestStatusChanged += value;
+            remove => _remoteInterface.OnRequestStatusChanged -= value;
+        }
+        /// <summary>
+        /// When the progress of a remote request changes
+        /// </summary>
+        public event EventDelegates.RemoteRequestProgressChangedHandler OnRemoteRequestProgressChanged
+        {
+            add => _remoteInterface.OnRequestProgressChanged += value;
+            remove => _remoteInterface.OnRequestProgressChanged -= value;
+        }
         #endregion
 
         #region Public Methods
@@ -118,6 +154,37 @@ namespace LocalCloudStorage
         {
             _pauseTimer.Stop();
             _instancePts.IsPaused = false;
+        }
+        public void KeepLocalLocalRequestResolution(int requestId)
+        {
+        }
+        public void KeepRemoteLocalRequestResolution(int requestId)
+        {
+
+        }
+        public void KeepBothLocalRequestResolution(int requestId)
+        {
+
+        }
+        public void KeepLocalRemoteRequestResolution(int requestId)
+        {
+
+        }
+        public void KeepRemoteRemoteRequestResolution(int requestId)
+        {
+
+        }
+        public void KeepBothRemoteRequestResolution(int requestId)
+        {
+
+        }
+        public void CancelLocalRequest(int requestId)
+        {
+
+        }
+        public void CancelRemoteRequest(int requestId)
+        {
+
         }
         #endregion
 

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using LocalCloudStorage.ViewModel;
 using LocalCloudStorage.Events;
 
@@ -6,10 +7,12 @@ namespace LocalCloudStorage
 {
     public class RemoteRequestsViewModel : BaseRequestsViewModel
     {
-        public RemoteRequestsViewModel(BufferedRemoteFileStoreInterface remoteFileStoreInterface) : base(remoteFileStoreInterface)
+        public RemoteRequestsViewModel(Action<EventDelegates.RequestStatusChangedHandler> registerStatusChangedEventAction,
+            Action<EventDelegates.RemoteRequestProgressChangedHandler> registerProgressChangedEventAction) : base(registerStatusChangedEventAction)
         {
-            remoteFileStoreInterface.OnRequestProgressChanged += OnRequestProgressChanged;
+            registerProgressChangedEventAction.Invoke(OnRequestProgressChanged);
         }
+
         private void OnRequestProgressChanged(object sender, RemoteRequestProgressChangedEventArgs e)
         {
             var request = Requests[e.RequestId];
