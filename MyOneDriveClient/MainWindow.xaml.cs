@@ -29,20 +29,10 @@ namespace MyOneDriveClient
     /// </summary>
     public partial class MainWindow : Window
     {
-        //Set the API Endpoint to Graph 'me' endpoint
-        string graphAPIEndpoint = "https://graph.microsoft.com/v1.0/me";
-
-        //Set the scope for API call to user.read
-        string[] scopes = new string[] { "user.read" };
-
-        public RequestsViewModel Requests { get; }
-
         public MainWindow()
         {
             InitializeComponent();
-
-            //TODO: where should this construction happen?
-            DataContext = Requests = new RequestsViewModel(App.LocalInterface, App.RemoteInterface);
+            
 
             /*LocalActiveRequests.ItemsSource = Requests.LocalRequests.ActiveRequests;
             LocalUserAwaitRequests.ItemsSource = Requests.LocalRequests.AwaitUserRequests;
@@ -56,100 +46,7 @@ namespace MyOneDriveClient
 
             Debug.WriteLine("Debug initialized");
         }
-
-        /// <summary>
-        /// Call AcquireTokenAsync - to acquire a token requiring user to sign-in
-        /// </summary>
-        /*private async void CallGraphButton_Click(object sender, RoutedEventArgs e)
-        {
-            /*AuthenticationResult authResult = null;
-            ResultText.Text = string.Empty;
-            TokenInfoText.Text = string.Empty;
-
-            try
-            {
-                authResult = await App.PublicClientApp.AcquireTokenSilentAsync(scopes, App.PublicClientApp.Users.FirstOrDefault());
-            }
-            catch (MsalUiRequiredException ex)
-            {
-                // A MsalUiRequiredException happened on AcquireTokenSilentAsync. This indicates you need to call AcquireTokenAsync to acquire a token
-                System.Diagnostics.Debug.WriteLine($"MsalUiRequiredException: {ex.Message}");
-
-                try
-                {
-                    authResult = await App.PublicClientApp.AcquireTokenAsync(scopes);
-                }
-                catch (MsalException msalex)
-                {
-                    ResultText.Text = $"Error Acquiring Token:{System.Environment.NewLine}{msalex}";
-                }
-            }
-            catch (Exception ex)
-            {
-                ResultText.Text = $"Error Acquiring Token Silently:{System.Environment.NewLine}{ex}";
-                return;
-            }
-
-            if (authResult != null)
-            {
-                ResultText.Text = await GetHttpContentWithToken(graphAPIEndpoint, authResult.AccessToken);
-                DisplayBasicTokenInfo(authResult);
-                this.SignOutButton.Visibility = Visibility.Visible;
-            }
-        }*/
-
-        /// <summary>
-        /// Perform an HTTP GET request to a URL using an HTTP Authorization header
-        /// </summary>
-        /// <param name="url">The URL</param>
-        /// <param name="token">The token</param>
-        /// <returns>String containing the results of the GET operation</returns>
-        /*public async Task<string> GetHttpContentWithToken(string url, string token)
-        {
-            var httpClient = new System.Net.Http.HttpClient();
-            System.Net.Http.HttpResponseMessage response;
-            try
-            {
-                var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
-                //Add the token in Authorization header
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-                response = await httpClient.SendAsync(request);
-                var content = await response.Content.ReadAsStringAsync();
-                return content;
-            }
-            catch (Exception ex)
-            {
-                return ex.ToString();
-            }
-        }*/
-
-        /// <summary>
-        /// Sign out the current user
-        /// </summary>
-        private void SignOutButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                App.OneDriveConnection.LogUserOut();
-                this.SignOutButton.Visibility = Visibility.Collapsed;
-            }
-            catch (MsalException ex)
-            {
-            }
-        }
-
-        DeltaPage _deltaPage = null;
-        private async void GetDeltasButton_Click(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.LogUserInAsync();
-            await App.FileStore.ApplyRemoteChangesAsync();
-        }
-
-        private async void ScanForChangesButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.LogUserInAsync();
-            await App.FileStore.ApplyLocalChangesAsync();
-        }
+        
 
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
         {
@@ -191,28 +88,7 @@ namespace MyOneDriveClient
                 //_window.DebugBox.ScrollToEnd();
             }
         }
-
-        private async void StartRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.LogUserInAsync();
-            //App.RemoteInterface.StartRequestProcessing();
-        }
-        private async void StopRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            //await App.RemoteInterface.StopRequestProcessingAsync();
-        }
-        private void StartLocalQueueButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            //App.LocalInterface.StartRequestProcessing();
-        }
-        private async void StopLocalQueueButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            //await App.LocalInterface.StopRequestProcessingAsync();
-        }
-        private async void SaveMetadataButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            await App.FileStore.SaveMetadataAsync();
-        }
+        
 
         private async void KeepLocal_OnClick(object sender, RoutedEventArgs e)
         {
@@ -222,12 +98,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                    await App.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                    await App.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
                 }
                 else
                 {
@@ -247,12 +123,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                    await App.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                    await App.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
                 }
                 else
                 {
@@ -272,12 +148,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                    await App.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                    await App.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
                 }
                 else
                 {
@@ -322,12 +198,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    App.LocalInterface.CancelRequest(request.InnerRequest.RequestId);
+                    App.LocalCloudStorage.SelectedInstance.CancelLocalRequest(request.InnerRequest.RequestId);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    App.RemoteInterface.CancelRequest(request.InnerRequest.RequestId);
+                    App.LocalCloudStorage.SelectedInstance.CancelRemoteRequest(request.InnerRequest.RequestId);
                 }
                 else
                 {
@@ -341,7 +217,7 @@ namespace MyOneDriveClient
         }
         private async void GenMetadataButton_OnClick(object sender, RoutedEventArgs e)
         {
-            await App.FileStore.GenerateLocalMetadataAsync();
+            //await App.FileStore.GenerateLocalMetadataAsync();
         }
     }
 }

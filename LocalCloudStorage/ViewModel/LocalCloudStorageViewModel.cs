@@ -17,6 +17,7 @@ namespace LocalCloudStorage.ViewModel
     {
         private readonly LocalCloudStorageData _data;
         private readonly ObservableCollection<CloudStorageInstanceViewModel> _cloudStorageInstances = new ObservableCollection<CloudStorageInstanceViewModel>();
+        private CloudStorageInstanceViewModel _selectedInstance;
         public LocalCloudStorageViewModel(LocalCloudStorageData data)
         {
             foreach (var factory in RemoteConnectionFactories)
@@ -110,6 +111,15 @@ namespace LocalCloudStorage.ViewModel
         /// The cloud storage instances
         /// </summary>
         public ReadOnlyObservableCollection<CloudStorageInstanceViewModel> CloudStorageInstances { get; }
+        public CloudStorageInstanceViewModel SelectedInstance
+        {
+            get => _selectedInstance;
+            set
+            {
+                _selectedInstance = value;
+                OnPropertyChanged();
+            }
+        }
         #endregion
 
         #region Public Methods
@@ -130,30 +140,30 @@ namespace LocalCloudStorage.ViewModel
         /// Attempts to remove a cloud storage instance with the given
         ///  local path
         /// </summary>
-        /// <param name="localFileStorePath">the local path of the instance</param>
-        public void RemoveCloudStorageInstance(string localFileStorePath)
+        /// <param name="name">the name of the instance</param>
+        public void RemoveCloudStorageInstance(string name)
         {
             var results = from csi in _cloudStorageInstances
-                where csi.LocalFileStorePath == localFileStorePath
+                where csi.InstanceName == name
                 select csi;
 
             var instance = results.First();
             if (instance == null)
             {
-                Debug.WriteLine($"Attempt to remove cloud storage instance \"{localFileStorePath}\" that does not exist");
+                Debug.WriteLine($"Attempt to remove cloud storage instance \"{name}\" that does not exist");
                 return;
             }
 
             _cloudStorageInstances.Remove(instance);
 
             var dataResults = from csid in _data.CloudStorageInstances
-                where csid.LocalFileStorePath == localFileStorePath
+                where csid.InstanceName == name
                 select csid;
 
             var data = dataResults.First();
             if (data == null)
             {
-                Debug.WriteLine($"Attempt to remove cloud storage instance \"{localFileStorePath}\" that does not exist");
+                Debug.WriteLine($"Attempt to remove cloud storage instance \"{name}\" that does not exist");
                 return;
             }
 

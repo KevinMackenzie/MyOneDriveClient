@@ -7,8 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Identity.Client;
-using MyOneDriveClient.OneDrive;
 using LocalCloudStorage;
+using LocalCloudStorage.Data;
+using LocalCloudStorage.ViewModel;
 
 namespace MyOneDriveClient
 {
@@ -19,7 +20,7 @@ namespace MyOneDriveClient
     {
         static App()
         {            
-            OneDriveConnection = new OneDrive.OneDriveRemoteFileStoreConnection();
+            /*OneDriveConnection = new OneDrive.OneDriveRemoteFileStoreConnection();
             LocalFileStore = new DownloadedFileStore("C:/Users/kjmac/OneDriveTest");
             RemoteInterface = new BufferedRemoteFileStoreInterface(OneDriveConnection);
             LocalInterface = new LocalFileStoreInterface(LocalFileStore);
@@ -31,13 +32,13 @@ namespace MyOneDriveClient
             LocalInterface, RemoteInterface);
 
             CancellationTokenSource cts = new CancellationTokenSource();
-            FileStore.LoadMetadataAsync(cts.Token).Wait();
+            FileStore.LoadMetadataAsync(cts.Token).Wait();*/
+
+            var data = new LocalCloudStorageData();
+
+            LocalCloudStorage = new LocalCloudStorageViewModel(data);
         }
 
-        public static OneDriveRemoteFileStoreConnection OneDriveConnection;
-        public static DownloadedFileStore LocalFileStore;
-        public static BufferedRemoteFileStoreInterface RemoteInterface;
-        public static LocalFileStoreInterface LocalInterface;
-        public static FileStoreBridge FileStore;
+        public static LocalCloudStorageViewModel LocalCloudStorage;
     }
 }

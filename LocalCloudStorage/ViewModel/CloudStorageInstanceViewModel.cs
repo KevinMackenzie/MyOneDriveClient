@@ -9,7 +9,7 @@ using LocalCloudStorage.Data;
 using LocalCloudStorage.Events;
 using LocalCloudStorage.Threading;
 
-namespace LocalCloudStorage
+namespace LocalCloudStorage.ViewModel
 {
     public class CloudStorageInstanceViewModel : ViewModelBase, IDisposable
     {
@@ -99,6 +99,22 @@ namespace LocalCloudStorage
         /// The path for the local file store
         /// </summary>
         public string LocalFileStorePath => _data.LocalFileStorePath;
+        /// <summary>
+        /// The name of this instance
+        /// </summary>
+        /// <remarks>
+        /// This is an identifying property of the instance data
+        /// </remarks>
+        public string InstanceName
+        {
+            get => _data.InstanceName;
+            set
+            {
+                if (_data.InstanceName == value) return;
+                _data.InstanceName = value;
+                OnPropertyChanged();
+            }
+        }
         /// <summary>
         /// Whether data uploaded to remote should be encrypted
         /// </summary>
@@ -219,36 +235,21 @@ namespace LocalCloudStorage
             _pauseTimer.Stop();
             _instancePts.IsPaused = false;
         }
-        public void KeepLocalLocalRequestResolution(int requestId)
+        public async Task ResolveLocalConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
         {
+            await _bridge.ResolveLocalConflictAsync(requestId, resolution, _instancePts.Token.CancellationToken);
         }
-        public void KeepRemoteLocalRequestResolution(int requestId)
+        public async Task ResolveRemoteConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
         {
-
-        }
-        public void KeepBothLocalRequestResolution(int requestId)
-        {
-
-        }
-        public void KeepLocalRemoteRequestResolution(int requestId)
-        {
-
-        }
-        public void KeepRemoteRemoteRequestResolution(int requestId)
-        {
-
-        }
-        public void KeepBothRemoteRequestResolution(int requestId)
-        {
-
+            await _bridge.ResolveRemoteConflictAsync(requestId, resolution, _instancePts.Token.CancellationToken);
         }
         public void CancelLocalRequest(int requestId)
         {
-
+            _localInterface.CancelRequest(requestId);
         }
         public void CancelRemoteRequest(int requestId)
         {
-
+            _remoteInterface.CancelRequest(requestId);
         }
         #endregion
 

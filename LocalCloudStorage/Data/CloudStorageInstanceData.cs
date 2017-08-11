@@ -14,10 +14,14 @@ namespace LocalCloudStorage.Data
         /// <summary>
         /// The path for the local file store
         /// </summary>
+        public string LocalFileStorePath { get; set; }
+        /// <summary>
+        /// The name of this instance
+        /// </summary>
         /// <remarks>
         /// This is an identifying property of the instance data
         /// </remarks>
-        public string LocalFileStorePath { get; set; }
+        public string InstanceName { get; set; }
         /// <summary>
         /// Whether data uploaded to remote should be encrypted
         /// </summary>
