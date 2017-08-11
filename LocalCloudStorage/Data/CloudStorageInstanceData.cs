@@ -12,9 +12,20 @@ namespace LocalCloudStorage.Data
     public class CloudStorageInstanceData
     {
         /// <summary>
+        /// The path for the local file store
+        /// </summary>
+        /// <remarks>
+        /// This is an identifying property of the instance data
+        /// </remarks>
+        public string LocalFileStorePath { get; set; }
+        /// <summary>
         /// Whether data uploaded to remote should be encrypted
         /// </summary>
         public bool Encrypted { get; set; }
+        /// <summary>
+        /// The remote service type that is being used
+        /// </summary>
+        public string ServiceName { get; set; }
         /// <summary>
         /// Whether to create file links for all blacklisted files
         /// </summary>
@@ -23,5 +34,9 @@ namespace LocalCloudStorage.Data
         /// How frequently to check for remote deltas
         /// </summary>
         public TimeSpan RemoteDeltaFrequency { get; set; } = TimeSpan.FromMinutes(1);
+        /// <summary>
+        /// Files/folders that should be excluded from syncing
+        /// </summary>
+        public IEnumerable<string> BlackList { get; set; }
     }
 }

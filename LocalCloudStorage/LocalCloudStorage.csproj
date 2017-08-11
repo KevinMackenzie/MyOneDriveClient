@@ -45,6 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BufferedRemoteFileStoreInterface.cs" />
+    <Compile Include="Data\LocalCloudStorageData.cs" />
     <Compile Include="ViewModel\CloudStorageInstanceViewModel.cs" />
     <Compile Include="Contracts\ICachedItemMetadata.cs" />
     <Compile Include="Data\CloudStorageInstanceData.cs" />
@@ -54,7 +55,7 @@
     <Compile Include="FileStoreRequestGraveyard.cs" />
     <Compile Include="ItemDelta.cs" />
     <Compile Include="ItemMetadataCache.cs" />
-    <Compile Include="LocalCloudStorage.cs" />
+    <Compile Include="ViewModel\LocalCloudStorageViewModel.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="LocalItemMetadataCache.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

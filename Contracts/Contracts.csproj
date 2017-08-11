@@ -48,6 +48,7 @@
     <Compile Include="Events\RemoteFileStoreDataChanged.cs" />
     <Compile Include="Events\RemoteRequestProgressChangedEventArgs.cs" />
     <Compile Include="Events\RequestStatusChangedEventArgs.cs" />
+    <Compile Include="Exceptions\FactoryNotFoundException.cs" />
     <Compile Include="FileStoreRequest.cs" />
     <Compile Include="HttpResult.cs" />
     <Compile Include="IDeltaList.cs" />

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
@@ -10,7 +11,7 @@ using LocalCloudStorage.Threading;
 
 namespace LocalCloudStorage
 {
-    public class CloudStorageInstanceViewModel : IDisposable
+    public class CloudStorageInstanceViewModel : ViewModelBase, IDisposable
     {
         private IRemoteFileStoreInterface _remoteInterface;
         private readonly CloudStorageInstanceData _data;
@@ -30,23 +31,30 @@ namespace LocalCloudStorage
         private SingleTimer _pauseTimer = new SingleTimer();
         #endregion
 
-        public CloudStorageInstanceViewModel(IRemoteFileStoreInterface remoteInterface, ILocalFileStore local, CloudStorageInstanceData data, CancellationToken appClosingToken)
+        public CloudStorageInstanceViewModel(IRemoteFileStoreInterface remoteInterface, ILocalFileStoreInterface localInterface, CloudStorageInstanceData data, CancellationToken appClosingToken)
         {
             _remoteInterface = remoteInterface;
             _data = data;
             //_local = local;
-            _localInterface = new LocalFileStoreInterface(local);
-            _bridge = new FileStoreBridge(new List<string>(), _localInterface, remoteInterface);
+            _localInterface = localInterface;
+            _bridge = new FileStoreBridge(data.BlackList, _localInterface, remoteInterface);
 
             //create the requests viewmodels
             Requests = new RequestsViewModel(this);
-
+            
             //make sure we cancel when the app is closing
             appClosingToken.Register(() => _instancePts.Cancel());
 
             //start the background loop
             _syncLoopTask = SyncLoopMethod(_instancePts.Token);
         }
+
+        #region EventHandlers
+        private void BlackList_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            throw new NotImplementedException();
+        }
+        #endregion
 
         #region Private Methods
         private async Task SyncLoopMethod(PauseToken pt)
@@ -88,17 +96,73 @@ namespace LocalCloudStorage
 
         #region Settings
         /// <summary>
+        /// The path for the local file store
+        /// </summary>
+        public string LocalFileStorePath => _data.LocalFileStorePath;
+        /// <summary>
         /// Whether data uploaded to remote should be encrypted
         /// </summary>
-        public bool Encrypted { get; set; }
+        public bool Encrypted
+        {
+            get => _data.Encrypted;
+            set
+            {
+                if (_data.Encrypted == value) return;
+                _data.Encrypted = value;
+                OnPropertyChanged();
+            }
+        }
+        /// <summary>
+        /// The remote service type that is being used
+        /// </summary>
+        public string ServiceName
+        {
+            get => _data.ServiceName;
+            set
+            {
+                if (_data.ServiceName == value) return;
+                _data.ServiceName = value;
+                OnPropertyChanged();
+            }
+        }
         /// <summary>
         /// Whether to create file links for all blacklisted files
         /// </summary>
-        public bool EnableFileLinks { get; set; }
+        public bool EnableFileLinks
+        {
+            get => _data.EnableFileLinks;
+            set
+            {
+                if (_data.EnableFileLinks == value) return;
+                _data.EnableFileLinks = value;
+                OnPropertyChanged();
+            }
+        }
         /// <summary>
         /// How frequently to check for remote deltas
         /// </summary>
-        public TimeSpan RemoteDeltaFrequency { get; set; } = TimeSpan.FromMinutes(1);
+        public TimeSpan RemoteDeltaFrequency
+        {
+            get => _data.RemoteDeltaFrequency;
+            set
+            {
+                if (_data.RemoteDeltaFrequency == value) return;
+                _data.RemoteDeltaFrequency = value;
+                OnPropertyChanged();
+            }
+        }
+        /// <summary>
+        /// Files/folders that should be excluded from syncing
+        /// </summary>
+        public IEnumerable<string> BlackList
+        {
+            get => _data.BlackList;
+            set
+            {
+                _data.BlackList = value;
+                OnPropertyChanged();
+            }
+        }
         #endregion
 
         #region Public Events
