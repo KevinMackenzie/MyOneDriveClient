@@ -31,34 +31,39 @@ using Microsoft.Identity.Client;
 
 namespace LocalCloudStorage.OneDrive
 {
-    static class TokenCacheHelper
+    internal class TokenCacheHelper
     {
+        public TokenCacheHelper(string cacheFilePath)
+        {
+            //= System.Reflection.Assembly.GetExecutingAssembly().Location + "msalcache.txt";
+            CacheFilePath = cacheFilePath;
+        }
  
         /// <summary>
         /// Get the user token cache
         /// </summary>
         /// <returns></returns>
-        public static TokenCache GetUserCache()
+        public TokenCache GetUserCache()
         {
-            if (usertokenCache == null)
+            if (_usertokenCache == null)
             {
-                usertokenCache = new TokenCache();
-                usertokenCache.SetBeforeAccess(BeforeAccessNotification);
-                usertokenCache.SetAfterAccess(AfterAccessNotification);
+                _usertokenCache = new TokenCache();
+                _usertokenCache.SetBeforeAccess(BeforeAccessNotification);
+                _usertokenCache.SetAfterAccess(AfterAccessNotification);
             }
-            return usertokenCache;
+            return _usertokenCache;
         }
 
-        static TokenCache usertokenCache;
+        TokenCache _usertokenCache;
 
         /// <summary>
         /// Path to the token cache
         /// </summary>
-        public static string CacheFilePath = System.Reflection.Assembly.GetExecutingAssembly().Location + "msalcache.txt";
+        public string CacheFilePath { get; }
 
-        private static readonly object FileLock = new object();
+        private readonly object FileLock = new object();
 
-        public static void BeforeAccessNotification(TokenCacheNotificationArgs args)
+        public void BeforeAccessNotification(TokenCacheNotificationArgs args)
         {
             lock (FileLock)
             {
@@ -68,7 +73,7 @@ namespace LocalCloudStorage.OneDrive
             }
         }
 
-        public static void AfterAccessNotification(TokenCacheNotificationArgs args)
+        public void AfterAccessNotification(TokenCacheNotificationArgs args)
         {
             // if the access operation resulted in a cache update
             if (args.TokenCache.HasStateChanged)

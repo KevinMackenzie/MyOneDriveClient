@@ -1,5 +1,4 @@
-﻿using Microsoft.Graph;
-using Microsoft.Identity.Client;
+﻿using Microsoft.Identity.Client;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -14,11 +13,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
-using LocalCloudStorage;
 
 namespace LocalCloudStorage.OneDrive
 {
-    public class OneDriveRemoteFileStoreConnection : IRemoteFileStoreConnection
+    internal class OneDriveRemoteFileStoreConnection : IRemoteFileStoreConnection
     {
         private static string[] _scopes = new string[] { "files.readwrite" };
         //Below is the clientId of your app registration. 
@@ -35,10 +33,11 @@ namespace LocalCloudStorage.OneDrive
         //private string _deltaUrl = "";
 
         ///private GraphServiceClient _graphClient;
-        
-        public OneDriveRemoteFileStoreConnection()
+        private TokenCacheHelper _tch;
+        public OneDriveRemoteFileStoreConnection(TokenCacheHelper tch)
         {
-            _clientApp = new PublicClientApplication(ClientId, "https://login.microsoftonline.com/common", TokenCacheHelper.GetUserCache());
+            _tch = tch;
+            _clientApp = new PublicClientApplication(ClientId, "https://login.microsoftonline.com/common", tch.GetUserCache());
             try
             {
                 /*_graphClient = new GraphServiceClient(

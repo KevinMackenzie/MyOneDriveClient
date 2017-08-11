@@ -7,6 +7,6 @@ namespace LocalCloudStorage
     [AttributeUsage(AttributeTargets.Class)]
     public class RemoteFileStoreConnectionFactoryMetadataAttribute : Attribute
     {
-        public string ServiceName { get; }
+        public string ServiceName { get; set; }
     }
 }

@@ -51,7 +51,7 @@ namespace LocalCloudStorage.ViewModel
                     //... so get the appropriate remote interface ...
                     var remoteInterface = factory.Value.OverridesFileStoreInterface
                         ? factory.Value.ConstructInterface()
-                        : new BufferedRemoteFileStoreInterface(factory.Value.Construct());
+                        : new BufferedRemoteFileStoreInterface(factory.Value.Construct(data.InstanceName));
 
                     //... and a local interface
                     var localInterface = new LocalFileStoreInterface(new DownloadedFileStore(data.LocalFileStorePath));

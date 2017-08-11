@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace LocalCloudStorage.OneDrive
 {
-    public class DeltaPage : List<IRemoteItemUpdate>, IDeltaList
+    internal class DeltaPage : List<IRemoteItemUpdate>, IDeltaList
     {
         /// <summary>
         /// Link to the next page of deltas.  Null if no more deltas

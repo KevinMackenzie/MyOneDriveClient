@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace LocalCloudStorage.OneDrive
 {
-    public class RemoteItemUpdate : IRemoteItemUpdate
+    internal class RemoteItemUpdate : IRemoteItemUpdate
     {
         bool _deleted;
         IRemoteItemHandle _fileHandle;

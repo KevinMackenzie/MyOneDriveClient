@@ -10,8 +10,12 @@
         ///  be ready for <see cref="IRemoteFileStoreConnection.LogUserInAsync"/>
         ///  to be called
         /// </summary>
+        /// <param name="cacheLocation">The location of the cache files for
+        ///  whatever this connection needs to cache.  This will be unique
+        ///  for each call of <see cref="Construct"/>, so unique path generation
+        ///  is handled by the caller</param>
         /// <returns>The initialized connection instance</returns>
-        IRemoteFileStoreConnection Construct();
+        IRemoteFileStoreConnection Construct(string cacheLocation);
 
         /// <summary>
         /// Whether this kind of <see cref="IRemoteFileStoreConnection"/> needs its own
