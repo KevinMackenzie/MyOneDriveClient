@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Identity.Client;
 using LocalCloudStorage;
+using LocalCloudStorage.Composition;
 using LocalCloudStorage.Data;
 using LocalCloudStorage.ViewModel;
 
@@ -35,10 +36,12 @@ namespace MyOneDriveClient
             FileStore.LoadMetadataAsync(cts.Token).Wait();*/
 
             var data = new LocalCloudStorageData();
+            _connectionFactoryManager.ImportFactories(typeof(App).Assembly.Location);
 
-            LocalCloudStorage = new LocalCloudStorageViewModel(data);
+            LocalCloudStorage = new LocalCloudStorageViewModel(data, _connectionFactoryManager);
         }
 
         public static LocalCloudStorageViewModel LocalCloudStorage;
+        private static RemoteConnectionFactoryManager _connectionFactoryManager = new RemoteConnectionFactoryManager();
     }
 }

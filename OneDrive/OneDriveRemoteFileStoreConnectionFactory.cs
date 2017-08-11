@@ -9,7 +9,7 @@ using LocalCloudStorage.OneDrive;
 
 namespace OneDrive
 {
-    [Export(typeof(IRemoteFileStoreConnection))]
+    [Export(typeof(IRemoteFileStoreConnectionFactory))]
     [RemoteFileStoreConnectionFactoryMetadata(ServiceName = "OneDrive")]
     public class OneDriveRemoteFileStoreConnectionFactory : IRemoteFileStoreConnectionFactory
     {
@@ -18,6 +18,8 @@ namespace OneDrive
         {
             return new OneDriveRemoteFileStoreConnection(new TokenCacheHelper(cacheLocation));
         }
+        /// <inheritdoc />
+        public string ServiceName => "OneDrive";
         /// <inheritdoc />
         public bool OverridesFileStoreInterface => false;
         /// <inheritdoc />

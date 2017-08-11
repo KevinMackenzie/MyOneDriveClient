@@ -17,6 +17,8 @@
         /// <returns>The initialized connection instance</returns>
         IRemoteFileStoreConnection Construct(string cacheLocation);
 
+        string ServiceName { get; }
+
         /// <summary>
         /// Whether this kind of <see cref="IRemoteFileStoreConnection"/> needs its own
         ///  special kind of <see cref="IRemoteFileStoreInterface"/>

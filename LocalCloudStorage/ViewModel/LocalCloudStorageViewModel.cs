@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel.Composition;
+using System.Composition;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using Contracts.Exceptions;
+using LocalCloudStorage.Composition;
 using LocalCloudStorage.Data;
 
 namespace LocalCloudStorage.ViewModel
@@ -18,11 +19,11 @@ namespace LocalCloudStorage.ViewModel
         private readonly LocalCloudStorageData _data;
         private readonly ObservableCollection<CloudStorageInstanceViewModel> _cloudStorageInstances = new ObservableCollection<CloudStorageInstanceViewModel>();
         private CloudStorageInstanceViewModel _selectedInstance;
-        public LocalCloudStorageViewModel(LocalCloudStorageData data)
+        private readonly RemoteConnectionFactoryManager _factoryManager;
+        public LocalCloudStorageViewModel(LocalCloudStorageData data, RemoteConnectionFactoryManager factoryManager)
         {
-            foreach (var factory in RemoteConnectionFactories)
-            {
-            }
+            //TODO: factory viewmodel instantiation
+            _factoryManager = factoryManager;
 
             //TODO: someone should be responsible for saving the settings when the changed
             _data = data;
@@ -42,16 +43,16 @@ namespace LocalCloudStorage.ViewModel
         private CloudStorageInstanceViewModel CreateCloudStorageInstance(CloudStorageInstanceData data)
         {
             //get the appropriate factory
-            foreach (var factory in RemoteConnectionFactories)
+            foreach (var factory in _factoryManager.Factories)
             {
-                if (factory.Metadata.ServiceName == data.ServiceName)
+                if (factory.ServiceName == data.ServiceName)
                 {
                     //we have a match...
 
                     //... so get the appropriate remote interface ...
-                    var remoteInterface = factory.Value.OverridesFileStoreInterface
-                        ? factory.Value.ConstructInterface()
-                        : new BufferedRemoteFileStoreInterface(factory.Value.Construct(data.InstanceName));
+                    var remoteInterface = factory.OverridesFileStoreInterface
+                        ? factory.ConstructInterface()
+                        : new BufferedRemoteFileStoreInterface(factory.Construct(data.InstanceName));
 
                     //... and a local interface
                     var localInterface = new LocalFileStoreInterface(new DownloadedFileStore(data.LocalFileStorePath));
@@ -177,7 +178,6 @@ namespace LocalCloudStorage.ViewModel
         public CancellationToken AppClosingCancellationToken { get; }
         #endregion
         
-        [ImportMany()]
-        public IEnumerable<Lazy<IRemoteFileStoreConnectionFactory, RemoteFileStoreConnectionFactoryMetadataAttribute>> RemoteConnectionFactories { get; }
+
     }
 }
