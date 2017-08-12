@@ -14,12 +14,14 @@ namespace LocalCloudStorage.ViewModel
     /// <summary>
     /// 
     /// </summary>
-    public sealed class LocalCloudStorageViewModel : ViewModelBase
+    public sealed class LocalCloudStorageViewModel : ViewModelBase, IDisposable
     {
         private readonly LocalCloudStorageData _data;
         private readonly ObservableCollection<CloudStorageInstanceViewModel> _cloudStorageInstances = new ObservableCollection<CloudStorageInstanceViewModel>();
         private CloudStorageInstanceViewModel _selectedInstance;
         private readonly RemoteConnectionFactoryManager _factoryManager;
+        private CancellationTokenSource _cts = new CancellationTokenSource();
+
         public LocalCloudStorageViewModel(LocalCloudStorageData data, RemoteConnectionFactoryManager factoryManager)
         {
             //TODO: factory viewmodel instantiation
@@ -27,6 +29,8 @@ namespace LocalCloudStorage.ViewModel
 
             //TODO: someone should be responsible for saving the settings when the changed
             _data = data;
+            _data.CloudStorageInstances.DeleteNullElements();
+
             CloudStorageInstances = new ReadOnlyObservableCollection<CloudStorageInstanceViewModel>(_cloudStorageInstances);
 
             if (data.CloudStorageInstances != null)
@@ -34,7 +38,7 @@ namespace LocalCloudStorage.ViewModel
                 //create a viewmodel for each of the cloud storage instances
                 foreach (var cloudStorageInstace in data.CloudStorageInstances)
                 {
-                    AddCloudStorageInstance(cloudStorageInstace);
+                    _cloudStorageInstances.Add(CreateCloudStorageInstance(cloudStorageInstace));
                 }
             }
 
@@ -178,9 +182,15 @@ namespace LocalCloudStorage.ViewModel
         #endregion
 
         #region Internal variables
-        public CancellationToken AppClosingCancellationToken { get; }
+        public CancellationToken AppClosingCancellationToken => _cts.Token;
         #endregion
-        
 
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            _cts?.Dispose();
+            _selectedInstance?.Dispose();
+        }
     }
 }

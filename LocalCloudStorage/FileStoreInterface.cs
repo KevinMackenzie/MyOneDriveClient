@@ -74,6 +74,10 @@ namespace LocalCloudStorage
 
         #region Abstract Methods
         protected abstract Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct);
+        protected virtual async Task PreQueue(CancellationToken ct)
+        {}
+        protected virtual async Task PostQueue(CancellationToken ct)
+        {}
         #endregion
 
         #region Protected Methods
@@ -257,6 +261,7 @@ namespace LocalCloudStorage
         /// <returns>whether the queue was successfully emptied</returns>
         public async Task<bool> ProcessQueueAsync(PauseToken pt)
         {
+            await PreQueue(pt.CancellationToken);
             while (_requests.TryPeek(out FileStoreRequest request))
             {
                 await pt.WaitWhilePausedAsync();
@@ -285,6 +290,7 @@ namespace LocalCloudStorage
                     return false;
                 }
             }
+            await PostQueue(pt.CancellationToken);
             return true;
         }
 

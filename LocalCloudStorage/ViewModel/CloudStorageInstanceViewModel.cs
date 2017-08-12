@@ -14,8 +14,9 @@ namespace LocalCloudStorage.ViewModel
     public class CloudStorageInstanceViewModel : ViewModelBase, IDisposable
     {
         private IRemoteFileStoreInterface _remoteInterface;
-        private readonly CloudStorageInstanceData _data;
         private ILocalFileStoreInterface _localInterface;
+        
+        private readonly CloudStorageInstanceData _data;
         //private ILocalFileStore _local;
 
         private FileStoreBridge _bridge;
@@ -34,9 +35,10 @@ namespace LocalCloudStorage.ViewModel
         public CloudStorageInstanceViewModel(IRemoteFileStoreInterface remoteInterface, ILocalFileStoreInterface localInterface, CloudStorageInstanceData data, CancellationToken appClosingToken)
         {
             _remoteInterface = remoteInterface;
-            _data = data;
-            //_local = local;
             _localInterface = localInterface;
+            
+            _data = data;
+
             _bridge = new FileStoreBridge(data.BlackList, _localInterface, remoteInterface);
 
             //TODO: is there a better place to be doing this?
@@ -59,12 +61,18 @@ namespace LocalCloudStorage.ViewModel
         private async Task SyncLoopMethod(PauseToken pt)
         {
             var ct = pt.CancellationToken;
+            var any = false;
             while (!ct.IsCancellationRequested)
             {
                 try
                 {
-                    await _bridge.ApplyRemoteChangesAsync(pt);
-                    await _bridge.ApplyLocalChangesAsync(pt);
+                    any = await _bridge.ApplyRemoteChangesAsync(pt);
+                    any |= await _bridge.ApplyLocalChangesAsync(pt);
+                    if (any)
+                    {
+                        await _bridge.SaveMetadataAsync(pt.CancellationToken);
+                    }
+                    await Utils.Delay(RemoteDeltaFrequency, TimeSpan.FromSeconds(1));
                 }
                 catch (TaskCanceledException)
                 {
@@ -72,7 +80,7 @@ namespace LocalCloudStorage.ViewModel
                 }
                 catch (Exception e)
                 {
-                    Debug.WriteLine($"Uncaught exception in {nameof(CloudStorageInstanceViewModel)}.{nameof(SyncLoopMethod)} of type {e.GetType()} with message {e.Message}");
+                    Debug.WriteLine($"Uncaught exception in \"{nameof(CloudStorageInstanceViewModel)}.{nameof(SyncLoopMethod)}\" of type \"{e.GetType()}\" with message \"{e.Message}\"");
                     Debug.Indent();
                     Debug.WriteLine(e.StackTrace);
                     Debug.Unindent();
@@ -257,7 +265,8 @@ namespace LocalCloudStorage.ViewModel
         public void Dispose()
         {
             _instancePts?.Dispose();
-            _syncLoopTask?.Dispose();
+            //_syncLoopTask?.Wait();//Hopefully this doesn't happen...
+            //_syncLoopTask?.Dispose();
 
             _instancePts = null;
             _syncLoopTask = null;

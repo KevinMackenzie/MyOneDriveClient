@@ -14,14 +14,14 @@ namespace LocalCloudStorage.Data
         /// <summary>
         /// The path for the local file store
         /// </summary>
-        public string LocalFileStorePath { get; set; }
+        public string LocalFileStorePath { get; set; } = "";
         /// <summary>
         /// The name of this instance
         /// </summary>
         /// <remarks>
         /// This is an identifying property of the instance data
         /// </remarks>
-        public string InstanceName { get; set; }
+        public string InstanceName { get; set; } = "";
         /// <summary>
         /// Whether data uploaded to remote should be encrypted
         /// </summary>
@@ -29,7 +29,7 @@ namespace LocalCloudStorage.Data
         /// <summary>
         /// The remote service type that is being used
         /// </summary>
-        public string ServiceName { get; set; }
+        public string ServiceName { get; set; } = "";
         /// <summary>
         /// Whether to create file links for all blacklisted files
         /// </summary>
@@ -41,6 +41,6 @@ namespace LocalCloudStorage.Data
         /// <summary>
         /// Files/folders that should be excluded from syncing
         /// </summary>
-        public IEnumerable<string> BlackList { get; set; }
+        public IEnumerable<string> BlackList { get; set; } = new List<string>();
     }
 }

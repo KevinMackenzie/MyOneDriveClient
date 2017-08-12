@@ -73,6 +73,7 @@
     <Compile Include="FileStoreRequestGraveyard.cs" />
     <Compile Include="ItemDelta.cs" />
     <Compile Include="ItemMetadataCache.cs" />
+    <Compile Include="ViewModel\DebugLogViewModel.cs" />
     <Compile Include="ViewModel\LocalCloudStorageViewModel.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="LocalItemMetadataCache.cs" />

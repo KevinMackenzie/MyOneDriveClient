@@ -123,7 +123,7 @@
                 <ColumnDefinition Width="1*"/>
                 <ColumnDefinition Width="3*"/>
             </Grid.ColumnDefinitions>
-            <ListBox Grid.Column="0" Margin="2" Padding="2" DataContext="{Binding CloudStorageInstances}" ItemsSource="{Binding}" ItemTemplate="{StaticResource CloudStorageInstancePreview}"/>
+            <ListBox Grid.Column="0" Margin="2" Padding="2" DataContext="{Binding}" ItemsSource="{Binding CloudStorageInstances}" ItemTemplate="{StaticResource CloudStorageInstancePreview}" SelectedItem="{Binding SelectedInstance}"/>
             <Grid Grid.Column="1" DataContext="{Binding SelectedInstance}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1*" />

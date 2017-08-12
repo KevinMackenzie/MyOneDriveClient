@@ -181,14 +181,18 @@ namespace LocalCloudStorage
             //gets deltas, but doesn't do anything with them
             await _local.GetDeltasAsync(true, ct);
         }
-        public async Task ApplyLocalChangesAsync(PauseToken pt)
+        public async Task<bool> ApplyLocalChangesAsync(PauseToken pt)
         {
             await pt.WaitWhilePausedAsync();
             var ct = pt.CancellationToken;
 
             var localDeltas = await _local.GetDeltasAsync(false, ct);
+            var any = false;
+
             foreach (var delta in localDeltas)
             {
+                any = true;
+
                 ct.ThrowIfCancellationRequested();
 
                 if (IsBlacklisted(delta.Handle.Path))
@@ -251,15 +255,20 @@ namespace LocalCloudStorage
                 //TODO: wait for user intervention
                 await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
             }
+
+            return any;
         }
-        public async Task ApplyRemoteChangesAsync(PauseToken pt)
+        public async Task<bool> ApplyRemoteChangesAsync(PauseToken pt)
         {
             await pt.WaitWhilePausedAsync();
             var ct = pt.CancellationToken;
 
             var remoteDeltas = await _remote.RequestDeltasAsync(ct);
+            var any = false;
+
             foreach (var delta in remoteDeltas)
             {
+                any = true;
                 ct.ThrowIfCancellationRequested();
 
                 if (IsBlacklisted(delta.Handle.Path))
@@ -360,6 +369,8 @@ namespace LocalCloudStorage
                 //TODO: wait for user intervention
                 await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
             }
+
+            return any;
         }
 
         public async Task ResolveLocalConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution, CancellationToken ct)

@@ -19,10 +19,11 @@ namespace LocalCloudStorage.Data
         /// <summary>
         /// Whether to start the application on startup
         /// </summary>
-        public bool StartOnBoot { get; set; }
+        public bool StartOnBoot { get; set; } = true;
         /// <summary>
         /// The cloud storage instances
         /// </summary>
-        public List<CloudStorageInstanceData> CloudStorageInstances { get; }
+        public List<CloudStorageInstanceData> CloudStorageInstances { get; set; } =
+            new List<CloudStorageInstanceData>();
     }
 }

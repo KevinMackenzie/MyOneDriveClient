@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -155,6 +157,12 @@ namespace LocalCloudStorage
             Debug.Indent();
             Debug.WriteLine(e.StackTrace);
             Debug.Unindent();
+        }
+
+
+        public static void DeleteNullElements<T>(this List<T> list) where T : class
+        {
+            while (list.Remove(null)) ;
         }
     }
 }

@@ -273,6 +273,9 @@ namespace LocalCloudStorage
         {
             ct.ThrowIfCancellationRequested();
 
+            //TODO: i'd like to not do this EVERY time
+            await _remote.LogUserInAsync();
+
             var itemMetadata = _metadata.GetItemMetadata(request.Path);
             //since only this class has access to the queue, we have good confidence that 
             //the appropriate extra data will be with the appropriate request type
@@ -433,6 +436,11 @@ namespace LocalCloudStorage
                     throw new ArgumentOutOfRangeException();
             }
         }
+        protected override async Task PreQueue(CancellationToken ct)
+        {
+        }
+        protected override async Task PostQueue(CancellationToken ct)
+        {}
         #endregion
 
 
@@ -539,6 +547,8 @@ namespace LocalCloudStorage
         /// <returns></returns>
         public async Task<IEnumerable<IItemDelta>> RequestDeltasAsync(CancellationToken ct)
         {
+            await _remote.LogUserInAsync();
+
             //TODO: this should pause the processing of the queue
             var deltas = await _remote.GetDeltasAsync(_metadata.DeltaLink, ct);
             _metadata.DeltaLink = deltas.NextRequestData;

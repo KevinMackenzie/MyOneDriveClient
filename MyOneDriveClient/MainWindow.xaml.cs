@@ -19,6 +19,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using LocalCloudStorage;
+using LocalCloudStorage.AppCore;
 using LocalCloudStorage.ViewModel;
 using MyOneDriveClient.Annotations;
 
@@ -29,13 +30,13 @@ namespace MyOneDriveClient
     /// </summary>
     public partial class MainWindow : Window
     {
-        private RemoteFileStoreConnectionFactoriesViewModel _factories;
-        private LocalCloudStorageViewModel _localCloudStorageViewModel;
+        private readonly LocalCloudStorageApp _app;
         public MainWindow()
         {
             InitializeComponent();
-            
-            SetViewModels(App.ConnectionFactoryManager, App.LocalCloudStorage);
+
+            _app = App.AppInstance;
+            DataContext = _app.LocalCloudStorage;
 
             /*LocalActiveRequests.ItemsSource = Requests.LocalRequests.ActiveRequests;
             LocalUserAwaitRequests.ItemsSource = Requests.LocalRequests.AwaitUserRequests;
@@ -45,58 +46,25 @@ namespace MyOneDriveClient
             RemoteUserAwaitRequests.ItemsSource = Requests.RemoteRequests.AwaitUserRequests;
             RemoteFailedRequests.ItemsSource = Requests.RemoteRequests.FailedRequests;*/
            
-            Debug.Listeners.Add(new DebugListener(this));
-
-            Debug.WriteLine("Debug initialized");
         }
 
-        public void SetViewModels(RemoteFileStoreConnectionFactoriesViewModel factories,
-            LocalCloudStorageViewModel localCloudStorageViewModel)
+        /// <inheritdoc />
+        protected override void OnClosed(EventArgs e)
         {
-            _factories = factories;
-            _localCloudStorageViewModel = localCloudStorageViewModel;
+            _app?.Dispose();
+            base.OnClosed(e);
         }
-        
+
 
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
         {
             DequeueDebug();
         }
-
-        private ConcurrentQueue<string> debugQueue = new ConcurrentQueue<string>();
-
+        
         private void DequeueDebug()
         {
-            while (debugQueue.TryDequeue(out string result))
-            {
-                DebugBox.Text += result;
-                DebugBox.ScrollToEnd();
-            }
-        }
-
-        private class DebugListener : TraceListener
-        {
-            private MainWindow _window;
-            public DebugListener(MainWindow window)
-            {
-                _window = window;
-            }
-
-            /// <inheritdoc />
-            public override void Write(string message)
-            {
-                _window.debugQueue.Enqueue(message);
-                //_window.DebugBox.Text += message;
-                //_window.DebugBox.ScrollToEnd();
-            }
-
-            /// <inheritdoc />
-            public override void WriteLine(string message)
-            {
-                _window.debugQueue.Enqueue($"{message}{Environment.NewLine}");
-                //_window.DebugBox.Text += $"{message}{Environment.NewLine}";
-                //_window.DebugBox.ScrollToEnd();
-            }
+            DebugBox.Text = _app.DebugLog.DebugContents;
+            DebugBox.ScrollToEnd();
         }
         
 
@@ -108,12 +76,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
                 }
                 else
                 {
@@ -133,12 +101,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
                 }
                 else
                 {
@@ -158,12 +126,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
                 }
                 else
                 {
@@ -208,12 +176,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    App.LocalCloudStorage.SelectedInstance.CancelLocalRequest(request.InnerRequest.RequestId);
+                    _app.LocalCloudStorage.SelectedInstance.CancelLocalRequest(request.InnerRequest.RequestId);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    App.LocalCloudStorage.SelectedInstance.CancelRemoteRequest(request.InnerRequest.RequestId);
+                    _app.LocalCloudStorage.SelectedInstance.CancelRemoteRequest(request.InnerRequest.RequestId);
                 }
                 else
                 {
@@ -229,13 +197,14 @@ namespace MyOneDriveClient
         {
             //await App.FileStore.GenerateLocalMetadataAsync();
         }
-        private void NewInstanceButton_OnClick(object sender, RoutedEventArgs e)
+        private async void NewInstanceButton_OnClick(object sender, RoutedEventArgs e)
         {
-            var popup = new NewCloudStorageInstance(_factories);
+            var popup = new NewCloudStorageInstance(_app.RemoteConnectionFactories);
             var result = popup.ShowDialog() ?? false;
             if (result)
             {
-                _localCloudStorageViewModel.AddCloudStorageInstance(popup.Data);
+                _app.LocalCloudStorage.AddCloudStorageInstance(popup.Data);
+                await App.AppInstance.SaveInstances();
             }
         }
     }

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Identity.Client;
 using LocalCloudStorage;
+using LocalCloudStorage.AppCore;
 using LocalCloudStorage.Composition;
 using LocalCloudStorage.Data;
 using LocalCloudStorage.ViewModel;
@@ -20,7 +21,7 @@ namespace MyOneDriveClient
     public partial class App : Application
     {
         static App()
-        {            
+        {
             /*OneDriveConnection = new OneDrive.OneDriveRemoteFileStoreConnection();
             LocalFileStore = new DownloadedFileStore("C:/Users/kjmac/OneDriveTest");
             RemoteInterface = new BufferedRemoteFileStoreInterface(OneDriveConnection);
@@ -35,15 +36,12 @@ namespace MyOneDriveClient
             CancellationTokenSource cts = new CancellationTokenSource();
             FileStore.LoadMetadataAsync(cts.Token).Wait();*/
 
-            var data = new LocalCloudStorageData();
-            var connectionFactoryManager = new RemoteConnectionFactoryManager();
-            connectionFactoryManager.ImportFactories(AppDomain.CurrentDomain.BaseDirectory);
-
-            ConnectionFactoryManager = new RemoteFileStoreConnectionFactoriesViewModel(connectionFactoryManager);
-            LocalCloudStorage = new LocalCloudStorageViewModel(data, connectionFactoryManager);
+            AppInstance.PrepWorkingDirectory();
+            AppInstance.ScanForPlugins();
+            //TODO: where should this happen?
+            AppInstance.LoadInstances().Wait();
         }
 
-        public static LocalCloudStorageViewModel LocalCloudStorage { get; }
-        public static RemoteFileStoreConnectionFactoriesViewModel ConnectionFactoryManager { get; }
+        public static LocalCloudStorageApp AppInstance = new LocalCloudStorageApp($"{AppDomain.CurrentDomain.BaseDirectory}../../../WorkingDir/");
     }
 }
