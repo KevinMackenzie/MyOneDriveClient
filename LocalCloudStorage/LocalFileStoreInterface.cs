@@ -800,9 +800,17 @@ namespace LocalCloudStorage
             {
                 var itemMetadata = _metadata.GetItemMetadata(result.Handle.Path);
                 var parentMetadata = _metadata.GetParentItemMetadata(result.Handle.Path);
+
+                if (itemMetadata != null)
+                {
+                    if (itemMetadata.LastModified == result.Handle.LastModified)
+                        continue; //filter rebounds
+                }
+
                 switch (result.Type)
                 {
                     case DeltaType.Created:
+                        if (itemMetadata != null) continue;//filter rebounds
                         if (parentMetadata != null)
                         {
                             if (_local.ItemExists(result.Handle.Path))
