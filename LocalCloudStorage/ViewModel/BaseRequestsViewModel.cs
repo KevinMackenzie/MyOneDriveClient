@@ -111,7 +111,6 @@ namespace LocalCloudStorage.ViewModel
             }
         }
 
-
-        public ObservableCollection<FileStoreRequestViewModelBase> ActiveRequests { get; } = new ObservableCollection<FileStoreRequestViewModelBase>();
+        public TSafeObservableCollection<FileStoreRequestViewModelBase> ActiveRequests { get; } = new TSafeObservableCollection<FileStoreRequestViewModelBase>();
     }
 }

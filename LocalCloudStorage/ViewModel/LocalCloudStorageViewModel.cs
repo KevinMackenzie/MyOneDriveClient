@@ -42,6 +42,9 @@ namespace LocalCloudStorage.ViewModel
                 }
             }
 
+            //setup the selected instance first (null if none)
+            SelectedInstance = _cloudStorageInstances.FirstOrDefault();
+
             //make sure to update the data list when the instances list changes
             ///_cloudStorageInstances.CollectionChanged += (sender, args) => UpdateCloudStorageInstancesData();
         }

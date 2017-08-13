@@ -118,12 +118,12 @@
             </Grid.ColumnDefinitions>
             <Button x:Name="NewInstanceButton" Margin="2" Content="Add..." Click="NewInstanceButton_OnClick"/>
         </Grid>
-        <Grid Grid.Row="2" DataContext="{Binding}">
+        <Grid Grid.Row="2" DataContext="{Binding LocalCloudStorage}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1*"/>
                 <ColumnDefinition Width="3*"/>
             </Grid.ColumnDefinitions>
-            <ListBox Grid.Column="0" Margin="2" Padding="2" DataContext="{Binding}" ItemsSource="{Binding CloudStorageInstances}" ItemTemplate="{StaticResource CloudStorageInstancePreview}" SelectedItem="{Binding SelectedInstance}"/>
+            <ListBox x:Name="InstancesListBox" Grid.Column="0" Margin="2" Padding="2" DataContext="{Binding}" ItemsSource="{Binding CloudStorageInstances}" ItemTemplate="{StaticResource CloudStorageInstancePreview}" SelectedItem="{Binding SelectedInstance}"/>
             <Grid Grid.Column="1" DataContext="{Binding SelectedInstance}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1*" />
@@ -164,6 +164,6 @@
 
         <Label Content="Debug" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="3" />
         <Button Content="Get Debug" VerticalAlignment="Center" Width="150" Click="ButtonBase_OnClick" Grid.Row="3"/>
-        <TextBox x:Name="DebugBox" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" VerticalAlignment="Stretch" Margin="5" FontFamily="Segoe Ui" Grid.Row="4" />
+        <TextBox x:Name="DebugBox" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" VerticalAlignment="Stretch" Margin="5" FontFamily="Segoe Ui" Grid.Row="4" Text="{Binding DebugLog.DebugContents, Mode=OneWay}" />
     </Grid>
 </Window>

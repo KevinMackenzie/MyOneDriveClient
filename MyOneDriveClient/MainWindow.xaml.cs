@@ -4,6 +4,8 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -36,7 +38,10 @@ namespace MyOneDriveClient
             InitializeComponent();
 
             _app = App.AppInstance;
-            DataContext = _app.LocalCloudStorage;
+            DataContext = _app;
+
+            //_app.LocalCloudStorage.PropertyChanged += LocalCloudStorageOnPropertyChanged;
+            //LocalCloudStorageOnPropertyChanged(null, new PropertyChangedEventArgs(nameof(LocalCloudStorageViewModel.SelectedInstance)));
 
             /*LocalActiveRequests.ItemsSource = Requests.LocalRequests.ActiveRequests;
             LocalUserAwaitRequests.ItemsSource = Requests.LocalRequests.AwaitUserRequests;
@@ -45,8 +50,42 @@ namespace MyOneDriveClient
             RemoteActiveRequests.ItemsSource = Requests.RemoteRequests.ActiveRequests;
             RemoteUserAwaitRequests.ItemsSource = Requests.RemoteRequests.AwaitUserRequests;
             RemoteFailedRequests.ItemsSource = Requests.RemoteRequests.FailedRequests;*/
-           
         }
+        /*private void LocalCloudStorageOnPropertyChanged(object sender, PropertyChangedEventArgs propertyChangedEventArgs)
+        {
+            if (propertyChangedEventArgs.PropertyName == nameof(LocalCloudStorageViewModel.SelectedInstance))
+            {
+                var selectedInstance = _app.LocalCloudStorage.SelectedInstance;
+
+                //what was the previous selection?
+                var oldSelected = InstancesListBox.SelectedItem as CloudStorageInstanceViewModel;
+                if (oldSelected != null)
+                {
+                    //remote our event handlers from that
+                    oldSelected.Requests.LocalRequests.ActiveRequests.CollectionChanged -= LocalActiveRequestsOnCollectionChanged;
+                    oldSelected.Requests.RemoteRequests.ActiveRequests.CollectionChanged -= RemoteActiveRequestsOnCollectionChanged;
+                }
+
+                //set the selection to the currently selected instance
+                InstancesListBox.SelectedItem = selectedInstance;
+
+                //set the active requests item sources to the currently selected item's requests
+                LocalActiveRequests.ItemsSource = selectedInstance.Requests.LocalRequests.ActiveRequests;
+                RemoteActiveRequests.ItemsSource = selectedInstance.Requests.RemoteRequests.ActiveRequests;
+
+                //then register event handlers to ensure the list boxes are up to date
+                selectedInstance.Requests.LocalRequests.ActiveRequests.CollectionChanged += LocalActiveRequestsOnCollectionChanged;
+                selectedInstance.Requests.RemoteRequests.ActiveRequests.CollectionChanged += RemoteActiveRequestsOnCollectionChanged;
+            }
+        }
+        private void LocalActiveRequestsOnCollectionChanged(object sender, NotifyCollectionChangedEventArgs notifyCollectionChangedEventArgs)
+        {
+            LocalActiveRequests.Dispatcher.Invoke(() => LocalActiveRequests.Items.Refresh());
+        }
+        private void RemoteActiveRequestsOnCollectionChanged(object sender, NotifyCollectionChangedEventArgs notifyCollectionChangedEventArgs)
+        {
+            RemoteActiveRequests.Dispatcher.Invoke(() => RemoteActiveRequests.Items.Refresh());
+        }*/
 
         /// <inheritdoc />
         protected override void OnClosed(EventArgs e)
