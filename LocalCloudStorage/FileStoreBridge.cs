@@ -242,15 +242,15 @@ namespace LocalCloudStorage
                 }
             }
 
-            while (!await _remote.ProcessQueueAsync(pt))
+            //also process the local requests, because we may have made
+            //  some writable stream requests
+            while (!await _local.ProcessQueueAsync(pt))
             {
                 //TODO: wait for user intervention
                 await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
             }
 
-            //also process the local requests, because we may have made
-            //  some writable stream requests
-            while (!await _local.ProcessQueueAsync(pt))
+            while (!await _remote.ProcessQueueAsync(pt))
             {
                 //TODO: wait for user intervention
                 await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
