@@ -293,6 +293,9 @@ namespace LocalCloudStorage
                                         {
                                             //... with a parent, so update the item metadata ...
                                             //_metadata.AddOrUpdateItemMetadata(itemMetadata);
+                                            
+                                            //make sure we update this ASAP so remote changes won't overwrite local ones...
+                                            itemMetadata.LastModified = itemHandle.LastModified;
 
                                             //... and add the delta
                                             _localDeltas.Enqueue(new ItemDelta()
@@ -796,9 +799,19 @@ namespace LocalCloudStorage
                             {
                                 //thie means that the item was deleted, but the local has been modified since then
                                 Debug.WriteLine("Remote delete request attempted to delete more recent local file... renaming local file");
-                                await RequestRenameItemImmediateAsync(request.Path,
-                                    PathUtils.InsertString(PathUtils.GetItemName(request.Path),
-                                        DateTime.UtcNow.ToString()), ct);
+
+                                //make sure the old one is a success
+                                InvokeStatusChanged(request, RequestStatus.Success);
+
+                                //keep trying until we succeed;
+                                while (!await RequestRenameItemImmediateAsync(request.Path,
+                                    PathUtils.InsertDateTime(PathUtils.GetItemName(request.Path),
+                                        DateTime.UtcNow), ct))
+                                {
+                                    await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
+                                }
+                                
+                                
 
                                 return true;
                             }
@@ -954,6 +967,11 @@ namespace LocalCloudStorage
                         }
                         break;
                     case DeltaType.Modified:
+                        if (itemMetadata == null)
+                        {
+                            //kind of a moot point
+                            continue;
+                        }
                         itemMetadata.LastModified = result.Handle.LastModified;
                         itemMetadata.Sha1 = await result.Handle.GetSha1HashAsync(ct);
                         break;
@@ -1143,13 +1161,13 @@ namespace LocalCloudStorage
                     })), ct);
             return ret;
         }
-        public async Task RequestDeleteItemImmediateAsync(string path, CancellationToken ct)
+        public async Task<bool> RequestDeleteItemImmediateAsync(string path, CancellationToken ct)
         {
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Delete, path, null), ct);
+            return await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Delete, path, null), ct);
         }
-        public async Task RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct)
+        public async Task<bool> RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct)
         {
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Rename, path,
+            return await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Rename, path,
                 new RequestRenameExtraData(newName)), ct);
         }
 

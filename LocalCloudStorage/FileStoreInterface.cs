@@ -124,14 +124,15 @@ namespace LocalCloudStorage
             InvokeStatusChanged(request);
             return request.RequestId;
         }
-        protected async Task<FileStoreRequest> ProcessRequestAsync(FileStoreRequest request, CancellationToken ct)
+        protected async Task<bool> ProcessRequestAsync(FileStoreRequest request, CancellationToken ct)
         {
             InvokeStatusChanged(request);
-            if (await ProcessQueueItemAsync(request, ct))
+            var success = await ProcessQueueItemAsync(request, ct);
+            if (success)
             {
                 _completedRequests.Add(request);
             }
-            return request;
+            return success;
         }
         #endregion
 

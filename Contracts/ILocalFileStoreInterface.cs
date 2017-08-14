@@ -28,8 +28,8 @@ namespace LocalCloudStorage
 
         Task<FileStoreRequest> RequestWritableStreamImmediateAsync(string path, string sha1, DateTime lastModified, CancellationToken ct);
         Task<FileStoreRequest> RequestReadOnlyStreamImmediateAsync(string path, CancellationToken ct);
-        Task RequestDeleteItemImmediateAsync(string path, CancellationToken ct);
-        Task RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct);
+        Task<bool> RequestDeleteItemImmediateAsync(string path, CancellationToken ct);
+        Task<bool> RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct);
 
         Task SaveNonSyncFile(string path, string content, CancellationToken ct);
         Task<string> ReadNonSyncFile(string path, CancellationToken ct);
