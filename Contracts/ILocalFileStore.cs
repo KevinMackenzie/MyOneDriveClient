@@ -14,8 +14,8 @@ namespace LocalCloudStorage
         /// relative to this path
         /// </summary>
         string PathRoot { get; }
-        void SetItemLastModified(string localPath, DateTime lastModified);
-        void SetItemAttributes(string localPath, FileAttributes attributes);
+        bool SetItemLastModified(string localPath, DateTime lastModified);
+        bool SetItemAttributes(string localPath, FileAttributes attributes);
 
         ILocalItemHandle GetFileHandle(string localPath);
         bool CreateLocalFolder(string localPath, DateTime lastModified);

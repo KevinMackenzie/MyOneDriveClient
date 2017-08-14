@@ -391,7 +391,13 @@ namespace LocalCloudStorage
                         return Task.Run(() =>
                         {
                             //after disposing, make sure that we set the last modified of the local and the metadata
-                            _local.SetItemLastModified(request.Path, lastModified);
+                            while (!_local.SetItemLastModified(request.Path, lastModified))
+                            {
+                                //make VERY sure this happens
+                                Debug.WriteLine(
+                                    "Failed to set local item last modified after finishing writing to it ... trying again");
+                                Task.Delay(1000).Wait();
+                            }
 
                             //add the new item to the metadata with the retrieved parent.  
                             //      Do this after so the file is done writing to
@@ -555,7 +561,11 @@ namespace LocalCloudStorage
                                         //  that originated from a local source, so just update the metadata so we have the
                                         //  correct "last modified" and cancel the request
 
-                                        _local.SetItemLastModified(fileHandle.Path, data.LastModified);
+                                        while (!_local.SetItemLastModified(fileHandle.Path, data.LastModified))
+                                        {
+                                            Debug.WriteLine("Failed to set local item last modified... trying again");
+                                            await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
+                                        }
                                         itemMetadata.LastModified = data.LastModified;
                                                     
                                         InvokeStatusChanged(request, RequestStatus.Cancelled);

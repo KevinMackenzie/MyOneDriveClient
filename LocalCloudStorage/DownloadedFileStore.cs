@@ -186,22 +186,40 @@ namespace LocalCloudStorage
         {
             return new DownloadedFileHandle(this, localPath);//ItemExists(localPath) ? new DownloadedFileHandle(this, localPath) : null;
         }
-        public void SetItemAttributes(string localPath, FileAttributes attributes)
+        public bool SetItemAttributes(string localPath, FileAttributes attributes)
         {
             var fqp = BuildPath(localPath);
-            File.SetAttributes(fqp, attributes);
+            try
+            {
+                File.SetAttributes(fqp, attributes);
+            }
+            catch (Exception e)
+            {
+                Utils.LogException(e);
+                return false;
+            }
+            return true;
         }
-        public void SetItemLastModified(string localPath, DateTime lastModified)
+        public bool SetItemLastModified(string localPath, DateTime lastModified)
         {
             string fqp = BuildPath(localPath);
-            if (File.Exists(fqp))
+            try
             {
-                File.SetLastWriteTimeUtc(fqp, lastModified);
+                if (File.Exists(fqp))
+                {
+                    File.SetLastWriteTimeUtc(fqp, lastModified);
+                }
+                else if (Directory.Exists(fqp))
+                {
+                    Directory.SetLastWriteTimeUtc(fqp, lastModified);
+                }
             }
-            else if (Directory.Exists(fqp))
+            catch (Exception e)
             {
-                Directory.SetLastWriteTimeUtc(fqp, lastModified);
+                Utils.LogException(e);
+                return false;
             }
+            return true;
         }
         public bool MoveLocalItem(string localPath, string newLocalPath)
         {
