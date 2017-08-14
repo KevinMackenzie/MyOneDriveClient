@@ -40,6 +40,18 @@ namespace LocalCloudStorage
         {
             return $"{PathUtils.GetParentItemPath(oldPath)}/{newName}";
         }
+        public static string RectifySlashes(string path)
+        {
+            //replace back slashes with forward slashes
+            path = path.Replace('\\', '/');
+
+            //collapse all multi-forward slashes into singles
+            while (path.Contains("//"))
+            {
+                path = path.Replace("//", "/");
+            }
+            return path;
+        }
 
         /// <summary>
         /// Inserts a given string between the name and file extension of a given path

@@ -16,8 +16,8 @@ namespace LocalCloudStorage
         private IEnumerable<string> _blacklist;
         private ILocalFileStoreInterface _local;
         private IRemoteFileStoreInterface _remote;
-        private const string RemoteMetadataCachePath = ".remotemetadata";
-        private const string LocalMetadataCachePath = ".localmetadata";
+        private const string RemoteMetadataCachePath = "/.remotemetadata";
+        private const string LocalMetadataCachePath = "/.localmetadata";
         private ConcurrentDictionary<int, IItemHandle> _uploadRequests = new ConcurrentDictionary<int, IItemHandle>();
         #endregion
 

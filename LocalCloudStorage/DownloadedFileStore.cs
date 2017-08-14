@@ -26,24 +26,12 @@ namespace LocalCloudStorage
         #region Private Helper Methods
         private string BuildPath(string path)
         {
-            return RectifySlashes(path.First() == '/' ? $"{PathRoot}{path}" : $"{PathRoot}/{path}");
+            return PathUtils.RectifySlashes(path.First() == '/' ? $"{PathRoot}{path}" : $"{PathRoot}/{path}");
         }
         private string UnBuildPath(string path)
         {
             //remote the path root
-            return RectifySlashes(path.Substring(PathRoot.Length - 1, path.Length - PathRoot.Length + 1));
-        }
-        private static string RectifySlashes(string path)
-        {
-            //replace back slashes with forward slashes
-            path = path.Replace('\\', '/');
-
-            //collapse all multi-forward slashes into singles
-            while (path.Contains("//"))
-            {
-                path = path.Replace("//", "/");
-            }
-            return path;
+            return PathUtils.RectifySlashes(path.Substring(PathRoot.Length - 1, path.Length - PathRoot.Length + 1));
         }
         private FileSystemInfo GetItemInfo(string localPath)
         {
