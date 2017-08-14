@@ -24,9 +24,10 @@ namespace LocalCloudStorage
         private class DeletedItemHandle : IItemHandle
         {
             private IItemHandle _itemHandle;
-            public DeletedItemHandle(IItemHandle itemHandle, string path)
+            public DeletedItemHandle(IItemHandle itemHandle, string path, DateTime lastModified)
             {
                 _itemHandle = itemHandle;
+                LastModified = lastModified;
                 Path = path;
             }
 
@@ -47,7 +48,7 @@ namespace LocalCloudStorage
                 return await _itemHandle.GetSha1HashAsync(ct);
             }
             /// <inheritdoc />
-            public DateTime LastModified => _itemHandle.LastModified;
+            public DateTime LastModified { get; }
             /// <inheritdoc />
             public Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
@@ -563,7 +564,8 @@ namespace LocalCloudStorage
                     {
                         filteredDeltas.Add(new ItemDelta
                         {
-                            Handle = new DeletedItemHandle(delta.ItemHandle, itemMetadata.Path),
+                            //use the metadata path/last modified, because that information isn't known to us in the delta
+                            Handle = new DeletedItemHandle(delta.ItemHandle, itemMetadata.Path, itemMetadata.LastModified),
                             Type = DeltaType.Deleted
                         });
 

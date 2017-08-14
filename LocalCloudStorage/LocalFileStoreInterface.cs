@@ -141,6 +141,16 @@ namespace LocalCloudStorage
             public Stream Stream { get; }
         }
 
+        private class RequestDeleteExtraData : IFileStoreRequestExtraData
+        {
+            public RequestDeleteExtraData(DateTime remoteLastModified)
+            {
+                RemoteLastModified = remoteLastModified;
+            }
+
+            public DateTime RemoteLastModified { get; }
+        }
+
 
         #region Private Fields
         private ILocalFileStore _local;
@@ -771,20 +781,42 @@ namespace LocalCloudStorage
                     break;
                 case RequestType.Delete:
                 {
-                    if (itemMetadata == null)
+                    var extraData = request.ExtraData as RequestDeleteExtraData;
+                    if (extraData != null)
                     {
-                        //item doesn't exist.  Is this an issue?
-                        FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
-                        return false;
+                        if (itemMetadata == null)
+                        {
+                            //item doesn't exist.  Is this an issue?
+                            FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
+                            return false;
+                        }
+                        else
+                        {
+                            if (extraData.RemoteLastModified < itemMetadata.LastModified)
+                            {
+                                //thie means that the item was deleted, but the local has been modified since then
+                                Debug.WriteLine("Remote delete request attempted to delete more recent local file... renaming local file");
+                                await RequestRenameItemImmediateAsync(request.Path,
+                                    PathUtils.InsertString(PathUtils.GetItemName(request.Path),
+                                        DateTime.UtcNow.ToString()), ct);
+
+                                return true;
+                            }
+                            else
+                            {
+                                var success = DeleteItem(itemMetadata.Path, request);
+                                if (success)
+                                {
+                                    _metadata.RemoveItemMetadataById(itemMetadata.Id);
+                                }
+                                return success;
+                            }
+                        }
                     }
                     else
                     {
-                        var success = DeleteItem(itemMetadata.Path, request);
-                        if (success)
-                        {
-                            _metadata.RemoveItemMetadataById(itemMetadata.Id);
-                        }
-                        return success;
+                        Debug.WriteLine("Delete item was called without appropriate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -1051,9 +1083,9 @@ namespace LocalCloudStorage
             /// </summary>
             /// <param name="path">the path of the item to delete</param>
             /// <returns>the request id</returns>
-        public void RequestDelete(string path)
+        public void RequestDelete(string path, DateTime lastModified)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Delete, path, null));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Delete, path, new RequestDeleteExtraData(lastModified)));
         }
         /// <summary>
         /// Creates a local folder

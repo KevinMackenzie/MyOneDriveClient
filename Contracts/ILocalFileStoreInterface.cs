@@ -16,7 +16,12 @@ namespace LocalCloudStorage
         void RequestWritableStream(string path, string sha1, DateTime lastModified,
             Action<FileStoreRequest> onCompleteFunc);
         void RequestReadOnlyStream(string path, Action<FileStoreRequest> onCompleteFunc);
-        void RequestDelete(string path);
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="lastModified">the time the item was last modified (NOT the time the file was deleted)</param>
+        void RequestDelete(string path, DateTime lastModified);
         void RequestFolderCreate(string path, DateTime lastModified);
         void RequestMove(string path, string newParentPath);
         void RequestRename(string path, string newName);

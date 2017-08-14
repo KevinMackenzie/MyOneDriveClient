@@ -314,7 +314,7 @@ namespace LocalCloudStorage
                         }
                         break;
                     case DeltaType.Deleted:
-                        _local.RequestDelete(delta.Handle.Path); //TODO: check timestamps
+                        _local.RequestDelete(delta.Handle.Path, delta.Handle.LastModified);
                         break;
                     case DeltaType.Modified:
                         if (delta.Handle.IsFolder)
@@ -476,7 +476,7 @@ namespace LocalCloudStorage
                             case RequestType.Write:
                                 //rename the local file
                                 await _local.RequestRenameItemImmediateAsync(request.Path,
-                                    PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()), ct);
+                                    PathUtils.InsertString(PathUtils.GetItemName(request.Path), DateTime.UtcNow.ToString()), ct);
                                 break;
                             case RequestType.Rename:
                                 //rename the existing destination file
@@ -486,7 +486,7 @@ namespace LocalCloudStorage
                                 {
                                     await _local.RequestRenameItemImmediateAsync(
                                         PathUtils.GetRenamedPath(request.Path, extraData.NewName),
-                                        PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()), ct);
+                                        PathUtils.InsertString(PathUtils.GetItemName(request.Path), DateTime.UtcNow.ToString()), ct);
                                 }
                                 else
                                 {
@@ -502,7 +502,7 @@ namespace LocalCloudStorage
                                 {
                                     await _local.RequestRenameItemImmediateAsync(
                                         $"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}",
-                                        PathUtils.InsertString(request.Path, DateTime.UtcNow.ToString()), ct);
+                                        PathUtils.InsertString(PathUtils.GetItemName(request.Path), DateTime.UtcNow.ToString()), ct);
                                 }
                                 else
                                 {
