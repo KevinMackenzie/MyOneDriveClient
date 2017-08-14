@@ -8,6 +8,7 @@ namespace LocalCloudStorage
     {
         /// <inheritdoc />
         public ConcurrentDictionary<string, ItemMetadataCache.ItemMetadata> LocalItems { get; set; } = new ConcurrentDictionary<string, ItemMetadataCache.ItemMetadata>();
+        public DateTime LastSyncTime { get; set; } = DateTime.MinValue; //use the min value so the last sync is infinitely in the past
         public long ItemId;
     }
     public class LocalItemMetadataCache : ItemMetadataCache<LocalCachedItemMetadata>

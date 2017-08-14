@@ -36,6 +36,12 @@ namespace LocalCloudStorage
             return JsonConvert.SerializeObject(_data, Formatting.Indented);
         }
         
+        public DateTime LastSyncTime
+        {
+            get => _data.LastSyncTime;
+            set => _data.LastSyncTime = value;
+        }
+
         /// <summary>
         /// Deletes all metadata whose parents have been deleted (<see cref="ItemMetadata.Path"/> throws an exception)
         /// </summary>

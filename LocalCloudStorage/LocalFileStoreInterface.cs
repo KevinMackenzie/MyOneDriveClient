@@ -293,9 +293,10 @@ namespace LocalCloudStorage
                                         {
                                             //... with a parent, so update the item metadata ...
                                             //_metadata.AddOrUpdateItemMetadata(itemMetadata);
-                                            
+
                                             //make sure we update this ASAP so remote changes won't overwrite local ones...
                                             itemMetadata.LastModified = itemHandle.LastModified;
+                                            itemMetadata.Sha1 = await itemHandle.GetSha1HashAsync(CancellationToken.None);
 
                                             //... and add the delta
                                             _localDeltas.Enqueue(new ItemDelta()
@@ -335,8 +336,8 @@ namespace LocalCloudStorage
                                 if (itemMetadata == null)
                                 {
                                     //... and no metadata at the old location either, so add new metadata ...
-                                    //_metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
-                                    //    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                    _metadata.AddItemMetadata(await GetMetadataHandleAsync(itemHandle,
+                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id, CancellationToken.None));
 
                                     //... and create it i guess
                                     _localDeltas.Enqueue(new ItemDelta()
@@ -349,7 +350,7 @@ namespace LocalCloudStorage
                                 else
                                 {
                                     //... so update the name ...
-                                    //THIS HAS BEEN MOVED TO THE DEQUEUE METHOD
+                                    itemMetadata.Name = itemHandle.Name;
 
                                     //... and add the delta
                                     _localDeltas.Enqueue(new ItemDelta()
@@ -543,7 +544,7 @@ namespace LocalCloudStorage
                             else
                             {
                                 //item has been synced before
-                                var lastSyncTime = itemMetadata.LastModified;
+                                var lastSyncTime = _metadata.LastSyncTime;
 
                                 if (data.LastModified > lastSyncTime) //(this is pretty much a guarantee)
                                 {
@@ -838,6 +839,23 @@ namespace LocalCloudStorage
             }
         }
 
+        #region Conflict Resolution Helper
+        //This allows the date the sync started to be used as the basis for the next sync
+        private DateTime _lastSyncDateTimeTemp;
+        /// <inheritdoc />
+        protected override Task PreQueue(CancellationToken ct)
+        {
+            _lastSyncDateTimeTemp = DateTime.UtcNow;
+            return base.PreQueue(ct);
+        }
+        /// <inheritdoc />
+        protected override Task PostQueue(CancellationToken ct)
+        {
+            _metadata.LastSyncTime = _lastSyncDateTimeTemp;
+            return base.PostQueue(ct);
+        }
+        #endregion
+
         private async Task<IEnumerable<ItemDelta>> GetEventDeltas(CancellationToken ct)
         {
             List<ItemDelta> filteredDeltas = new List<ItemDelta>();
@@ -956,24 +974,8 @@ namespace LocalCloudStorage
                         _metadata.RemoveItemMetadata(result.OldPath);
                         break;
                     case DeltaType.Renamed:
-                        if (itemMetadata == null)
-                        {
-                            _metadata.AddItemMetadata(await GetMetadataHandleAsync(result.Handle,
-                                _metadata.GetNextItemId().ToString(), parentMetadata.Id, ct));
-                        }
-                        else
-                        {
-                            itemMetadata.Name = result.Handle.Name;
-                        }
                         break;
                     case DeltaType.Modified:
-                        if (itemMetadata == null)
-                        {
-                            //kind of a moot point
-                            continue;
-                        }
-                        itemMetadata.LastModified = result.Handle.LastModified;
-                        itemMetadata.Sha1 = await result.Handle.GetSha1HashAsync(ct);
                         break;
                     case DeltaType.Moved:
                         break;
