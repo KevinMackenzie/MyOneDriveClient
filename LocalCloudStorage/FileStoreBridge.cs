@@ -476,7 +476,7 @@ namespace LocalCloudStorage
                             case RequestType.Write:
                                 //rename the local file
                                 await _local.RequestRenameItemImmediateAsync(request.Path,
-                                    PathUtils.InsertString(PathUtils.GetItemName(request.Path), DateTime.UtcNow.ToString()), ct);
+                                    PathUtils.InsertDateTime(PathUtils.GetItemName(request.Path), DateTime.UtcNow), ct);
                                 break;
                             case RequestType.Rename:
                                 //rename the existing destination file
@@ -486,7 +486,7 @@ namespace LocalCloudStorage
                                 {
                                     await _local.RequestRenameItemImmediateAsync(
                                         PathUtils.GetRenamedPath(request.Path, extraData.NewName),
-                                        PathUtils.InsertString(PathUtils.GetItemName(request.Path), DateTime.UtcNow.ToString()), ct);
+                                        PathUtils.InsertDateTime(PathUtils.GetItemName(request.Path), DateTime.UtcNow), ct);
                                 }
                                 else
                                 {
@@ -502,7 +502,7 @@ namespace LocalCloudStorage
                                 {
                                     await _local.RequestRenameItemImmediateAsync(
                                         $"{extraData.NewParentPath}/{PathUtils.GetItemName(request.Path)}",
-                                        PathUtils.InsertString(PathUtils.GetItemName(request.Path), DateTime.UtcNow.ToString()), ct);
+                                        PathUtils.InsertDateTime(PathUtils.GetItemName(request.Path), DateTime.UtcNow), ct);
                                 }
                                 else
                                 {

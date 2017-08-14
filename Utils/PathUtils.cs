@@ -65,9 +65,15 @@ namespace LocalCloudStorage
             ret = $"{ret}/{namePreExt}";
             for (int i = 1; i < nameParts.Length; ++i)
             {
-                ret = $"{ret}.{nameParts}";
+                ret = $"{ret}.{nameParts[i]}";
             }
             return ret;
+        }
+
+        public static string InsertDateTime(string path, DateTime toInsert)
+        {
+            //make sure to avoid any characters that paths can't handle
+            return InsertString(path, toInsert.ToString("u").Replace(':','_'));
         }
     }
 }
