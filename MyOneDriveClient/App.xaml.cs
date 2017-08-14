@@ -38,8 +38,11 @@ namespace MyOneDriveClient
 
             AppInstance.PrepWorkingDirectory();
             AppInstance.ScanForPlugins();
-            //TODO: where should this happen?
-            AppInstance.LoadInstances().Wait();
+        }
+
+        public static void LoadInstances()
+        {
+            AppInstance.LoadInstances();
         }
 
         public static LocalCloudStorageApp AppInstance = new LocalCloudStorageApp($"{AppDomain.CurrentDomain.BaseDirectory}../../../WorkingDir/");

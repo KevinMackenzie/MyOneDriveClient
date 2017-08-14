@@ -40,6 +40,9 @@ namespace MyOneDriveClient
             _app = App.AppInstance;
             DataContext = _app;
 
+            //load the instances  AFTER the UI is setup
+            App.LoadInstances();
+            
             //_app.LocalCloudStorage.PropertyChanged += LocalCloudStorageOnPropertyChanged;
             //LocalCloudStorageOnPropertyChanged(null, new PropertyChangedEventArgs(nameof(LocalCloudStorageViewModel.SelectedInstance)));
 

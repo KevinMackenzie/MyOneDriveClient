@@ -12,7 +12,7 @@ using Newtonsoft.Json;
 
 namespace LocalCloudStorage.AppCore
 {
-    public class LocalCloudStorageApp : IDisposable
+    public class LocalCloudStorageApp : ViewModelBase, IDisposable
     {
 
         #region Private Fields
@@ -22,6 +22,9 @@ namespace LocalCloudStorage.AppCore
         private string _workingDirectory;
         private RemoteConnectionFactoryManager _factoryManager;
         private LocalCloudStorageData _instancesData;
+
+        private LocalCloudStorageViewModel _localCloudStorage;
+        private RemoteFileStoreConnectionFactoriesViewModel _remoteConnectionFactories;
         #endregion
 
         /// <summary>
@@ -32,7 +35,7 @@ namespace LocalCloudStorage.AppCore
         {
             _workingDirectory = workingDirectory;
             _factoryManager = new RemoteConnectionFactoryManager();
-            RemoteConnectionFactories = new RemoteFileStoreConnectionFactoriesViewModel(_factoryManager);
+            _remoteConnectionFactories = new RemoteFileStoreConnectionFactoriesViewModel(_factoryManager);
         }
 
         #region Private Methods
@@ -138,8 +141,24 @@ namespace LocalCloudStorage.AppCore
         #endregion
 
         #region Major Public Properties
-        public LocalCloudStorageViewModel LocalCloudStorage { get; private set; }
-        public RemoteFileStoreConnectionFactoriesViewModel RemoteConnectionFactories { get; private set; }
+        public LocalCloudStorageViewModel LocalCloudStorage
+        {
+            get { return _localCloudStorage; }
+            private set
+            {
+                _localCloudStorage = value;
+                OnPropertyChanged();
+            }
+        }
+        public RemoteFileStoreConnectionFactoriesViewModel RemoteConnectionFactories
+        {
+            get { return _remoteConnectionFactories; }
+            private set
+            {
+                _remoteConnectionFactories = value;
+                OnPropertyChanged();
+            }
+        }
         #endregion
 
         #region Debugging/Logging

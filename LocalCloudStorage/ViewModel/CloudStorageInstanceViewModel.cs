@@ -41,9 +41,6 @@ namespace LocalCloudStorage.ViewModel
 
             _bridge = new FileStoreBridge(data.BlackList, _localInterface, remoteInterface);
 
-            //TODO: is there a better place to be doing this?
-            _bridge.LoadMetadataAsync(_instancePts.Token.CancellationToken).Wait();
-
             //create the requests viewmodels
             Requests = new RequestsViewModel(this);
             
@@ -60,6 +57,9 @@ namespace LocalCloudStorage.ViewModel
         #region Private Methods
         private async Task SyncLoopMethod(PauseToken pt)
         {
+            //this seems like a fine place to do this... (it only gets called once)
+            await _bridge.LoadMetadataAsync(_instancePts.Token.CancellationToken);
+
             var ct = pt.CancellationToken;
             var any = false;
             while (!ct.IsCancellationRequested)
