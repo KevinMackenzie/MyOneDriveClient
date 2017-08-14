@@ -1163,7 +1163,10 @@ namespace LocalCloudStorage
         }
         public async Task<bool> RequestDeleteItemImmediateAsync(string path, CancellationToken ct)
         {
-            return await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Delete, path, null), ct);
+            return await ProcessRequestAsync(
+                new FileStoreRequest(ref _requestId, RequestType.Delete, path,
+                //use the "UtcNow" time, because it means the item will ALWAYS be older than the remote version
+                    new RequestDeleteExtraData(DateTime.UtcNow)), ct);
         }
         public async Task<bool> RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct)
         {
