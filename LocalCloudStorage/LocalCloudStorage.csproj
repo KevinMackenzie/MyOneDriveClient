@@ -61,8 +61,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BufferedRemoteFileStoreInterface.cs" />
-    <Compile Include="Composition\ContainerConfigurationExtensions.cs" />
-    <Compile Include="Composition\RemoteConnectionFactoryManager.cs" />
     <Compile Include="Contracts\ICachedItemMetadata.cs" />
     <Compile Include="DownloadedFileStore.cs" />
     <Compile Include="FileStoreBridge.cs" />
@@ -79,6 +77,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Composition\" />
     <Folder Include="Data\" />
     <Folder Include="Events\" />
     <Folder Include="ViewModel\" />
