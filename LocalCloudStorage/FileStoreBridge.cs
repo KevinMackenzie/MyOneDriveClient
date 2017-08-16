@@ -13,7 +13,7 @@ namespace LocalCloudStorage
     public class FileStoreBridge
     {
         #region Private Fields
-        private IEnumerable<string> _blacklist;
+        private Atomic<IEnumerable<string>> _blacklist;
         private ILocalFileStoreInterface _local;
         private IRemoteFileStoreInterface _remote;
         private const string RemoteMetadataCachePath = "/.remotemetadata";
@@ -24,7 +24,7 @@ namespace LocalCloudStorage
         public FileStoreBridge(IEnumerable<string> blacklist, ILocalFileStoreInterface local,
             IRemoteFileStoreInterface remote)
         {
-            _blacklist = blacklist;
+            _blacklist = new Atomic<IEnumerable<string>>(blacklist);
             _local = local;
             _remote = remote;
 
@@ -59,7 +59,7 @@ namespace LocalCloudStorage
                 return true;
 
             var len = path.Length;
-            return _blacklist.Where(item => item.Length <= len).Any(item => path.Substring(item.Length) == item);
+            return _blacklist.Value.Where(item => item.Length <= len).Any(item => path.Substring(item.Length) == item);
         }
 
         private async Task CreateOrDownloadFile(IItemDelta delta, CancellationToken ct)
@@ -167,6 +167,11 @@ namespace LocalCloudStorage
         #endregion
 
         #region Public Properties
+        public IEnumerable<string> BlackList
+        {
+            get => _blacklist.Value;
+            set => _blacklist.Value = value;
+        }
         #endregion
 
         #region Public Methods

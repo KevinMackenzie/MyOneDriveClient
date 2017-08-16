@@ -90,6 +90,14 @@ namespace LocalCloudStorage
             get => _remoteDeltaFrequency.Value;
             set => _remoteDeltaFrequency.Value = value;
         }
+        /// <summary>
+        /// Files/folders that should be excluded from syncing
+        /// </summary>
+        public IEnumerable<string> BlackList
+        {
+            get => _bridge.BlackList;
+            set => _bridge.BlackList = value;
+        }
         #endregion
 
         #region Event Subscriptions

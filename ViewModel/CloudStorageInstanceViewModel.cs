@@ -117,6 +117,7 @@ namespace LocalCloudStorage.ViewModel
             set
             {
                 _data.BlackList = value;
+                _control.BlackList = value;
                 OnPropertyChanged();
             }
         }
