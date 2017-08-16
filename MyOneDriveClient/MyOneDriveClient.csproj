@@ -150,10 +150,6 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\AppCore\AppCore.csproj">
-      <Project>{8c5940ac-aa3a-4e03-abb0-f5755f226aca}</Project>
-      <Name>AppCore</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Contracts\Contracts.csproj">
       <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
       <Name>Contracts</Name>

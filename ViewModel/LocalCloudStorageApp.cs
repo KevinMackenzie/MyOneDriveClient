@@ -10,7 +10,7 @@ using LocalCloudStorage.Composition;
 using LocalCloudStorage.Data;
 using Newtonsoft.Json;
 
-namespace LocalCloudStorage.AppCore
+namespace LocalCloudStorage.ViewModel
 {
     public class LocalCloudStorageApp : ViewModelBase, IDisposable
     {
