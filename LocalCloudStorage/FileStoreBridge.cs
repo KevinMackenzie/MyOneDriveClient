@@ -373,7 +373,7 @@ namespace LocalCloudStorage
             return any;
         }
 
-        public async Task ResolveLocalConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution, CancellationToken ct)
+        public async Task ResolveLocalConflictAsync(int requestId, ConflictResolutions resolution, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             if (_local.TryGetRequest(requestId, out FileStoreRequest request))
@@ -382,7 +382,7 @@ namespace LocalCloudStorage
                     return;
                 switch (resolution)
                 {
-                    case FileStoreInterface.ConflictResolutions.KeepLocal:
+                    case ConflictResolutions.KeepLocal:
                         _local.CancelRequest(request.RequestId);
                         switch (request.Type)
                         {
@@ -427,7 +427,7 @@ namespace LocalCloudStorage
                                 break;
                         }
                         break;
-                    case FileStoreInterface.ConflictResolutions.KeepRemote:
+                    case ConflictResolutions.KeepRemote:
                         switch (request.Type)
                         {
                             case RequestType.Delete: //delete the local file
@@ -470,7 +470,7 @@ namespace LocalCloudStorage
                         }
                         _local.SignalConflictResolved(request.RequestId);
                         break;
-                    case FileStoreInterface.ConflictResolutions.KeepBoth:
+                    case ConflictResolutions.KeepBoth:
                         switch (request.Type)
                         {
                             case RequestType.Write:
@@ -527,17 +527,17 @@ namespace LocalCloudStorage
                 Debug.WriteLine($"Cannot resolve local conflict with request id: {requestId} because it could not be found");
             }
         }
-        public async Task ResolveRemoteConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution, CancellationToken ct)
+        public async Task ResolveRemoteConflictAsync(int requestId, ConflictResolutions resolution, CancellationToken ct)
         {
             throw new NotImplementedException();
             //TODO: at this point no remote requests have conflict handling...
             switch (resolution)
             {
-                case FileStoreInterface.ConflictResolutions.KeepLocal:
+                case ConflictResolutions.KeepLocal:
                     break;
-                case FileStoreInterface.ConflictResolutions.KeepRemote:
+                case ConflictResolutions.KeepRemote:
                     break;
-                case FileStoreInterface.ConflictResolutions.KeepBoth:
+                case ConflictResolutions.KeepBoth:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(resolution), resolution, null);

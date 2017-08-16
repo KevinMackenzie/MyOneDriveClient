@@ -12,19 +12,6 @@ namespace LocalCloudStorage
 {
     public abstract class FileStoreInterface
     {
-        public enum UserPrompts
-        {
-            KeepOverwriteOrRename,
-            CloseApplication,
-            Acknowledge
-        }
-
-        public enum ConflictResolutions
-        {
-            KeepLocal,
-            KeepRemote,
-            KeepBoth
-        }
 
 
         #region Private Fields

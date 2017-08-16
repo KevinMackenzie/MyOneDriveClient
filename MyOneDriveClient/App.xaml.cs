@@ -8,9 +8,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Identity.Client;
 using LocalCloudStorage;
-using LocalCloudStorage.AppCore;
-using LocalCloudStorage.Composition;
-using LocalCloudStorage.Data;
 using LocalCloudStorage.ViewModel;
 
 namespace MyOneDriveClient
@@ -45,6 +42,6 @@ namespace MyOneDriveClient
             AppInstance.LoadInstances();
         }
 
-        public static LocalCloudStorageApp AppInstance = new LocalCloudStorageApp($"{AppDomain.CurrentDomain.BaseDirectory}../../../WorkingDir/");
+        public static LocalCloudStorageAppViewModel AppInstance = new LocalCloudStorageAppViewModel($"{AppDomain.CurrentDomain.BaseDirectory}../../../WorkingDir/");
     }
 }

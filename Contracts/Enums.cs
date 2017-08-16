@@ -37,4 +37,18 @@
         Create,
         Delete
     }
+
+    public enum UserPrompts
+    {
+        KeepOverwriteOrRename,
+        CloseApplication,
+        Acknowledge
+    }
+
+    public enum ConflictResolutions
+    {
+        KeepLocal,
+        KeepRemote,
+        KeepBoth
+    }
 }

@@ -11,7 +11,7 @@ using System.Windows.Documents;
 using System.Windows.Forms;
 using System.Windows.Input;
 using LocalCloudStorage;
-using LocalCloudStorage.Data;
+using LocalCloudStorage.Model;
 using LocalCloudStorage.ViewModel;
 
 namespace MyOneDriveClient

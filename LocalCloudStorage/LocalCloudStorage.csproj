@@ -61,6 +61,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BufferedRemoteFileStoreInterface.cs" />
+    <Compile Include="CloudStorageInstanceControl.cs" />
     <Compile Include="Contracts\ICachedItemMetadata.cs" />
     <Compile Include="DownloadedFileStore.cs" />
     <Compile Include="FileStoreBridge.cs" />
@@ -76,13 +77,12 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
-    <Folder Include="Composition\" />
-    <Folder Include="Data\" />
-    <Folder Include="Events\" />
-    <Folder Include="ViewModel\" />
-  </ItemGroup>
-  <ItemGroup>
+    <ProjectReference Include="..\Composition\Composition.csproj">
+      <Project>{8a8c7074-1157-4e29-9fae-3999eb5e663b}</Project>
+      <Name>Composition</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Contracts\Contracts.csproj">
       <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
       <Name>Contracts</Name>

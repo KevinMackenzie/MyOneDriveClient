@@ -7,7 +7,7 @@ using System.Linq;
 using System.Threading;
 using Contracts.Exceptions;
 using LocalCloudStorage.Composition;
-using LocalCloudStorage.Data;
+using LocalCloudStorage.Model;
 
 namespace LocalCloudStorage.ViewModel
 {
@@ -19,17 +19,16 @@ namespace LocalCloudStorage.ViewModel
         private readonly LocalCloudStorageData _data;
         private readonly ObservableCollection<CloudStorageInstanceViewModel> _cloudStorageInstances = new ObservableCollection<CloudStorageInstanceViewModel>();
         private CloudStorageInstanceViewModel _selectedInstance;
+
         private readonly RemoteConnectionFactoryManager _factoryManager;
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
         public LocalCloudStorageViewModel(LocalCloudStorageData data, RemoteConnectionFactoryManager factoryManager)
         {
-            //TODO: factory viewmodel instantiation
-            _factoryManager = factoryManager;
-
-            //TODO: someone should be responsible for saving the settings when the changed
             _data = data;
             _data.CloudStorageInstances.DeleteNullElements();
+
+            _factoryManager = factoryManager;
 
             CloudStorageInstances = new ReadOnlyObservableCollection<CloudStorageInstanceViewModel>(_cloudStorageInstances);
 
@@ -68,9 +67,12 @@ namespace LocalCloudStorage.ViewModel
                     var localInterface = new LocalFileStoreInterface(new DownloadedFileStore(data.LocalFileStorePath));
 
                     return new CloudStorageInstanceViewModel(
-                        remoteInterface,
-                        localInterface, 
                         data,
+                        new CloudStorageInstanceControl(
+                            remoteInterface,
+                            localInterface, data.BlackList, 
+                            data.RemoteDeltaFrequency, 
+                            AppClosingCancellationToken),
                         AppClosingCancellationToken);
                 }
             }
@@ -193,7 +195,10 @@ namespace LocalCloudStorage.ViewModel
         public void Dispose()
         {
             _cts?.Dispose();
-            _selectedInstance?.Dispose();
+            foreach (var item in _cloudStorageInstances)
+            {
+                item?.Dispose();
+            }
         }
     }
 }

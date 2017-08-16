@@ -5,96 +5,35 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-using LocalCloudStorage.Data;
 using LocalCloudStorage.Events;
+using LocalCloudStorage.Model;
 using LocalCloudStorage.Threading;
 
 namespace LocalCloudStorage.ViewModel
 {
     public class CloudStorageInstanceViewModel : ViewModelBase, IDisposable
     {
-        private IRemoteFileStoreInterface _remoteInterface;
-        private ILocalFileStoreInterface _localInterface;
         
         private readonly CloudStorageInstanceData _data;
-        //private ILocalFileStore _local;
+        private readonly CloudStorageInstanceControl _control;
 
-        private FileStoreBridge _bridge;
-
-        private PauseTokenSource _instancePts = new PauseTokenSource();
-
-
-        #region Private Fields
-        #region Background Loop
-        private Task _syncLoopTask;
-        #endregion
-
-        private SingleTimer _pauseTimer = new SingleTimer();
-        #endregion
-
-        public CloudStorageInstanceViewModel(IRemoteFileStoreInterface remoteInterface, ILocalFileStoreInterface localInterface, CloudStorageInstanceData data, CancellationToken appClosingToken)
+        public CloudStorageInstanceViewModel(CloudStorageInstanceData data, CloudStorageInstanceControl control, CancellationToken appClosingToken)
         {
-            _remoteInterface = remoteInterface;
-            _localInterface = localInterface;
-            
             _data = data;
-
-            _bridge = new FileStoreBridge(data.BlackList, _localInterface, remoteInterface);
+            _control = control;
 
             //create the requests viewmodels
-            Requests = new RequestsViewModel(this);
-            
-            //make sure we cancel when the app is closing
-            appClosingToken.Register(() => _instancePts.Cancel());
-
-            //start the background loop
-            _syncLoopTask = SyncLoopMethod(_instancePts.Token);
+            Requests = new RequestsViewModel(
+                statusChanged => _control.OnLocalRequestStatusChanged += statusChanged,
+                statusChanged => _control.OnRemoteRequestStatusChanged += statusChanged,
+                progressChanged => _control.OnRemoteRequestProgressChanged += progressChanged);
         }
-
-        #region EventHandlers
-        #endregion
-
-        #region Private Methods
-        private async Task SyncLoopMethod(PauseToken pt)
-        {
-            //this seems like a fine place to do this... (it only gets called once)
-            await _bridge.LoadMetadataAsync(_instancePts.Token.CancellationToken);
-
-            var ct = pt.CancellationToken;
-            var any = false;
-            while (!ct.IsCancellationRequested)
-            {
-                try
-                {
-                    any = await _bridge.ApplyRemoteChangesAsync(pt);
-                    any |= await _bridge.ApplyLocalChangesAsync(pt);
-                    if (any)
-                    {
-                        await _bridge.SaveMetadataAsync(pt.CancellationToken);
-                    }
-                    await Utils.Delay(RemoteDeltaFrequency, TimeSpan.FromSeconds(1));
-                }
-                catch (TaskCanceledException)
-                {
-                    break;
-                }
-                catch (Exception e)
-                {
-                    Debug.WriteLine($"Uncaught exception in \"{nameof(CloudStorageInstanceViewModel)}.{nameof(SyncLoopMethod)}\" of type \"{e.GetType()}\" with message \"{e.Message}\"");
-                    Debug.Indent();
-                    Debug.WriteLine(e.StackTrace);
-                    Debug.Unindent();
-                    break;
-                }
-            }
-        }
-        #endregion
-
+        
         #region Public Properties
         /// <summary>
         /// The time until the syncing resumes
         /// </summary>
-        public TimeSpan TimeUntilResume => _pauseTimer.Remaining;
+        public TimeSpan TimeUntilResume => _control.TimeUntilResume;
         /// <summary>
         /// The view model to the active requests
         /// </summary>
@@ -128,12 +67,6 @@ namespace LocalCloudStorage.ViewModel
         public bool Encrypted
         {
             get => _data.Encrypted;
-            set
-            {
-                if (_data.Encrypted == value) return;
-                _data.Encrypted = value;
-                OnPropertyChanged();
-            }
         }
         /// <summary>
         /// The remote service type that is being used
@@ -171,6 +104,7 @@ namespace LocalCloudStorage.ViewModel
             {
                 if (_data.RemoteDeltaFrequency == value) return;
                 _data.RemoteDeltaFrequency = value;
+                _control.RemoteDeltaFrequency = value;
                 OnPropertyChanged();
             }
         }
@@ -187,43 +121,16 @@ namespace LocalCloudStorage.ViewModel
             }
         }
         #endregion
-
-        #region Public Events
-        /// <summary>
-        /// When the status of a local request changes
-        /// </summary>
-        public event EventDelegates.RequestStatusChangedHandler OnLocalRequestStatusChanged
-        {
-            add => _localInterface.OnRequestStatusChanged += value;
-            remove => _localInterface.OnRequestStatusChanged -= value;
-        }
-        /// <summary>
-        /// When the status of a remote request changes
-        /// </summary>
-        public event EventDelegates.RequestStatusChangedHandler OnRemoteRequestStatusChanged
-        {
-            add => _remoteInterface.OnRequestStatusChanged += value;
-            remove => _remoteInterface.OnRequestStatusChanged -= value;
-        }
-        /// <summary>
-        /// When the progress of a remote request changes
-        /// </summary>
-        public event EventDelegates.RemoteRequestProgressChangedHandler OnRemoteRequestProgressChanged
-        {
-            add => _remoteInterface.OnRequestProgressChanged += value;
-            remove => _remoteInterface.OnRequestProgressChanged -= value;
-        }
-        #endregion
-
+        
         #region Public Methods
         /// <summary>
         /// Looks past the existing knowledge of the local file store and 
         /// looks for new/changed/deleted files
         /// </summary>
         /// <returns></returns>
-        public async Task ForceUpdateLocalAsync()
+        public Task ForceUpdateLocalAsync()
         {
-            await _bridge.ForceLocalChangesAsync(_instancePts.Token.CancellationToken);
+            return _control.ForceUpdateLocalAsync();
         }
         /// <summary>
         /// Pauses the syncing for a given amount of time
@@ -231,32 +138,30 @@ namespace LocalCloudStorage.ViewModel
         /// <param name="howLong">the duration to pause the sync loop for</param>
         public void PauseSync(TimeSpan howLong)
         {
-            _instancePts.IsPaused = true;
-            _pauseTimer.Start(howLong);
+            _control.PauseSync(howLong);
         }
         /// <summary>
         /// Resumes the syncing immediately
         /// </summary>
         public void ResumeSync()
         {
-            _pauseTimer.Stop();
-            _instancePts.IsPaused = false;
+            _control.ResumeSync();
         }
-        public async Task ResolveLocalConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        public Task ResolveLocalConflictAsync(int requestId, ConflictResolutions resolution)
         {
-            await _bridge.ResolveLocalConflictAsync(requestId, resolution, _instancePts.Token.CancellationToken);
+            return _control.ResolveLocalConflictAsync(requestId, resolution);
         }
-        public async Task ResolveRemoteConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        public Task ResolveRemoteConflictAsync(int requestId, ConflictResolutions resolution)
         {
-            await _bridge.ResolveRemoteConflictAsync(requestId, resolution, _instancePts.Token.CancellationToken);
+            return _control.ResolveRemoteConflictAsync(requestId, resolution);
         }
         public void CancelLocalRequest(int requestId)
         {
-            _localInterface.CancelRequest(requestId);
+            _control.CancelLocalRequest(requestId);
         }
         public void CancelRemoteRequest(int requestId)
         {
-            _remoteInterface.CancelRequest(requestId);
+            _control.CancelRemoteRequest(requestId);
         }
         #endregion
 
@@ -264,12 +169,7 @@ namespace LocalCloudStorage.ViewModel
         /// <inheritdoc />
         public void Dispose()
         {
-            _instancePts?.Dispose();
-            //_syncLoopTask?.Wait();//Hopefully this doesn't happen...
-            //_syncLoopTask?.Dispose();
-
-            _instancePts = null;
-            _syncLoopTask = null;
+            _control?.Dispose();
         }
         #endregion
     }

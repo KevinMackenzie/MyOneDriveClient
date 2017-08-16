@@ -56,17 +56,17 @@ namespace LocalCloudStorage.ViewModel
                             return;
                         }
 
-                        if (Enum.TryParse(e.ErrorMessage, out FileStoreInterface.UserPrompts prompt))
+                        if (Enum.TryParse(e.ErrorMessage, out UserPrompts prompt))
                         {
                             switch (prompt)
                             {
-                                case FileStoreInterface.UserPrompts.KeepOverwriteOrRename:
+                                case UserPrompts.KeepOverwriteOrRename:
                                     ActiveRequests[requestPosition] = new AwaitUserRequestViewModel(request);
                                     break;
-                                case FileStoreInterface.UserPrompts.CloseApplication:
+                                case UserPrompts.CloseApplication:
                                     ActiveRequests[requestPosition] = new CloseAppRequestViewModel(request);
                                     break;
-                                case FileStoreInterface.UserPrompts.Acknowledge:
+                                case UserPrompts.Acknowledge:
                                     ActiveRequests[requestPosition] =
                                         new AcknowledgeErrorRequestViewModel(request, "No Error Message Given");
                                     break;

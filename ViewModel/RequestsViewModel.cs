@@ -1,16 +1,17 @@
-﻿using LocalCloudStorage.Events;
+﻿using System;
+using LocalCloudStorage.Events;
 using LocalCloudStorage.ViewModel;
 
 namespace LocalCloudStorage
 {
     public class RequestsViewModel
     {
-        public RequestsViewModel(CloudStorageInstanceViewModel instance)
+        public RequestsViewModel(Action<EventDelegates.RequestStatusChangedHandler> registerLocalStatusChanged,
+            Action<EventDelegates.RequestStatusChangedHandler> registerRemoteStatusChanged,
+            Action<EventDelegates.RemoteRequestProgressChangedHandler> registerRemoteProgressChanged)
         {
-            LocalRequests = new BaseRequestsViewModel(statusHandler => instance.OnLocalRequestStatusChanged += statusHandler);
-            RemoteRequests = new RemoteRequestsViewModel(
-                statusHandler => instance.OnRemoteRequestStatusChanged += statusHandler,
-                progressHandler => instance.OnRemoteRequestProgressChanged += progressHandler);
+            LocalRequests = new BaseRequestsViewModel(registerLocalStatusChanged);
+            RemoteRequests = new RemoteRequestsViewModel(registerRemoteStatusChanged, registerRemoteProgressChanged);
         }
 
         public BaseRequestsViewModel LocalRequests { get; }

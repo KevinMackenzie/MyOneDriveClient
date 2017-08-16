@@ -31,6 +31,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Composition.AttributedModel, Version=1.0.32.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Composition.AttributedModel.1.1.0\lib\portable-net45+win8+wp8+wpa81\System.Composition.AttributedModel.dll</HintPath>
@@ -65,7 +68,7 @@
     <Compile Include="DebugLogViewModel.cs" />
     <Compile Include="FileStoreRequestViewModel.cs" />
     <Compile Include="FileStoreRequestViewModelBase.cs" />
-    <Compile Include="LocalCloudStorageApp.cs" />
+    <Compile Include="LocalCloudStorageAppViewModel.cs" />
     <Compile Include="LocalCloudStorageViewModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RemoteFileStoreConnectionFactoriesViewModel.cs" />
@@ -75,6 +78,28 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Composition\Composition.csproj">
+      <Project>{8a8c7074-1157-4e29-9fae-3999eb5e663b}</Project>
+      <Name>Composition</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Contracts\Contracts.csproj">
+      <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
+      <Name>Contracts</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\LocalCloudStorage\LocalCloudStorage.csproj">
+      <Project>{8ec13552-65ca-4c05-95b7-3ed3498611e0}</Project>
+      <Name>LocalCloudStorage</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Model\Model.csproj">
+      <Project>{de83ac1d-65c0-4da4-94ae-fff0a1d00afc}</Project>
+      <Name>Model</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Utils\Utils.csproj">
+      <Project>{932f3279-f5ca-4806-9e60-7cb55e3d1e9e}</Project>
+      <Name>Utils</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
