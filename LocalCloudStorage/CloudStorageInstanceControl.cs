@@ -1,49 +1,38 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Reflection;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using LocalCloudStorage.Data;
 using LocalCloudStorage.Events;
 using LocalCloudStorage.Threading;
 
-namespace LocalCloudStorage.ViewModel
+namespace LocalCloudStorage
 {
-    public class CloudStorageInstanceViewModel : ViewModelBase, IDisposable
+    public class CloudStorageInstanceControl : IDisposable
     {
         private IRemoteFileStoreInterface _remoteInterface;
         private ILocalFileStoreInterface _localInterface;
-        
-        private readonly CloudStorageInstanceData _data;
-        //private ILocalFileStore _local;
 
         private FileStoreBridge _bridge;
 
         private PauseTokenSource _instancePts = new PauseTokenSource();
-
-
-        #region Private Fields
-        #region Background Loop
         private Task _syncLoopTask;
-        #endregion
-
         private SingleTimer _pauseTimer = new SingleTimer();
-        #endregion
 
-        public CloudStorageInstanceViewModel(IRemoteFileStoreInterface remoteInterface, ILocalFileStoreInterface localInterface, CloudStorageInstanceData data, CancellationToken appClosingToken)
+        private Atomic<TimeSpan> _remoteDeltaFrequency;
+
+        public CloudStorageInstanceControl(IRemoteFileStoreInterface remoteInterface,
+            ILocalFileStoreInterface localInterface, IEnumerable<string> blackList,
+            TimeSpan remoteDeltaFrequency, CancellationToken appClosingToken)
         {
             _remoteInterface = remoteInterface;
             _localInterface = localInterface;
-            
-            _data = data;
+            _remoteDeltaFrequency = new Atomic<TimeSpan>(remoteDeltaFrequency);
+            _bridge = new FileStoreBridge(blackList, _localInterface, remoteInterface);
 
-            _bridge = new FileStoreBridge(data.BlackList, _localInterface, remoteInterface);
 
-            //create the requests viewmodels
-            Requests = new RequestsViewModel(this);
-            
             //make sure we cancel when the app is closing
             appClosingToken.Register(() => _instancePts.Cancel());
 
@@ -51,8 +40,6 @@ namespace LocalCloudStorage.ViewModel
             _syncLoopTask = SyncLoopMethod(_instancePts.Token);
         }
 
-        #region EventHandlers
-        #endregion
 
         #region Private Methods
         private async Task SyncLoopMethod(PauseToken pt)
@@ -80,7 +67,7 @@ namespace LocalCloudStorage.ViewModel
                 }
                 catch (Exception e)
                 {
-                    Debug.WriteLine($"Uncaught exception in \"{nameof(CloudStorageInstanceViewModel)}.{nameof(SyncLoopMethod)}\" of type \"{e.GetType()}\" with message \"{e.Message}\"");
+                    Debug.WriteLine($"Uncaught exception in \"{nameof(CloudStorageInstanceControl)}.{nameof(SyncLoopMethod)}\" of type \"{e.GetType()}\" with message \"{e.Message}\"");
                     Debug.Indent();
                     Debug.WriteLine(e.StackTrace);
                     Debug.Unindent();
@@ -94,101 +81,26 @@ namespace LocalCloudStorage.ViewModel
         /// <summary>
         /// The time until the syncing resumes
         /// </summary>
-        public TimeSpan TimeUntilResume => _pauseTimer.Remaining;
-        /// <summary>
-        /// The view model to the active requests
-        /// </summary>
-        public RequestsViewModel Requests { get; }
-        #endregion
-
-        #region Settings
-        /// <summary>
-        /// The path for the local file store
-        /// </summary>
-        public string LocalFileStorePath => _data.LocalFileStorePath;
-        /// <summary>
-        /// The name of this instance
-        /// </summary>
-        /// <remarks>
-        /// This is an identifying property of the instance data
-        /// </remarks>
-        public string InstanceName
-        {
-            get => _data.InstanceName;
-            set
-            {
-                if (_data.InstanceName == value) return;
-                _data.InstanceName = value;
-                OnPropertyChanged();
-            }
-        }
-        /// <summary>
-        /// Whether data uploaded to remote should be encrypted
-        /// </summary>
-        public bool Encrypted
-        {
-            get => _data.Encrypted;
-            set
-            {
-                if (_data.Encrypted == value) return;
-                _data.Encrypted = value;
-                OnPropertyChanged();
-            }
-        }
-        /// <summary>
-        /// The remote service type that is being used
-        /// </summary>
-        public string ServiceName
-        {
-            get => _data.ServiceName;
-            set
-            {
-                if (_data.ServiceName == value) return;
-                _data.ServiceName = value;
-                OnPropertyChanged();
-            }
-        }
-        /// <summary>
-        /// Whether to create file links for all blacklisted files
-        /// </summary>
-        public bool EnableFileLinks
-        {
-            get => _data.EnableFileLinks;
-            set
-            {
-                if (_data.EnableFileLinks == value) return;
-                _data.EnableFileLinks = value;
-                OnPropertyChanged();
-            }
-        }
+        public TimeSpan TimeUntilResume => _pauseTimer.Remaining;        
         /// <summary>
         /// How frequently to check for remote deltas
         /// </summary>
         public TimeSpan RemoteDeltaFrequency
         {
-            get => _data.RemoteDeltaFrequency;
-            set
-            {
-                if (_data.RemoteDeltaFrequency == value) return;
-                _data.RemoteDeltaFrequency = value;
-                OnPropertyChanged();
-            }
+            get => _remoteDeltaFrequency.Value;
+            set => _remoteDeltaFrequency.Value = value;
         }
         /// <summary>
         /// Files/folders that should be excluded from syncing
         /// </summary>
         public IEnumerable<string> BlackList
         {
-            get => _data.BlackList;
-            set
-            {
-                _data.BlackList = value;
-                OnPropertyChanged();
-            }
+            get => _bridge.BlackList;
+            set => _bridge.BlackList = value;
         }
         #endregion
 
-        #region Public Events
+        #region Event Subscriptions
         /// <summary>
         /// When the status of a local request changes
         /// </summary>
@@ -242,11 +154,11 @@ namespace LocalCloudStorage.ViewModel
             _pauseTimer.Stop();
             _instancePts.IsPaused = false;
         }
-        public async Task ResolveLocalConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        public async Task ResolveLocalConflictAsync(int requestId, ConflictResolutions resolution)
         {
             await _bridge.ResolveLocalConflictAsync(requestId, resolution, _instancePts.Token.CancellationToken);
         }
-        public async Task ResolveRemoteConflictAsync(int requestId, FileStoreInterface.ConflictResolutions resolution)
+        public async Task ResolveRemoteConflictAsync(int requestId, ConflictResolutions resolution)
         {
             await _bridge.ResolveRemoteConflictAsync(requestId, resolution, _instancePts.Token.CancellationToken);
         }
@@ -260,17 +172,13 @@ namespace LocalCloudStorage.ViewModel
         }
         #endregion
 
-        #region IDisposable Support
         /// <inheritdoc />
         public void Dispose()
         {
             _instancePts?.Dispose();
-            //_syncLoopTask?.Wait();//Hopefully this doesn't happen...
-            //_syncLoopTask?.Dispose();
 
             _instancePts = null;
             _syncLoopTask = null;
         }
-        #endregion
     }
 }

@@ -7,12 +7,12 @@ using System.Text;
 using System.Threading.Tasks;
 using LocalCloudStorage.ViewModel;
 using LocalCloudStorage.Composition;
-using LocalCloudStorage.Data;
+using LocalCloudStorage.Model;
 using Newtonsoft.Json;
 
-namespace LocalCloudStorage.AppCore
+namespace LocalCloudStorage.ViewModel
 {
-    public class LocalCloudStorageApp : ViewModelBase, IDisposable
+    public class LocalCloudStorageAppViewModel : ViewModelBase, IDisposable
     {
 
         #region Private Fields
@@ -31,7 +31,7 @@ namespace LocalCloudStorage.AppCore
         /// Creates a new instance of the <see cref="LocalCloudStorageApp"/>
         /// </summary>
         /// <param name="workingDirectory">the directory the app should work out of</param>
-        public LocalCloudStorageApp(string workingDirectory)
+        public LocalCloudStorageAppViewModel(string workingDirectory)
         {
             _workingDirectory = workingDirectory;
             _factoryManager = new RemoteConnectionFactoryManager();

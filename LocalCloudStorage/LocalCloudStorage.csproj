@@ -61,43 +61,28 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BufferedRemoteFileStoreInterface.cs" />
-    <Compile Include="Composition\ContainerConfigurationExtensions.cs" />
-    <Compile Include="Data\LocalCloudStorageData.cs" />
-    <Compile Include="Composition\RemoteConnectionFactoryManager.cs" />
-    <Compile Include="ViewModel\CloudStorageInstanceBasicViewModel.cs" />
-    <Compile Include="ViewModel\CloudStorageInstanceViewModel.cs" />
+    <Compile Include="CloudStorageInstanceControl.cs" />
     <Compile Include="Contracts\ICachedItemMetadata.cs" />
-    <Compile Include="Data\CloudStorageInstanceData.cs" />
     <Compile Include="DownloadedFileStore.cs" />
     <Compile Include="FileStoreBridge.cs" />
     <Compile Include="FileStoreInterface.cs" />
     <Compile Include="FileStoreRequestGraveyard.cs" />
     <Compile Include="ItemDelta.cs" />
     <Compile Include="ItemMetadataCache.cs" />
-    <Compile Include="ViewModel\DebugLogViewModel.cs" />
-    <Compile Include="ViewModel\LocalCloudStorageViewModel.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="LocalItemMetadataCache.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RemoteItemMetadataCache.cs" />
-    <Compile Include="ViewModel\AcknowledgeErrorRequestViewModel.cs" />
-    <Compile Include="ViewModel\AwaitUserRequestViewModel.cs" />
-    <Compile Include="ViewModel\BaseRequestsViewModel.cs" />
-    <Compile Include="ViewModel\CloseAppRequestViewModel.cs" />
-    <Compile Include="ViewModel\FileStoreRequestViewModel.cs" />
-    <Compile Include="ViewModel\FileStoreRequestViewModelBase.cs" />
-    <Compile Include="ViewModel\RemoteFileStoreConnectionFactoriesViewModel.cs" />
-    <Compile Include="ViewModel\RemoteRequestsViewModel.cs" />
-    <Compile Include="ViewModel\RequestsViewModel.cs" />
-    <Compile Include="ViewModel\ViewModelBase.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
-    <Folder Include="Events\" />
-  </ItemGroup>
-  <ItemGroup>
+    <ProjectReference Include="..\Composition\Composition.csproj">
+      <Project>{8a8c7074-1157-4e29-9fae-3999eb5e663b}</Project>
+      <Name>Composition</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Contracts\Contracts.csproj">
       <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
       <Name>Contracts</Name>

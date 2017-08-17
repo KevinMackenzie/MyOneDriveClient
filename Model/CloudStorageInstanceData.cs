@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace LocalCloudStorage.Data
+namespace LocalCloudStorage.Model
 {
     /// <summary>
     /// The settings and other data for CloudStorageInstance 
