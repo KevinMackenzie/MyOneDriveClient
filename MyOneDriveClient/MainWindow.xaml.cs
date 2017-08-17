@@ -238,7 +238,10 @@ namespace MyOneDriveClient
         {
             //await App.FileStore.GenerateLocalMetadataAsync();
         }
-        private async void NewInstanceButton_OnClick(object sender, RoutedEventArgs e)
+
+
+        #region Context Menu Event Handlers
+        private async void NewInstance_Click(object sender, RoutedEventArgs e)
         {
             var popup = new NewCloudStorageInstance(_app.RemoteConnectionFactories);
             var result = popup.ShowDialog() ?? false;
@@ -248,5 +251,43 @@ namespace MyOneDriveClient
                 await App.AppInstance.SaveInstances();
             }
         }
+        private void RemoveInstance_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedInstance = _app.LocalCloudStorage.SelectedInstance;
+            if (selectedInstance == null) return;
+
+            if (MessageBox.Show("Are you sure you want to remove this instance", "Remove Instance?",
+                    MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+            {
+                _app.LocalCloudStorage.RemoveCloudStorageInstance(selectedInstance.InstanceName);
+                _app.LocalCloudStorage.SelectedInstance = _app.LocalCloudStorage.CloudStorageInstances.FirstOrDefault();
+            }
+        }
+        private void PauseOneHour_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.PauseSync(TimeSpan.FromHours(1));
+        }
+        private void PauseTwoHours_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.PauseSync(TimeSpan.FromHours(2));
+        }
+        private void PauseFourHours_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.PauseSync(TimeSpan.FromHours(4));
+        }
+        private void PauseForever_Click(object sender, RoutedEventArgs e)
+        {
+            //this is basically forever
+            _app.LocalCloudStorage.SelectedInstance?.PauseSync(TimeSpan.FromDays(50));
+        }
+        private void Resume_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.ResumeSync();
+        }
+        private void CheckLocal_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.ForceLocalChanges();
+        }
+        #endregion
     }
 }

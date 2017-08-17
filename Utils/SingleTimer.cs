@@ -38,6 +38,8 @@ namespace LocalCloudStorage
 
         public TimeSpan Remaining => _timerStarted ? _duration - (DateTime.UtcNow - _startTime) : TimeSpan.Zero;
 
+        public bool IsStarted => _timerStarted;
+
         public void Stop()
         {
             _cts.Cancel();

@@ -175,9 +175,10 @@ namespace LocalCloudStorage
         #endregion
 
         #region Public Methods
-        public async Task ForceLocalChangesAsync(CancellationToken ct)
+        public void ForceLocalChanges()
         {
-            //TODO: this uses a deep search method instead of cumulative changes   
+            //TODO this should tell the sync to do a "deep" scan next cycle 
+            // TODO and start this next sync immediately
             throw new NotImplementedException();
         }
         public async Task GenerateLocalMetadataAsync(CancellationToken ct)

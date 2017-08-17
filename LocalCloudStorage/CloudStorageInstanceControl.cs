@@ -81,7 +81,8 @@ namespace LocalCloudStorage
         /// <summary>
         /// The time until the syncing resumes
         /// </summary>
-        public TimeSpan TimeUntilResume => _pauseTimer.Remaining;        
+        public TimeSpan TimeUntilResume => _pauseTimer.Remaining;
+        public bool IsPaused => _pauseTimer.IsStarted;
         /// <summary>
         /// How frequently to check for remote deltas
         /// </summary>
@@ -133,9 +134,9 @@ namespace LocalCloudStorage
         /// looks for new/changed/deleted files
         /// </summary>
         /// <returns></returns>
-        public async Task ForceUpdateLocalAsync()
+        public void ForceLocalChanges()
         {
-            await _bridge.ForceLocalChangesAsync(_instancePts.Token.CancellationToken);
+            _bridge.ForceLocalChanges();
         }
         /// <summary>
         /// Pauses the syncing for a given amount of time

@@ -34,6 +34,7 @@ namespace LocalCloudStorage.ViewModel
         /// The time until the syncing resumes
         /// </summary>
         public TimeSpan TimeUntilResume => _control.TimeUntilResume;
+        public bool IsPaused => TimeUntilResume < TimeSpan.MinValue;
         /// <summary>
         /// The view model to the active requests
         /// </summary>
@@ -129,9 +130,9 @@ namespace LocalCloudStorage.ViewModel
         /// looks for new/changed/deleted files
         /// </summary>
         /// <returns></returns>
-        public Task ForceUpdateLocalAsync()
+        public void ForceLocalChanges()
         {
-            return _control.ForceUpdateLocalAsync();
+            _control.ForceLocalChanges();
         }
         /// <summary>
         /// Pauses the syncing for a given amount of time
