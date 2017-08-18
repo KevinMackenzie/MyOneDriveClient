@@ -34,7 +34,7 @@ namespace LocalCloudStorage.ViewModel
         /// The time until the syncing resumes
         /// </summary>
         public TimeSpan TimeUntilResume => _control.TimeUntilResume;
-        public bool IsPaused => TimeUntilResume < TimeSpan.MinValue;
+        public bool IsPaused => _control.IsPaused;
         /// <summary>
         /// The view model to the active requests
         /// </summary>
@@ -141,6 +141,8 @@ namespace LocalCloudStorage.ViewModel
         public void PauseSync(TimeSpan howLong)
         {
             _control.PauseSync(howLong);
+            OnPropertyChanged("IsPaused");
+            //Task.Delay(howLong).ContinueWith(task => OnPropertyChanged("IsPaused"));
         }
         /// <summary>
         /// Resumes the syncing immediately
@@ -148,6 +150,7 @@ namespace LocalCloudStorage.ViewModel
         public void ResumeSync()
         {
             _control.ResumeSync();
+            OnPropertyChanged("IsPaused");
         }
         public Task ResolveLocalConflictAsync(int requestId, ConflictResolutions resolution)
         {
