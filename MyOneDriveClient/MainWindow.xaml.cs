@@ -251,7 +251,7 @@ namespace MyOneDriveClient
                 await App.AppInstance.SaveInstances();
             }
         }
-        private void RemoveInstance_Click(object sender, RoutedEventArgs e)
+        private async void RemoveInstance_Click(object sender, RoutedEventArgs e)
         {
             var selectedInstance = _app.LocalCloudStorage.SelectedInstance;
             if (selectedInstance == null) return;
@@ -261,6 +261,7 @@ namespace MyOneDriveClient
             {
                 _app.LocalCloudStorage.RemoveCloudStorageInstance(selectedInstance.InstanceName);
                 _app.LocalCloudStorage.SelectedInstance = _app.LocalCloudStorage.CloudStorageInstances.FirstOrDefault();
+                await _app.SaveInstances();
             }
         }
         private void PauseOneHour_Click(object sender, RoutedEventArgs e)
