@@ -53,13 +53,16 @@ namespace LocalCloudStorage.ViewModel
                 path = pathParts[1];
             }
         }
-        private static void GetPathListFromTree(TSafeObservableTreeItem<PathListingViewModel> tree, string cumulativePath, ICollection<string> list)
+        private static void GetBlackListFromTree(TSafeObservableTreeItem<PathListingViewModel> tree, ICollection<string> list)
         {
-            var childPath = $"{cumulativePath}/{tree.Value}";
-            list.Add(childPath);
+            if (!tree.Value.Selected)
+            {
+                //only add if the item is NOT selected
+                list.Add(tree.Value.ItemData.Path);
+            }
             foreach (var child in tree.Children)
             {
-                GetPathListFromTree(child, childPath, list);
+                GetBlackListFromTree(child, list);
             }
         }
         private static BlackListTreeViewModel ConstructTree(IEnumerable<StaticItemHandle> pathList, ICollection<string> blackList)
@@ -83,7 +86,7 @@ namespace LocalCloudStorage.ViewModel
         public ICollection<string> GetBlackList()
         {
             var ret = new List<string>();
-            GetPathListFromTree(BlackList, "", ret);
+            GetBlackListFromTree(BlackList, ret);
             return ret;
         }
         #endregion

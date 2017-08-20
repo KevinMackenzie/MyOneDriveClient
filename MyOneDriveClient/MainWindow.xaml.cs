@@ -250,6 +250,7 @@ namespace MyOneDriveClient
             {
                 //only update the blacklist if successful
                 instance.UpdateBlackList(blackList.GetBlackList());
+                await _app.SaveInstances();
             }
         }
 
