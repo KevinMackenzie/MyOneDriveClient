@@ -47,7 +47,9 @@
   <ItemGroup>
     <Compile Include="Atomic.cs" />
     <Compile Include="CancellableStream.cs" />
+    <Compile Include="ChunkedReadStreamWrapper.cs" />
     <Compile Include="Exceptions.cs" />
+    <Compile Include="Math.cs" />
     <Compile Include="NotifyDisposedStream.cs" />
     <Compile Include="TSafeObservableCollection.cs" />
     <Compile Include="PathUtils.cs" />
