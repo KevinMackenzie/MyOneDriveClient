@@ -171,6 +171,15 @@ namespace LocalCloudStorage
         {
             _remoteInterface.CancelRequest(requestId);
         }
+
+        public Task<ICollection<StaticItemHandle>> GetLocalPathListAsync(CancellationToken ct)
+        {
+            return _bridge.GetLocalPathListAsync(ct);
+        }
+        public Task<ICollection<StaticItemHandle>> GetRemotePathListAsync(CancellationToken ct)
+        {
+            return _bridge.GetRemotePathListAsync(ct);
+        }
         #endregion
 
         /// <inheritdoc />

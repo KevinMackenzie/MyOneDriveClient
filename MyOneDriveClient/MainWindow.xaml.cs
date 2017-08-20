@@ -12,9 +12,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
+using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -23,6 +23,8 @@ using System.Windows.Shapes;
 using LocalCloudStorage;
 using LocalCloudStorage.ViewModel;
 using MyOneDriveClient.Annotations;
+using Button = System.Windows.Controls.Button;
+using MessageBox = System.Windows.MessageBox;
 
 namespace MyOneDriveClient
 {
@@ -239,6 +241,17 @@ namespace MyOneDriveClient
             //await App.FileStore.GenerateLocalMetadataAsync();
         }
 
+        private async Task ShowBlackListEditor(CloudStorageInstanceViewModel instance)
+        {
+            var blackList = await instance.GetBlackListViewModelAsync(App.AppInstance.LocalCloudStorage.AppClosingCancellationToken);
+            var popup = new BlackListEditView(blackList);
+            var result = popup.ShowDialog() ?? false;
+            if (result)
+            {
+                //only update the blacklist if successful
+                instance.UpdateBlackList(blackList.GetBlackList());
+            }
+        }
 
         #region Context Menu Event Handlers
         private async void NewInstance_Click(object sender, RoutedEventArgs e)
@@ -247,7 +260,8 @@ namespace MyOneDriveClient
             var result = popup.ShowDialog() ?? false;
             if (result)
             {
-                _app.LocalCloudStorage.AddCloudStorageInstance(popup.Data);
+                var instance = _app.LocalCloudStorage.AddCloudStorageInstance(popup.Data);
+                await ShowBlackListEditor(instance);
                 await App.AppInstance.SaveInstances();
             }
         }
@@ -284,6 +298,13 @@ namespace MyOneDriveClient
         private void Resume_Click(object sender, RoutedEventArgs e)
         {
             _app.LocalCloudStorage.SelectedInstance?.ResumeSync();
+        }
+        private async void EditBlackList_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedInstance = _app.LocalCloudStorage.SelectedInstance;
+            if (selectedInstance == null)
+                return;
+            await ShowBlackListEditor(selectedInstance);
         }
         private void CheckLocal_Click(object sender, RoutedEventArgs e)
         {

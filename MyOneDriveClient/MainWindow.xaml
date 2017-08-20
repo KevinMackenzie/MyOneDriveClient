@@ -131,6 +131,7 @@
                             <MenuItem Header="4 Hours" Click="PauseFourHours_Click"/>
                         </MenuItem>
                         <MenuItem Header="Resume" Click="Resume_Click"/>
+                        <MenuItem Header="Sync Files..." Click="EditBlackList_Click"/>
                         <MenuItem Header="Check Local" Click="CheckLocal_Click"/>
                     </ContextMenu>
                 </ListBox.ContextMenu>

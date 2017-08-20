@@ -1,0 +1,60 @@
+﻿<Window x:Class="MyOneDriveClient.BlackListEditView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:MyOneDriveClient"
+        xmlns:vm="clr-namespace:LocalCloudStorage.ViewModel;assembly=ViewModel"
+        xmlns:utils="clr-namespace:LocalCloudStorage;assembly=Utils"
+        mc:Ignorable="d"
+        Title="Choose Files To Sync..." Height="600" Width="310">
+    <Window.Resources>
+        <HierarchicalDataTemplate DataType="{x:Type vm:BlackListTreeViewModel}" x:Key="FolderItem" ItemsSource="{Binding Children}" >
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Center" IsChecked="{Binding Value.Selected}"/>
+                <Label Grid.Column="1" Background="Blue"/>
+                <TextBlock Grid.Column="2" Text="{Binding Value.ItemData.Name}"/>
+            </Grid>
+        </HierarchicalDataTemplate>
+        <HierarchicalDataTemplate DataType="{x:Type vm:BlackListTreeViewModel}" x:Key="FileItem" ItemsSource="{Binding Children}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Center" IsChecked="{Binding Value.Selected}"/>
+                <Label Grid.Column="1" Background="Green"/>
+                <TextBlock Grid.Column="2" Text="{Binding Value.ItemData.Name}"/>
+            </Grid>
+        </HierarchicalDataTemplate>
+        <local:FileTreeViewItemTemplateSelector x:Key="TreeViewItemTemplateSelector"/>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="75"/>
+            <RowDefinition Height="50"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="25"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" Padding="5" Text="Choose the files you would like to keep synced to this computer" TextWrapping="WrapWithOverflow" FontSize="20"/>
+        <TextBlock Grid.Row="1" Padding="2" TextWrapping="WrapWithOverflow">
+                The files you select here will not be kept locally.  If you would like to access them, be sure to have "File Links" enabled
+        </TextBlock>
+        <TreeView Grid.Row="2" ItemTemplateSelector="{StaticResource TreeViewItemTemplateSelector}" DataContext="{Binding}" ItemsSource="{Binding BlackList.Children}"/>
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="100"/>
+            </Grid.ColumnDefinitions>
+            <Button Margin="2" Grid.Column="1" Content="OK" Click="OK_OnClick"/>
+            <Button Margin="2" Grid.Column="2" Content="Cancel" Click="Cancel_OnClick"/>
+        </Grid>
+    </Grid>
+</Window>

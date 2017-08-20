@@ -63,7 +63,9 @@
     <Compile Include="AcknowledgeErrorRequestViewModel.cs" />
     <Compile Include="AwaitUserRequestViewModel.cs" />
     <Compile Include="BaseRequestsViewModel.cs" />
+    <Compile Include="BlackListTreeViewModel.cs" />
     <Compile Include="BlackListViewModel.cs" />
+    <Compile Include="PathListingViewModel.cs" />
     <Compile Include="CloseAppRequestViewModel.cs" />
     <Compile Include="CloudStorageInstanceBasicViewModel.cs" />
     <Compile Include="CloudStorageInstanceViewModel.cs" />

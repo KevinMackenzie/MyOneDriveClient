@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -677,6 +678,14 @@ namespace LocalCloudStorage
             }
 
             return filteredDeltas;
+        }
+
+        public async Task<ICollection<StaticItemHandle>> GetPathListingAsync(CancellationToken ct)
+        {
+            await _remote.LogUserInAsync();
+
+            var deltas = await _remote.GetDeltasAsync("", ct);
+            return (from delta in deltas select new StaticItemHandle(delta.ItemHandle)).ToList();
         }
         #endregion
 

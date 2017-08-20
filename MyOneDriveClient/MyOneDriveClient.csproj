@@ -87,11 +87,19 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="BlackListEditView.xaml.cs">
+      <DependentUpon>BlackListEditView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="FileTreeViewItemTemplateSelector.cs" />
     <Compile Include="NewCloudStorageInstance.xaml.cs">
       <DependentUpon>NewCloudStorageInstance.xaml</DependentUpon>
     </Compile>
     <Compile Include="ObjectNullToBoolConverter.cs" />
     <Compile Include="Properties\Annotations.cs" />
+    <Page Include="BlackListEditView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -161,6 +169,10 @@
     <ProjectReference Include="..\Model\Model.csproj">
       <Project>{de83ac1d-65c0-4da4-94ae-fff0a1d00afc}</Project>
       <Name>Model</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Utils\Utils.csproj">
+      <Project>{932F3279-F5CA-4806-9E60-7CB55E3D1E9E}</Project>
+      <Name>Utils</Name>
     </ProjectReference>
     <ProjectReference Include="..\ViewModel\ViewModel.csproj">
       <Project>{dc1cd28a-c1b2-423e-968f-c67722ad54f0}</Project>

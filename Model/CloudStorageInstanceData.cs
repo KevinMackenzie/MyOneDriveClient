@@ -41,6 +41,6 @@ namespace LocalCloudStorage.Model
         /// <summary>
         /// Files/folders that should be excluded from syncing
         /// </summary>
-        public IEnumerable<string> BlackList { get; set; } = new List<string>();
+        public ICollection<string> BlackList { get; set; } = new List<string>();
     }
 }

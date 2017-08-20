@@ -1087,6 +1087,12 @@ namespace LocalCloudStorage
             return await GetEventDeltas(ct);
         }
 
+        public async Task<ICollection<StaticItemHandle>> GetPathListingAsync(CancellationToken ct)
+        {
+            return (from localItem in await _local.EnumerateItemsAsync("", ct)
+                select new StaticItemHandle(localItem)).ToList();
+        }
+
         /// <summary>
         /// Gets a writable stream.  To get the stream, use the <see cref="RequestStreamExtraData"/> of 
         ///  the request after calling <see cref="AwaitRequest"/>

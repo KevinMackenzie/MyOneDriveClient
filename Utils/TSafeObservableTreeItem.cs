@@ -18,8 +18,9 @@ namespace LocalCloudStorage
         private TValue _value;
         private TSafeObservableCollection<TSafeObservableTreeItem<TValue>> _children;
 
-        public TSafeObservableTreeItem()
+        public TSafeObservableTreeItem(TValue value)
         {
+            _value = value;
         }
 
         #region Public Properties
@@ -32,6 +33,7 @@ namespace LocalCloudStorage
                 return _children;
             }
         }
+        public bool HasChildren => _children != null && _children.Count != 0;
         public TValue Value
         {
             get => _value;

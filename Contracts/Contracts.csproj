@@ -71,6 +71,7 @@
     <Compile Include="IItemDelta.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RemoteFileStoreConnectionFactoryMetadataAttribute.cs" />
+    <Compile Include="StaticItemHandle.cs" />
     <Compile Include="Threading\PauseTokenSource.cs" />
   </ItemGroup>
   <ItemGroup>

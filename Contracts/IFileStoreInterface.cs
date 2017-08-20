@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Events;
 using LocalCloudStorage.Threading;
@@ -15,6 +16,8 @@ namespace LocalCloudStorage
         bool TryGetRequest(int requestId, out FileStoreRequest request);
         void CancelRequest(int requestId);
         void SignalConflictResolved(int requestId);
+
+        Task<ICollection<StaticItemHandle>> GetPathListingAsync(CancellationToken ct);
 
         /// <summary>
         /// Processes the request queue until completion or cancellation

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ namespace LocalCloudStorage.ViewModel
         
         private readonly CloudStorageInstanceData _data;
         private readonly CloudStorageInstanceControl _control;
+        private BlackListViewModel _blackList;
 
         public CloudStorageInstanceViewModel(CloudStorageInstanceData data, CloudStorageInstanceControl control, CancellationToken appClosingToken)
         {
@@ -112,16 +114,7 @@ namespace LocalCloudStorage.ViewModel
         /// <summary>
         /// Files/folders that should be excluded from syncing
         /// </summary>
-        public IEnumerable<string> BlackList
-        {
-            get => _data.BlackList;
-            set
-            {
-                _data.BlackList = value;
-                _control.BlackList = value;
-                OnPropertyChanged();
-            }
-        }
+        public IEnumerable<string> BlackList => _data.BlackList;
         #endregion
         
         #region Public Methods
@@ -167,6 +160,17 @@ namespace LocalCloudStorage.ViewModel
         public void CancelRemoteRequest(int requestId)
         {
             _control.CancelRemoteRequest(requestId);
+        }
+
+        public async Task<BlackListViewModel> GetBlackListViewModelAsync(CancellationToken ct)
+        {
+            return new BlackListViewModel(await _control.GetRemotePathListAsync(ct), _data.BlackList);
+        }
+        public void UpdateBlackList(ICollection<string> blackList)
+        {
+            _data.BlackList = blackList;
+            _control.BlackList = blackList;
+            OnPropertyChanged(nameof(BlackList));
         }
         #endregion
 

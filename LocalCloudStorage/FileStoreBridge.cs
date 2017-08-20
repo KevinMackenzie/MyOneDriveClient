@@ -572,6 +572,15 @@ namespace LocalCloudStorage
             await task1;
             await task2;
         }
+
+        public Task<ICollection<StaticItemHandle>> GetLocalPathListAsync(CancellationToken ct)
+        {
+            return _local.GetPathListingAsync(ct);
+        }
+        public Task<ICollection<StaticItemHandle>> GetRemotePathListAsync(CancellationToken ct)
+        {
+            return _remote.GetPathListingAsync(ct);
+        }
         #endregion
     }
 }

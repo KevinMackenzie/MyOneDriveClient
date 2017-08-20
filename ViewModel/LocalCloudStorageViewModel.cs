@@ -140,14 +140,16 @@ namespace LocalCloudStorage.ViewModel
         /// Addes a new cloud storage instance with the given instantiation data
         /// </summary>
         /// <param name="data">the data to instantiate with</param>
-        public void AddCloudStorageInstance(CloudStorageInstanceData data)
+        public CloudStorageInstanceViewModel AddCloudStorageInstance(CloudStorageInstanceData data)
         {
             if (data == null)
                 throw new ArgumentNullException(nameof(data), "Attempt to add cloud storage instance with null instantiation data!");
 
-            _cloudStorageInstances.Add(CreateCloudStorageInstance(data));
+            var instance = CreateCloudStorageInstance(data);
+            _cloudStorageInstances.Add(instance);
             _data.CloudStorageInstances.Add(data);
             OnPropertyChanged(nameof(_data.CloudStorageInstances));
+            return instance;
         }
         /// <summary>
         /// Attempts to remove a cloud storage instance with the given
