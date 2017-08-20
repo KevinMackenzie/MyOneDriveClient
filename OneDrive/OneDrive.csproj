@@ -67,6 +67,10 @@
       <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
       <Name>Contracts</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Utils\Utils.csproj">
+      <Project>{932f3279-f5ca-4806-9e60-7cb55e3d1e9e}</Project>
+      <Name>Utils</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

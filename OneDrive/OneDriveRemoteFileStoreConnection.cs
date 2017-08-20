@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using Utils;
 
 namespace LocalCloudStorage.OneDrive
 {
@@ -150,9 +151,10 @@ namespace LocalCloudStorage.OneDrive
             return await GetItemHandleByUrlAsync(url, ct);
         }
         private static int _4MB = 4 * 1024 * 1024;
+        private static long _5MB = 320 * 1024 * 16;
         public async Task<HttpResult<IRemoteItemHandle>> UploadFileAsync(string remotePath, Stream data, CancellationToken ct)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}:/content", data, ct);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}", data, ct);
         }
         public async Task<HttpResult<IRemoteItemHandle>> CreateFolderAsync(string remotePath, CancellationToken ct)
         {
@@ -212,7 +214,7 @@ namespace LocalCloudStorage.OneDrive
         }
         public async Task<HttpResult<IRemoteItemHandle>> UploadFileByIdAsync(string parentId, string name, Stream data, CancellationToken ct)
         {
-            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}:/content", data, ct);
+            return await UploadFileByUrlAsync($"{_onedriveEndpoint}/items/{parentId}:/{name}", data, ct);
         }
         public async Task<HttpResult<IRemoteItemHandle>> CreateFolderByIdAsync(string parentId, string name, CancellationToken ct)
         {
@@ -273,10 +275,83 @@ namespace LocalCloudStorage.OneDrive
         {
             if (data.Length > _4MB) //if data > 4MB, then use chunked upload
             {
-                throw new NotImplementedException();
+                //the url's are different for the different methods
+                url = $"{url}:/createUploadSession";
+
+                //first, create an upload session
+                var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Post, ct);
+                if (httpResponse.StatusCode != HttpStatusCode.OK)
+                {
+                    return new HttpResult<IRemoteItemHandle>(httpResponse, null);
+                }
+
+
+                //get the upload URL
+                var uploadSessionRequestObject = await ReadResponseAsJObjectAsync(httpResponse);
+
+                var uploadUrl = (string)uploadSessionRequestObject["uploadUrl"];
+                if (uploadUrl == null)
+                {
+                    Debug.WriteLine("Successful OneDrive CreateSession request had invalid body!");
+                    //TODO: what to do here?
+                }
+
+                //the length of the file total
+                var length = data.Length;
+
+                //setup the headers
+                var headers = new List<KeyValuePair<string, string>>()
+                {
+                    new KeyValuePair<string, string>("Content-Length", ""),
+                    new KeyValuePair<string, string>("Content-Range","")
+                };
+
+                //the response that will be returned
+                HttpResponseMessage response = null;
+
+                //get the chunks
+                HttpResult<List<Tuple<long, long>>> chunksResult;
+                do
+                {
+                    //get the chunks
+                    do
+                    {
+                        chunksResult = await GetLargeUploadChunksAsync(uploadUrl, _5MB, data.Length, ct);
+                        //TODO: should we delay on failure?
+                    } while (chunksResult.Value == null);//keep trying to get thre results until we're successful
+
+                    //upload each fragment
+                    var chunkStream = new ChunkedReadStreamWrapper(data);
+                    foreach (var fragment in chunksResult.Value)
+                    {
+                        //setup the chunked stream with the next fragment
+                        chunkStream.ChunkStart = fragment.Item1;
+                        chunkStream.ChunkSize = fragment.Item2 - fragment.Item1;
+                        
+                        //setup the headers for this request
+                        headers[0] = new KeyValuePair<string, string>("Content-Length", chunkStream.ChunkSize.ToString());
+                        headers[1] = new KeyValuePair<string, string>("Content-Range", $"bytes {fragment.Item1}-{fragment.Item2}/{length}");
+
+                        //submit the request until it is successful
+                        do
+                        {
+                            response = await AuthenticatedHttpRequestAsync(uploadUrl, HttpMethod.Put, chunkStream, ct, headers);
+                        } while (!response.IsSuccessStatusCode); // keep retrying until success
+                    }
+                }
+                while (chunksResult.Value.Count > 0);//keep going until no chunks left
+
+                if (response == null)
+                {
+                    Debug.WriteLine("Large upload completed, but did not have a response");
+                    //TODO:
+                }
+                return new HttpResult<IRemoteItemHandle>(response, new OneDriveRemoteFileHandle(this, await ReadResponseAsJObjectAsync(response)));
             }
             else //use regular upload
             {
+                url = $"{url}:/content";
+
                 var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Put, data, ct);
                 if (!httpResponse.IsSuccessStatusCode) 
                     return new HttpResult<IRemoteItemHandle>(httpResponse, null);
@@ -285,6 +360,68 @@ namespace LocalCloudStorage.OneDrive
                 var metadataObj = (JObject) JsonConvert.DeserializeObject(json);
                 return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, metadataObj));
             }
+        }
+        private async Task<HttpResult<List<Tuple<long, long>>>> GetLargeUploadChunksAsync(string uploadUrl, long chunkSize, long length, CancellationToken ct)
+        { 
+            //Get the status of the upload session
+            var httpResponse = await AuthenticatedHttpRequestAsync(uploadUrl, HttpMethod.Get, ct);
+            if (httpResponse.StatusCode != HttpStatusCode.OK)
+            {
+                return new HttpResult<List<Tuple<long, long>>> (httpResponse, null);
+            }
+
+            //parse the expected ranges
+            var uploadSessionStatus = await ReadResponseAsJObjectAsync(httpResponse);
+            var nextExpectedRanges = uploadSessionStatus["nextExpectedRanges"].Values<string>();
+            var expectedRanges = new List<Tuple<long, long>>();
+            foreach (var range in nextExpectedRanges)
+            {
+                var parts = range.Split(new char[] { '-' }, StringSplitOptions.RemoveEmptyEntries);
+                long start;
+                long end;
+
+                if (!long.TryParse(parts[0], out start))
+                {
+                    Debug.WriteLine("Expected Ranges from OneDrive were corrupt!");
+                    //TODO: what to do here?
+                }
+
+                if (parts.Length == 1)
+                {
+                    //this means "until the end"
+                    end = length;
+                }
+                else
+                {
+                    if (!long.TryParse(parts[1], out end))
+                    {
+                        Debug.WriteLine("Expected Ranges from OneDrive were corrupt!");
+                        //TODO: what to do here?
+                    }
+                }
+
+                expectedRanges.Add(new Tuple<long, long>(start, end));
+            }
+
+            //split the expected ranges into chunks
+            var chunks = new List<Tuple<long, long>>();
+            foreach (var expectedRange in expectedRanges)
+            {
+                //TODO: what if the expected range IS a multiple of "chunkSize"?
+                var i = expectedRange.Item1;
+                for (; i < expectedRange.Item2; i += chunkSize)
+                {
+                    chunks.Add(new Tuple<long, long>(i, i + chunkSize - 1));
+                }
+
+                //the expected range was not a multiple of "chunkSize"
+                if (i > expectedRange.Item2)
+                {
+                    i -= chunkSize;
+                    chunks.Add(new Tuple<long, long>(i, i + chunkSize - 1));
+                }
+            }
+            return new HttpResult<List<Tuple<long, long>>>(httpResponse, chunks);
         }
         private async Task<HttpResult<bool>> DeleteFileByUrlAsync(string url, CancellationToken ct)
         {
@@ -593,6 +730,10 @@ namespace LocalCloudStorage.OneDrive
         {
             var stream = new StreamReader(await message.Content.ReadAsStreamAsync());
             return await stream.ReadToEndAsync();
+        }
+        public async Task<JObject> ReadResponseAsJObjectAsync(HttpResponseMessage message)
+        {
+            return (JObject) JsonConvert.DeserializeObject(await ReadResponseAsStringAsync(message));
         }
 
         public async Task<bool> HasNetworkConnection()
