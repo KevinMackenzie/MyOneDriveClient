@@ -39,7 +39,10 @@ namespace LocalCloudStorage.ViewModel
                 //create a viewmodel for each of the cloud storage instances
                 foreach (var cloudStorageInstace in data.CloudStorageInstances)
                 {
-                    _cloudStorageInstances.Add(CreateCloudStorageInstance(cloudStorageInstace));
+                    var instance = CreateCloudStorageInstance(cloudStorageInstace);
+
+                    instance.StartSync();
+                    _cloudStorageInstances.Add(instance);
                 }
             }
 
