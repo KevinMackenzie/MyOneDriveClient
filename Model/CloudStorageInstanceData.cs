@@ -37,7 +37,7 @@ namespace LocalCloudStorage.Model
         /// <summary>
         /// How frequently to check for remote deltas
         /// </summary>
-        public TimeSpan RemoteDeltaFrequency { get; set; } = TimeSpan.FromMinutes(1);
+        public TimeSpan RemoteDeltaFrequency { get; set; } = TimeSpan.FromSeconds(10);
         /// <summary>
         /// Files/folders that should be excluded from syncing
         /// </summary>
