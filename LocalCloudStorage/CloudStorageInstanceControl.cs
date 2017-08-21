@@ -35,9 +35,6 @@ namespace LocalCloudStorage
 
             //make sure we cancel when the app is closing
             appClosingToken.Register(() => _instancePts.Cancel());
-
-            //start the background loop
-            _syncLoopTask = SyncLoopMethod(_instancePts.Token);
         }
 
 
@@ -154,6 +151,11 @@ namespace LocalCloudStorage
         {
             _pauseTimer.Stop();
             _instancePts.IsPaused = false;
+        }
+        public void StartSync()
+        {
+            //start the background loop
+            _syncLoopTask = SyncLoopMethod(_instancePts.Token);
         }
         public async Task ResolveLocalConflictAsync(int requestId, ConflictResolutions resolution)
         {

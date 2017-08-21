@@ -145,6 +145,10 @@ namespace LocalCloudStorage.ViewModel
             _control.ResumeSync();
             OnPropertyChanged("IsPaused");
         }
+        public void StartSync()
+        {
+            _control.StartSync();
+        }
         public Task ResolveLocalConflictAsync(int requestId, ConflictResolutions resolution)
         {
             return _control.ResolveLocalConflictAsync(requestId, resolution);

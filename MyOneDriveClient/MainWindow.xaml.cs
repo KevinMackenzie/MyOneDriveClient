@@ -261,8 +261,16 @@ namespace MyOneDriveClient
             var result = popup.ShowDialog() ?? false;
             if (result)
             {
+                //add the instance to the LocalCloudStorage instance
                 var instance = _app.LocalCloudStorage.AddCloudStorageInstance(popup.Data);
+
+                //open the blacklist editor
                 await ShowBlackListEditor(instance);
+
+                //then start the instance syncing
+                instance.StartSync();
+
+                //and save the instances
                 await App.AppInstance.SaveInstances();
             }
         }
