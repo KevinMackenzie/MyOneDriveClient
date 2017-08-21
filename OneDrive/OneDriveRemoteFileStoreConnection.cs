@@ -25,7 +25,7 @@ namespace LocalCloudStorage.OneDrive
         private static string ClientId = "f9dc0bbd-fc1b-4cf4-ac6c-e2a41a05d583";//"0b8b0665-bc13-4fdc-bd72-e0227b9fc011";
         private static string _onedriveEndpoint = "https://graph.microsoft.com/v1.0/me/drive";
 
-        private HttpClient _httpClient;
+        private HttpClientHelper _httpClient = new HttpClientHelper() {Timeout = TimeSpan.FromSeconds(30)};
         private AuthenticationResult _authResult = null;
 
         private PublicClientApplication _clientApp;
@@ -109,8 +109,8 @@ namespace LocalCloudStorage.OneDrive
             string deltaLink = null;
 
 
-            var httpResponse = await AuthenticatedHttpRequestAsync(downloadUrl, HttpMethod.Get, ct);
-            string json = await ReadResponseAsStringAsync(httpResponse);
+            var httpResponse = await _httpClient.StartAuthenticatedRequest(downloadUrl, HttpMethod.Get).SendAsync(ct);
+            string json = await HttpClientHelper.ReadResponseAsStringAsync(httpResponse);
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
             //get the delta link and next page link
@@ -180,8 +180,8 @@ namespace LocalCloudStorage.OneDrive
                 }
             }
 
-            var httpResponse = await AuthenticatedHttpRequestAsync(parentUrl, HttpMethod.Get, ct);
-            string json = await ReadResponseAsStringAsync(httpResponse);
+            var httpResponse = await _httpClient.StartAuthenticatedRequest(parentUrl, HttpMethod.Get).SendAsync(ct);
+            string json = await HttpClientHelper.ReadResponseAsStringAsync(httpResponse);
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
             string parentId = (string)obj["id"];
@@ -221,13 +221,16 @@ namespace LocalCloudStorage.OneDrive
             string requestUrl = $"{_onedriveEndpoint}/items/{parentId}/children";
             string requestJson = $"{{\"name\": \"{name}\", \"folder\": {{}} }}";
 
-            var httpResponse = await AuthenticatedHttpRequestAsync(requestUrl, HttpMethod.Post, requestJson, ct);
+            var httpResponse = await _httpClient.StartAuthenticatedRequest(requestUrl, HttpMethod.Post)
+                .SetContent(requestJson)
+                .SendAsync(ct);
+
             if (!httpResponse.IsSuccessStatusCode)
             {
                 return new HttpResult<IRemoteItemHandle>(httpResponse, null);
             }
 
-            string json = await ReadResponseAsStringAsync(httpResponse);
+            string json = await HttpClientHelper.ReadResponseAsStringAsync(httpResponse);
             var obj = (JObject)JsonConvert.DeserializeObject(json);
 
             return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, obj));
@@ -253,10 +256,10 @@ namespace LocalCloudStorage.OneDrive
         #region Helper Methods
         private async Task<HttpResult<string>> GetItemMetadataByUrlAsync(string url, CancellationToken ct)
         {
-            var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Get, ct);
+            var httpResponse = await _httpClient.StartAuthenticatedRequest(url, HttpMethod.Get).SendAsync(ct);
             return !httpResponse.IsSuccessStatusCode ? 
                 new HttpResult<string>(httpResponse, null) : 
-                new HttpResult<string>(httpResponse, await ReadResponseAsStringAsync(httpResponse));
+                new HttpResult<string>(httpResponse, await HttpClientHelper.ReadResponseAsStringAsync(httpResponse));
         }
         private async Task<HttpResult<IRemoteItemHandle>> GetItemHandleByUrlAsync(string url, CancellationToken ct)
         {
@@ -279,7 +282,7 @@ namespace LocalCloudStorage.OneDrive
                 url = $"{url}:/createUploadSession";
 
                 //first, create an upload session
-                var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Post, ct);
+                var httpResponse = await _httpClient.StartAuthenticatedRequest(url, HttpMethod.Post).SendAsync(ct);
                 if (httpResponse.StatusCode != HttpStatusCode.OK)
                 {
                     return new HttpResult<IRemoteItemHandle>(httpResponse, null);
@@ -287,7 +290,7 @@ namespace LocalCloudStorage.OneDrive
 
 
                 //get the upload URL
-                var uploadSessionRequestObject = await ReadResponseAsJObjectAsync(httpResponse);
+                var uploadSessionRequestObject = await HttpClientHelper.ReadResponseAsJObjectAsync(httpResponse);
 
                 var uploadUrl = (string)uploadSessionRequestObject["uploadUrl"];
                 if (uploadUrl == null)
@@ -326,7 +329,9 @@ namespace LocalCloudStorage.OneDrive
                     {
                         //setup the chunked stream with the next fragment
                         chunkStream.ChunkStart = fragment.Item1;
-                        chunkStream.ChunkSize = fragment.Item2 - fragment.Item1;
+
+                        //the size is one more than the difference (because the range is inclusive)
+                        chunkStream.ChunkSize = fragment.Item2 - fragment.Item1 + 1;
                         
                         //setup the headers for this request
                         headers[0] = new KeyValuePair<string, string>("Content-Length", chunkStream.ChunkSize.ToString());
@@ -335,7 +340,16 @@ namespace LocalCloudStorage.OneDrive
                         //submit the request until it is successful
                         do
                         {
-                            response = await AuthenticatedHttpRequestAsync(uploadUrl, HttpMethod.Put, chunkStream, ct, headers);
+                            //this should not be authenticated
+                            response = await _httpClient.StartRequest(uploadUrl, HttpMethod.Put)
+                                .SetContent(chunkStream)
+                                .SetContentHeaders(headers)
+                                .SendAsync(ct);
+                            // "Bytes to be written to the stream exceed the Content-Length bytes size specified."
+                            // it might have something to do with the ChunkedReadStreamWrapper
+
+                            var json = await HttpClientHelper.ReadResponseAsStringAsync(response);
+
                         } while (!response.IsSuccessStatusCode); // keep retrying until success
                     }
                 }
@@ -346,17 +360,20 @@ namespace LocalCloudStorage.OneDrive
                     Debug.WriteLine("Large upload completed, but did not have a response");
                     //TODO:
                 }
-                return new HttpResult<IRemoteItemHandle>(response, new OneDriveRemoteFileHandle(this, await ReadResponseAsJObjectAsync(response)));
+                return new HttpResult<IRemoteItemHandle>(response, new OneDriveRemoteFileHandle(this, await HttpClientHelper.ReadResponseAsJObjectAsync(response)));
             }
             else //use regular upload
             {
                 url = $"{url}:/content";
 
-                var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Put, data, ct);
+                var httpResponse = await _httpClient.StartAuthenticatedRequest(url, HttpMethod.Put)
+                    .SetContent(data)
+                    .SendAsync(ct);
+
                 if (!httpResponse.IsSuccessStatusCode) 
                     return new HttpResult<IRemoteItemHandle>(httpResponse, null);
 
-                var json = await ReadResponseAsStringAsync(httpResponse);
+                var json = await HttpClientHelper.ReadResponseAsStringAsync(httpResponse);
                 var metadataObj = (JObject) JsonConvert.DeserializeObject(json);
                 return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, metadataObj));
             }
@@ -364,14 +381,14 @@ namespace LocalCloudStorage.OneDrive
         private async Task<HttpResult<List<Tuple<long, long>>>> GetLargeUploadChunksAsync(string uploadUrl, long chunkSize, long length, CancellationToken ct)
         { 
             //Get the status of the upload session
-            var httpResponse = await AuthenticatedHttpRequestAsync(uploadUrl, HttpMethod.Get, ct);
+            var httpResponse = await _httpClient.StartRequest(uploadUrl, HttpMethod.Get).SendAsync(ct); //TODO: unauthorized???
             if (httpResponse.StatusCode != HttpStatusCode.OK)
             {
                 return new HttpResult<List<Tuple<long, long>>> (httpResponse, null);
             }
 
             //parse the expected ranges
-            var uploadSessionStatus = await ReadResponseAsJObjectAsync(httpResponse);
+            var uploadSessionStatus = await HttpClientHelper.ReadResponseAsJObjectAsync(httpResponse);
             var nextExpectedRanges = uploadSessionStatus["nextExpectedRanges"].Values<string>();
             var expectedRanges = new List<Tuple<long, long>>();
             foreach (var range in nextExpectedRanges)
@@ -425,7 +442,7 @@ namespace LocalCloudStorage.OneDrive
         }
         private async Task<HttpResult<bool>> DeleteFileByUrlAsync(string url, CancellationToken ct)
         {
-            var httpResponse = await AuthenticatedHttpRequestAsync(url, HttpMethod.Delete, ct);
+            var httpResponse = await _httpClient.StartAuthenticatedRequest(url, HttpMethod.Delete).SendAsync(ct);
             return new HttpResult<bool>(httpResponse,
                 httpResponse.StatusCode == HttpStatusCode.NotFound ||
                 httpResponse.StatusCode == HttpStatusCode.NoContent);
@@ -433,11 +450,14 @@ namespace LocalCloudStorage.OneDrive
         private HttpMethod _patch = new HttpMethod("PATCH");
         private async Task<HttpResult<IRemoteItemHandle>> UpdateItemByUrlAsync(string url, string json, CancellationToken ct)
         {
-            var httpResponse = await AuthenticatedHttpRequestAsync(url, _patch, json, ct);
+            var httpResponse = await _httpClient.StartAuthenticatedRequest(url, _patch)
+                .SetContent(json)
+                .SendAsync(ct);
+
             if (!httpResponse.IsSuccessStatusCode) 
                 return new HttpResult<IRemoteItemHandle>(httpResponse, null);
 
-            var responseJson = await ReadResponseAsStringAsync(httpResponse);
+            var responseJson = await HttpClientHelper.ReadResponseAsStringAsync(httpResponse);
             var metadataObj = (JObject)JsonConvert.DeserializeObject(responseJson);
             return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, metadataObj));
         }
@@ -481,10 +501,7 @@ namespace LocalCloudStorage.OneDrive
                 {
                     _authResult = newAuthenticationResult;
 
-                    _httpClient = new HttpClient();
-                    _httpClient.DefaultRequestHeaders.Authorization =
-                        new AuthenticationHeaderValue("Bearer", _authResult.AccessToken);
-                    _httpClient.Timeout = new TimeSpan(0, 0, 0, 30);
+                    _httpClient.AuthenticationHeader = new AuthenticationHeaderValue("Bearer", _authResult.AccessToken);
                 }
             }
         }
@@ -501,7 +518,7 @@ namespace LocalCloudStorage.OneDrive
 
         private async Task<HttpResult<Stream>> DownloadFileWithLinkAsync(string downloadUrl, CancellationToken ct)
         {
-            var result = await AuthenticatedHttpRequestAsync(downloadUrl, HttpMethod.Get, ct);
+            var result = await _httpClient.StartAuthenticatedRequest(downloadUrl, HttpMethod.Get).SendAsync(ct);
             if (!result.IsSuccessStatusCode)
             {
                 return new HttpResult<Stream>(result, null);
@@ -666,81 +683,5 @@ namespace LocalCloudStorage.OneDrive
             #endregion
         }
 
-        /// <summary>
-        /// A test method for making HTTP requests
-        /// </summary>
-        /// <param name="url"></param>
-        /// <param name="token"></param>
-        /// <returns></returns>
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, Stream body, CancellationToken ct, IEnumerable<KeyValuePair<string, string>> headers = null)
-        {
-            if (body != null)
-            {
-                return await AuthenticatedHttpRequestAsync(url, verb, ct, new StreamContent(body), headers);
-            }
-            else
-            {
-                return await AuthenticatedHttpRequestAsync(url, verb, ct, (HttpContent)null, headers);
-            }
-        }
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, string body, CancellationToken ct, IEnumerable<KeyValuePair<string, string>> headers = null)
-        {
-            if (body != null)
-            {
-                return await AuthenticatedHttpRequestAsync(url, verb, ct, new StringContent(body, Encoding.UTF8, "application/json"), headers);
-            }
-            else
-            {
-                return await AuthenticatedHttpRequestAsync(url, verb, ct, (HttpContent)null, headers);
-            }
-        }
-        public async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, byte[] body, CancellationToken ct, IEnumerable<KeyValuePair<string, string>> headers = null)
-        {
-            if (body != null)
-            {
-                return await AuthenticatedHttpRequestAsync(url, verb, new MemoryStream(body), ct, headers);
-            }
-            else
-            {
-                return await AuthenticatedHttpRequestAsync(url, verb, ct, (HttpContent)null, headers);
-            }
-        }
-        private async Task<HttpResponseMessage> AuthenticatedHttpRequestAsync(string url, HttpMethod verb, CancellationToken ct, HttpContent content = null, IEnumerable<KeyValuePair<string, string>> headers = null)
-        {
-            if(_httpClient == null)
-                throw new Exception("Attempt to call http request before authentication!");
-            var request = new HttpRequestMessage(verb, url);
-            if (content != null)
-            {
-                request.Content = content;
-            }
-
-            if (headers != null)
-            {
-                foreach (var header in headers)
-                {
-                    request.Headers.Add(header.Key, header.Value);
-                }
-            }
-            var response = await _httpClient.SendAsync(request, 
-                HttpCompletionOption.ResponseHeadersRead, ct); //ONLY Read the headers, because reading the content will make this function last until the contents are downloaded (see issue #28)
-            return response;
-        }
-        public async Task<string> ReadResponseAsStringAsync(HttpResponseMessage message)
-        {
-            var stream = new StreamReader(await message.Content.ReadAsStreamAsync());
-            return await stream.ReadToEndAsync();
-        }
-        public async Task<JObject> ReadResponseAsJObjectAsync(HttpResponseMessage message)
-        {
-            return (JObject) JsonConvert.DeserializeObject(await ReadResponseAsStringAsync(message));
-        }
-
-        public async Task<bool> HasNetworkConnection()
-        {
-            var request = new HttpRequestMessage(HttpMethod.Get, "http://clients3.google.com/generate_204");
-            var response = await _httpClient.SendAsync(request);
-            return response.StatusCode == HttpStatusCode.NoContent;
-        }
     }
 }

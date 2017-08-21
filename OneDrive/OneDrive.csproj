@@ -56,6 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DeltaPage.cs" />
+    <Compile Include="HttpClientHelper.cs" />
     <Compile Include="OneDriveRemoteFileStoreConnection.cs" />
     <Compile Include="OneDriveRemoteFileStoreConnectionFactory.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -80,6 +81,7 @@
   <PropertyGroup>
     <PostBuildEvent>mkdir $(SolutionDir)WorkingDir\Plugins
 copy $(TargetPath) $(SolutionDir)WorkingDir\Plugins
+copy $(TargetDir)\$(ProjectName).pdb $(SolutionDir)WorkingDir\Plugins
 copy $(TargetDir)\Newtonsoft.Json.dll $(SolutionDir)WorkingDir\Plugins</PostBuildEvent>
   </PropertyGroup>
 </Project>

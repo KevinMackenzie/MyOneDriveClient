@@ -20,7 +20,6 @@ namespace Utils
 
         private void UpdateChunk()
         {
-            _streamImplementation.Position = _chunkStart;
             if (_chunkStart + _chunkSize > _streamImplementation.Length)
             {
                 _chunkSize = _streamImplementation.Length - _chunkStart;
@@ -36,6 +35,7 @@ namespace Utils
             set
             {
                 _chunkStart = value;
+                _streamImplementation.Position = _chunkStart;
                 UpdateChunk();
             }
         }
@@ -115,7 +115,7 @@ namespace Utils
         public override long Position
         {
             get { return _streamImplementation.Position - ChunkStart; }
-            set { _streamImplementation.Position = ExtMath.Clamp(value + ChunkStart, ChunkStart, ChunkEnd); }
+            set { _streamImplementation.Position = ExtMath.Clamp(value + ChunkStart, ChunkStart, ChunkEnd-1); }
         }
     }
 }
