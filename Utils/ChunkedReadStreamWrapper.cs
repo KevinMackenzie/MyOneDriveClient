@@ -50,7 +50,7 @@ namespace Utils
             }
         }
 
-        public long ChunkEnd => ChunkStart + ChunkSize;
+        public long ChunkEnd => ChunkStart + ChunkSize - 1;
 
         /// <inheritdoc />
         public override void Flush()
@@ -70,7 +70,7 @@ namespace Utils
                     newOffset = ExtMath.Clamp(Position + offset, ChunkStart, ChunkEnd) - Position;
                     break;
                 case SeekOrigin.End:
-                    newOffset = ExtMath.Clamp(offset, -ChunkSize, 0) + ChunkStart;
+                    newOffset = ExtMath.Clamp(offset, -ChunkSize, 0) + ChunkEnd;
                     break;
             }
             return _streamImplementation.Seek(newOffset, origin) - ChunkStart;
@@ -83,8 +83,9 @@ namespace Utils
         /// <inheritdoc />
         public override int Read(byte[] buffer, int offset, int count)
         {
-            var newCount = (int)ExtMath.Clamp(count, 0, ChunkEnd - Position);
-            return _streamImplementation.Read(buffer, offset, newCount);
+            var newCount = (int)ExtMath.Clamp(count, 0, Length - Position);
+            var ret = _streamImplementation.Read(buffer, offset, newCount);
+            return ret;
         }
         /// <inheritdoc />
         public override void Write(byte[] buffer, int offset, int count)
@@ -115,7 +116,7 @@ namespace Utils
         public override long Position
         {
             get { return _streamImplementation.Position - ChunkStart; }
-            set { _streamImplementation.Position = ExtMath.Clamp(value + ChunkStart, ChunkStart, ChunkEnd-1); }
+            set { _streamImplementation.Position = ExtMath.Clamp(value + ChunkStart, ChunkStart, ChunkEnd); }
         }
     }
 }

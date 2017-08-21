@@ -309,23 +309,28 @@ namespace LocalCloudStorage.OneDrive
                     new KeyValuePair<string, string>("Content-Range","")
                 };
 
+                JObject responseJObject;
                 //the response that will be returned
                 HttpResponseMessage response = null;
 
                 //get the chunks
-                HttpResult<List<Tuple<long, long>>> chunksResult;
+                List<Tuple<long, long>> chunks;
                 do
                 {
+
+                    HttpResult<List<Tuple<long, long>>> chunksResult;
                     //get the chunks
                     do
                     {
-                        chunksResult = await GetLargeUploadChunksAsync(uploadUrl, _5MB, data.Length, ct);
+                        chunksResult = await RetrieveLargeUploadChunksAsync(uploadUrl, _5MB, length, ct);
                         //TODO: should we delay on failure?
                     } while (chunksResult.Value == null);//keep trying to get thre results until we're successful
 
+                    chunks = chunksResult.Value;
+
                     //upload each fragment
                     var chunkStream = new ChunkedReadStreamWrapper(data);
-                    foreach (var fragment in chunksResult.Value)
+                    foreach (var fragment in chunks)
                     {
                         //setup the chunked stream with the next fragment
                         chunkStream.ChunkStart = fragment.Item1;
@@ -345,22 +350,24 @@ namespace LocalCloudStorage.OneDrive
                                 .SetContent(chunkStream)
                                 .SetContentHeaders(headers)
                                 .SendAsync(ct);
-                            // "Bytes to be written to the stream exceed the Content-Length bytes size specified."
-                            // it might have something to do with the ChunkedReadStreamWrapper
-
-                            var json = await HttpClientHelper.ReadResponseAsStringAsync(response);
 
                         } while (!response.IsSuccessStatusCode); // keep retrying until success
                     }
-                }
-                while (chunksResult.Value.Count > 0);//keep going until no chunks left
 
-                if (response == null)
+                    //parse the response to see if there are more chunks or the final metadata
+                    responseJObject = await HttpClientHelper.ReadResponseAsJObjectAsync(response);
+
+                    //try to get chunks from the response to see if we need to retry anything
+                    chunks = ParseLargeUploadChunks(responseJObject, _5MB, length);
+                }
+                while (chunks.Count > 0);//keep going until no chunks left
+
+                if (responseJObject == null)
                 {
-                    Debug.WriteLine("Large upload completed, but did not have a response");
+                    Debug.WriteLine("Large upload completed, but did not have a valid response");
                     //TODO:
                 }
-                return new HttpResult<IRemoteItemHandle>(response, new OneDriveRemoteFileHandle(this, await HttpClientHelper.ReadResponseAsJObjectAsync(response)));
+                return new HttpResult<IRemoteItemHandle>(response, new OneDriveRemoteFileHandle(this, responseJObject));
             }
             else //use regular upload
             {
@@ -378,18 +385,30 @@ namespace LocalCloudStorage.OneDrive
                 return new HttpResult<IRemoteItemHandle>(httpResponse, new OneDriveRemoteFileHandle(this, metadataObj));
             }
         }
-        private async Task<HttpResult<List<Tuple<long, long>>>> GetLargeUploadChunksAsync(string uploadUrl, long chunkSize, long length, CancellationToken ct)
+        private async Task<HttpResult<List<Tuple<long, long>>>> RetrieveLargeUploadChunksAsync(string uploadUrl, long chunkSize, long length, CancellationToken ct)
         { 
             //Get the status of the upload session
-            var httpResponse = await _httpClient.StartRequest(uploadUrl, HttpMethod.Get).SendAsync(ct); //TODO: unauthorized???
+            var httpResponse = await _httpClient.StartRequest(uploadUrl, HttpMethod.Get)
+                .SetCompletionOption(HttpCompletionOption.ResponseContentRead)
+                .SendAsync(ct);
+
             if (httpResponse.StatusCode != HttpStatusCode.OK)
             {
                 return new HttpResult<List<Tuple<long, long>>> (httpResponse, null);
             }
-
             //parse the expected ranges
-            var uploadSessionStatus = await HttpClientHelper.ReadResponseAsJObjectAsync(httpResponse);
-            var nextExpectedRanges = uploadSessionStatus["nextExpectedRanges"].Values<string>();
+            var jObject = await HttpClientHelper.ReadResponseAsJObjectAsync(httpResponse);
+            return new HttpResult<List<Tuple<long, long>>>(httpResponse, ParseLargeUploadChunks(jObject, chunkSize, length));
+        }
+        private List<Tuple<long, long>> ParseLargeUploadChunks(JObject jObject, long chunkSize, long length)
+        {
+            //use null the GetValue method instead of [] becauase [] doesn't support null propogation
+            var nextExpectedRanges = jObject?.GetValue("nextExpectedRanges")?.Values<string>();
+
+            //return a blank list if this request is irrelevent
+            if(nextExpectedRanges == null)
+                return new List<Tuple<long, long>>();
+
             var expectedRanges = new List<Tuple<long, long>>();
             foreach (var range in nextExpectedRanges)
             {
@@ -426,19 +445,17 @@ namespace LocalCloudStorage.OneDrive
             {
                 //TODO: what if the expected range IS a multiple of "chunkSize"?
                 var i = expectedRange.Item1;
-                for (; i < expectedRange.Item2; i += chunkSize)
+                while (i <= expectedRange.Item2)
                 {
-                    chunks.Add(new Tuple<long, long>(i, i + chunkSize - 1));
-                }
+                    var min = i;
+                    var max = Math.Min(min + chunkSize - 1, length - 1);
+                    chunks.Add(new Tuple<long, long>(i, max));
 
-                //the expected range was not a multiple of "chunkSize"
-                if (i > expectedRange.Item2)
-                {
-                    i -= chunkSize;
-                    chunks.Add(new Tuple<long, long>(i, i + chunkSize - 1));
+                    i += chunkSize;
                 }
             }
-            return new HttpResult<List<Tuple<long, long>>>(httpResponse, chunks);
+
+            return chunks;
         }
         private async Task<HttpResult<bool>> DeleteFileByUrlAsync(string url, CancellationToken ct)
         {
