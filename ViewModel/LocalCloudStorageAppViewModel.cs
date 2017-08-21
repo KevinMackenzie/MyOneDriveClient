@@ -18,6 +18,7 @@ namespace LocalCloudStorage.ViewModel
         #region Private Fields
         private static string _configFileName = "instances.config";
         private static string _pluginsFolderName = "Plugins";
+        private static string _tokenCacheFolderName = "TokenCache";
 
         private string _workingDirectory;
         private RemoteConnectionFactoryManager _factoryManager;
@@ -59,6 +60,10 @@ namespace LocalCloudStorage.ViewModel
                 Directory.CreateDirectory(PluginsFolderPath);
             }
 
+            if (!Directory.Exists(TokenCacheFolderPath))
+            {
+                Directory.CreateDirectory(TokenCacheFolderPath);
+            }
         }
         public async Task LoadInstances()
         {
@@ -71,7 +76,7 @@ namespace LocalCloudStorage.ViewModel
             {
                 Debug.WriteLine("Instance configurations do not exist, creating blank ...");
                 _instancesData = new LocalCloudStorageData();
-                LocalCloudStorage = new LocalCloudStorageViewModel(_instancesData, _factoryManager);
+                LocalCloudStorage = new LocalCloudStorageViewModel(_instancesData, _factoryManager, TokenCacheFolderPath);
                 await SaveInstances();
                 return;
             }
@@ -88,12 +93,12 @@ namespace LocalCloudStorage.ViewModel
                 {
                     Debug.WriteLine("Instance configurations were corrupt, creating blank ...");
                     _instancesData = new LocalCloudStorageData();
-                    LocalCloudStorage = new LocalCloudStorageViewModel(_instancesData, _factoryManager);
+                    LocalCloudStorage = new LocalCloudStorageViewModel(_instancesData, _factoryManager, TokenCacheFolderPath);
                     await SaveInstances();
                 }
                 else
                 {
-                    LocalCloudStorage = new LocalCloudStorageViewModel(_instancesData, _factoryManager);
+                    LocalCloudStorage = new LocalCloudStorageViewModel(_instancesData, _factoryManager, TokenCacheFolderPath);
                 }
             }
             catch (Exception e)
@@ -101,7 +106,7 @@ namespace LocalCloudStorage.ViewModel
                 Debug.WriteLine("Failed to load instance configurations, creating blank ...");
                 Utils.LogException(e);
                 _instancesData = new LocalCloudStorageData();
-                LocalCloudStorage = new LocalCloudStorageViewModel(_instancesData, _factoryManager);
+                LocalCloudStorage = new LocalCloudStorageViewModel(_instancesData, _factoryManager, TokenCacheFolderPath);
                 await SaveInstances();
             }
         }
@@ -138,6 +143,8 @@ namespace LocalCloudStorage.ViewModel
         #region Public Properties
         public string ConfigFilePath => $"{_workingDirectory}/{_configFileName}";
         public string PluginsFolderPath => $"{_workingDirectory}/{_pluginsFolderName}";
+        public string TokenCacheFolderPath => $"{_workingDirectory}/{_tokenCacheFolderName}";
+        public string WorkingDirectory => _workingDirectory;
         #endregion
 
         #region Major Public Properties

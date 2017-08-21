@@ -16,6 +16,7 @@ namespace LocalCloudStorage.ViewModel
     /// </summary>
     public sealed class LocalCloudStorageViewModel : ViewModelBase, IDisposable
     {
+        private readonly string _tokenCacheDirectory;
         private readonly LocalCloudStorageData _data;
         private readonly ObservableCollection<CloudStorageInstanceViewModel> _cloudStorageInstances = new ObservableCollection<CloudStorageInstanceViewModel>();
         private CloudStorageInstanceViewModel _selectedInstance;
@@ -23,8 +24,9 @@ namespace LocalCloudStorage.ViewModel
         private readonly RemoteConnectionFactoryManager _factoryManager;
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
-        public LocalCloudStorageViewModel(LocalCloudStorageData data, RemoteConnectionFactoryManager factoryManager)
+        public LocalCloudStorageViewModel(LocalCloudStorageData data, RemoteConnectionFactoryManager factoryManager, string tokenCacheDirectory)
         {
+            _tokenCacheDirectory = tokenCacheDirectory;
             _data = data;
             _data.CloudStorageInstances.DeleteNullElements();
 
@@ -61,7 +63,7 @@ namespace LocalCloudStorage.ViewModel
                     //... so get the appropriate remote interface ...
                     var remoteInterface = factory.OverridesFileStoreInterface
                         ? factory.ConstructInterface()
-                        : new BufferedRemoteFileStoreInterface(factory.Construct(data.InstanceName));
+                        : new BufferedRemoteFileStoreInterface(factory.Construct($"{_tokenCacheDirectory}/{data.InstanceName}"));
 
                     //... and a local interface
                     var localInterface = new LocalFileStoreInterface(new DownloadedFileStore(data.LocalFileStorePath));
