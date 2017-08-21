@@ -49,6 +49,7 @@
     <Compile Include="CancellableStream.cs" />
     <Compile Include="ChunkedReadStreamWrapper.cs" />
     <Compile Include="Exceptions.cs" />
+    <Compile Include="HttpClientHelper.cs" />
     <Compile Include="Math.cs" />
     <Compile Include="NotifyDisposedStream.cs" />
     <Compile Include="TSafeObservableCollection.cs" />

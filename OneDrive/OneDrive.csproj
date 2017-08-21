@@ -56,7 +56,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DeltaPage.cs" />
-    <Compile Include="HttpClientHelper.cs" />
     <Compile Include="OneDriveRemoteFileStoreConnection.cs" />
     <Compile Include="OneDriveRemoteFileStoreConnectionFactory.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
