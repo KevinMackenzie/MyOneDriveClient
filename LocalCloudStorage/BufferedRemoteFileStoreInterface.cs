@@ -116,7 +116,7 @@ namespace LocalCloudStorage
         {
             ct.ThrowIfCancellationRequested();
 
-            HttpResult<IRemoteItemHandle> uploadResult; 
+            HttpResult<IRemoteItemHandle> uploadResult = null; 
             //wrap the local stream to track read progress of local file
             using (readFrom)
             {
@@ -130,8 +130,25 @@ namespace LocalCloudStorage
 
                 try
                 {
-                    //make the upload request
-                    uploadResult = await _remote.UploadFileByIdAsync(parentId, PathUtils.GetItemName(request.Path), wrapper, ct);
+                    while (uploadResult == null)
+                    {
+                        try
+                        {
+                            //make the upload request
+                            uploadResult =
+                                await _remote.UploadFileByIdAsync(parentId, PathUtils.GetItemName(request.Path),
+                                    wrapper, ct);
+                        }
+                        catch (TaskCanceledException)
+                        {
+                            //the request was cancelled for real, so don't send again...
+                            if (ct.IsCancellationRequested)
+                                throw;
+
+                            //the request timed out or something...
+                            Debug.WriteLine("Request Timed Out, trying again...");
+                        }
+                    }
                 }
                 catch (Exception e)
                 {
