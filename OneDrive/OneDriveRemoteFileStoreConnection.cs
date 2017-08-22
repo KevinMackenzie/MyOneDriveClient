@@ -25,7 +25,7 @@ namespace LocalCloudStorage.OneDrive
         private static string ClientId = "f9dc0bbd-fc1b-4cf4-ac6c-e2a41a05d583";//"0b8b0665-bc13-4fdc-bd72-e0227b9fc011";
         private static string _onedriveEndpoint = "https://graph.microsoft.com/v1.0/me/drive";
 
-        private HttpClientHelper _httpClient = new HttpClientHelper() {Timeout = TimeSpan.FromSeconds(30)};
+        private HttpClientHelper _httpClient = new HttpClientHelper() {Timeout = TimeSpan.FromSeconds(5)};
         private AuthenticationResult _authResult = null;
 
         private PublicClientApplication _clientApp;
@@ -389,7 +389,6 @@ namespace LocalCloudStorage.OneDrive
         { 
             //Get the status of the upload session
             var httpResponse = await _httpClient.StartRequest(uploadUrl, HttpMethod.Get)
-                .SetCompletionOption(HttpCompletionOption.ResponseContentRead)
                 .SendAsync(ct);
 
             if (httpResponse.StatusCode != HttpStatusCode.OK)
