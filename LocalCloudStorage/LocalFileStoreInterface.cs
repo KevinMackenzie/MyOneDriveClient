@@ -4,14 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MyOneDriveClient.Events;
+using LocalCloudStorage.Events;
 using System.Threading;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using LocalCloudStorage.Threading;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
-    public class LocalFileStoreInterface : FileStoreInterface
+    public class LocalFileStoreInterface : FileStoreInterface, ILocalFileStoreInterface
     {
         private class DeletedItemHandle : IItemHandle
         {
@@ -31,15 +32,18 @@ namespace MyOneDriveClient
             /// <inheritdoc />
             public long Size => throw new NotSupportedException();
             /// <inheritdoc />
-            public Task<string> GetSha1HashAsync() => throw new NotSupportedException();
+            public Task<string> GetSha1HashAsync(CancellationToken ct) => throw new NotSupportedException();
+            /// <inheritdoc />
             public string SHA1Hash => throw new NotSupportedException();
             /// <inheritdoc />
             public DateTime LastModified { get; }
             /// <inheritdoc />
-            public Task<Stream> GetFileDataAsync()
+            public Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
                 throw new NotSupportedException();
             }
+            /// <inheritdoc />
+            public Task<string> GetSha1HashAsync() => throw new NotSupportedException();
         }
         private class LocalRemoteItemHandle : IRemoteItemHandle
         {
@@ -66,7 +70,7 @@ namespace MyOneDriveClient
             /// <inheritdoc />
             public DateTime LastModified => _handle.LastModified;
             /// <inheritdoc />
-            public Task<Stream> GetFileDataAsync()
+            public Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
                 throw new NotSupportedException();
             }
@@ -74,9 +78,14 @@ namespace MyOneDriveClient
             public string Id { get; }
             /// <inheritdoc />
             public string ParentId { get; }
+            /// <inheritdoc />
+            public async Task<string> GetSha1HashAsync(CancellationToken ct)
+            {
+                return _sha1;
+            }
 
             /// <inheritdoc />
-            public Task<HttpResult<Stream>> TryGetFileDataAsync()
+            public Task<HttpResult<Stream>> TryGetFileDataAsync(CancellationToken ct)
             {
                 throw new NotSupportedException();
             }
@@ -132,6 +141,16 @@ namespace MyOneDriveClient
             public Stream Stream { get; }
         }
 
+        private class RequestDeleteExtraData : IFileStoreRequestExtraData
+        {
+            public RequestDeleteExtraData(DateTime remoteLastModified)
+            {
+                RemoteLastModified = remoteLastModified;
+            }
+
+            public DateTime RemoteLastModified { get; }
+        }
+
 
         #region Private Fields
         private ILocalFileStore _local;
@@ -147,6 +166,10 @@ namespace MyOneDriveClient
         }
 
         #region Private Methods
+        private async Task<IRemoteItemHandle> GetMetadataHandleAsync(IItemHandle handle, string id, string parentId, CancellationToken ct)
+        {
+            return new LocalRemoteItemHandle(handle, id, parentId, await handle.GetSha1HashAsync(ct));
+        }
         private async Task<IRemoteItemHandle> GetMetadataHandleAsync(IItemHandle handle, string id, string parentId)
         {
             return new LocalRemoteItemHandle(handle, id, parentId, await handle.GetSha1HashAsync());
@@ -180,7 +203,7 @@ namespace MyOneDriveClient
                                 //... and add the delta
                                 _localDeltas.Enqueue(new ItemDelta()
                                 {
-                                    Type = ItemDelta.DeltaType.Created,
+                                    Type = DeltaType.Created,
                                     Handle = itemHandle
                                 });
                             }
@@ -191,7 +214,7 @@ namespace MyOneDriveClient
                                     //this happens when the item has been created, deleted, then re-created
                                     _localDeltas.Enqueue(new ItemDelta()
                                     {
-                                        Type = ItemDelta.DeltaType.Created,
+                                        Type = DeltaType.Created,
                                         Handle = itemHandle
                                     });
                                 }
@@ -223,7 +246,7 @@ namespace MyOneDriveClient
                             //... and add the delta
                             _localDeltas.Enqueue(new ItemDelta()
                             {
-                                Type = ItemDelta.DeltaType.Deleted,
+                                Type = DeltaType.Deleted,
                                 Handle = new DeletedItemHandle(itemMetadata),
                                 OldPath = e.LocalPath
                             });
@@ -239,7 +262,7 @@ namespace MyOneDriveClient
                             //... without metadata ... so create it
                             _localDeltas.Enqueue(new ItemDelta()
                             {
-                                Type=ItemDelta.DeltaType.Created,
+                                Type=DeltaType.Created,
                                 Handle = itemHandle
                             });
                         }
@@ -271,10 +294,14 @@ namespace MyOneDriveClient
                                             //... with a parent, so update the item metadata ...
                                             //_metadata.AddOrUpdateItemMetadata(itemMetadata);
 
+                                            //make sure we update this ASAP so remote changes won't overwrite local ones...
+                                            itemMetadata.LastModified = itemHandle.LastModified;
+                                            itemMetadata.Sha1 = await itemHandle.GetSha1HashAsync(CancellationToken.None);
+
                                             //... and add the delta
                                             _localDeltas.Enqueue(new ItemDelta()
                                             {
-                                                Type = ItemDelta.DeltaType.Modified,
+                                                Type = DeltaType.Modified,
                                                 Handle = itemHandle
                                             });
                                         }
@@ -309,13 +336,13 @@ namespace MyOneDriveClient
                                 if (itemMetadata == null)
                                 {
                                     //... and no metadata at the old location either, so add new metadata ...
-                                    //_metadata.AddItemMetadata(new LocalRemoteItemHandle(itemHandle,
-                                    //    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                    _metadata.AddItemMetadata(await GetMetadataHandleAsync(itemHandle,
+                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id, CancellationToken.None));
 
                                     //... and create it i guess
                                     _localDeltas.Enqueue(new ItemDelta()
                                     {
-                                        Type = ItemDelta.DeltaType.Created,
+                                        Type = DeltaType.Created,
                                         OldPath = e.OldLocalPath,
                                         Handle = itemHandle
                                     });
@@ -323,12 +350,12 @@ namespace MyOneDriveClient
                                 else
                                 {
                                     //... so update the name ...
-                                    //THIS HAS BEEN MOVED TO THE DEQUEUE METHOD
+                                    itemMetadata.Name = itemHandle.Name;
 
                                     //... and add the delta
                                     _localDeltas.Enqueue(new ItemDelta()
                                     {
-                                        Type = ItemDelta.DeltaType.Renamed,
+                                        Type = DeltaType.Renamed,
                                         OldPath = e.OldLocalPath,
                                         Handle = itemHandle
                                     });
@@ -364,7 +391,13 @@ namespace MyOneDriveClient
                         return Task.Run(() =>
                         {
                             //after disposing, make sure that we set the last modified of the local and the metadata
-                            _local.SetItemLastModified(request.Path, lastModified);
+                            while (!_local.SetItemLastModified(request.Path, lastModified))
+                            {
+                                //make VERY sure this happens
+                                Debug.WriteLine(
+                                    "Failed to set local item last modified after finishing writing to it ... trying again");
+                                Task.Delay(1000).Wait();
+                            }
 
                             //add the new item to the metadata with the retrieved parent.  
                             //      Do this after so the file is done writing to
@@ -378,16 +411,16 @@ namespace MyOneDriveClient
                 var func = (request.ExtraData as RequestWritableStreamExtraData)?.OnCompleted;
 
                 request.ExtraData = new RequestStreamExtraData(writeStream, true);
-                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+                InvokeStatusChanged(request, RequestStatus.Success);
 
                 func?.Invoke(request);
                 return true;
             }
         }
-        private bool CreateReadOnlyHandle(FileStoreRequest request)
+        private async Task<bool> CreateReadOnlyHandleAsync(FileStoreRequest request, CancellationToken ct)
         {
             var itemHandle = _local.GetFileHandle(request.Path);
-            var stream = itemHandle.GetFileDataAsync().Result;
+            var stream = await itemHandle.GetFileDataAsync(ct);
             if (stream == null)
             {
                 //this means something is blocking the file from being read from...
@@ -399,7 +432,7 @@ namespace MyOneDriveClient
                 var func = (request.ExtraData as RequestReadOnlyStreamExtraData)?.OnCompleted;
 
                 request.ExtraData = new RequestStreamExtraData(stream, false);
-                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+                InvokeStatusChanged(request, RequestStatus.Success);
 
                 func?.Invoke(request);
                 return true;
@@ -420,7 +453,7 @@ namespace MyOneDriveClient
                 {
                     //successful move
                     metadata.Name = newName;
-                    InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+                    InvokeStatusChanged(request, RequestStatus.Success);
                     return true;
                 }
                 else
@@ -447,7 +480,7 @@ namespace MyOneDriveClient
                 {
                     //successful move
                     metadata.ParentId = newParentMetadata.Id;
-                    InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+                    InvokeStatusChanged(request, RequestStatus.Success);
                     return true;
                 }
                 else
@@ -462,7 +495,7 @@ namespace MyOneDriveClient
         {
             //TODO: should we do any checking?  or just ignore it if the request failed
             _local.CreateLocalFolder(path, lastModified);
-            InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+            InvokeStatusChanged(request, RequestStatus.Success);
             return true;
         }
         private bool DeleteItem(string path, FileStoreRequest request)
@@ -470,7 +503,7 @@ namespace MyOneDriveClient
             var success = _local.DeleteLocalItem(path);
             if (success) // item deleted or not
             {
-                InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Success);
+                InvokeStatusChanged(request, RequestStatus.Success);
             }
             else // item in use/otherwise blocked
             {
@@ -479,7 +512,7 @@ namespace MyOneDriveClient
             return success;
         }
 
-        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request)
+        protected override async Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct)
         {
             /*
              * 
@@ -494,7 +527,7 @@ namespace MyOneDriveClient
 
             switch (request.Type)
             {
-                case FileStoreRequest.RequestType.Write: // get writable stream
+                case RequestType.Write: // get writable stream
                 {
                     var data = request.ExtraData as RequestWritableStreamExtraData;
                     if (data != null)
@@ -517,7 +550,7 @@ namespace MyOneDriveClient
                             else
                             {
                                 //item has been synced before
-                                var lastSyncTime = itemMetadata.LastModified;
+                                var lastSyncTime = _metadata.LastSyncTime;
 
                                 if (data.LastModified > lastSyncTime) //(this is pretty much a guarantee)
                                 {
@@ -528,10 +561,14 @@ namespace MyOneDriveClient
                                         //  that originated from a local source, so just update the metadata so we have the
                                         //  correct "last modified" and cancel the request
 
-                                        _local.SetItemLastModified(fileHandle.Path, data.LastModified);
+                                        while (!_local.SetItemLastModified(fileHandle.Path, data.LastModified))
+                                        {
+                                            Debug.WriteLine("Failed to set local item last modified... trying again");
+                                            await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
+                                        }
                                         itemMetadata.LastModified = data.LastModified;
                                                     
-                                        InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
+                                        InvokeStatusChanged(request, RequestStatus.Cancelled);
                                         return true;
                                     }
                                     else
@@ -599,7 +636,7 @@ namespace MyOneDriveClient
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Read: // get read-only stream
+                case RequestType.Read: // get read-only stream
                 {
                     var data = request.ExtraData as RequestReadOnlyStreamExtraData;
                     if (data != null)
@@ -632,10 +669,10 @@ namespace MyOneDriveClient
                                 else
                                 {
                                     _metadata.AddItemMetadata(await GetMetadataHandleAsync(fileHandle,
-                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                        _metadata.GetNextItemId().ToString(), parentMetadata.Id, ct));
                                 }
                             }
-                            return CreateReadOnlyHandle(request);
+                            return await CreateReadOnlyHandleAsync(request, ct);
 
                         }
                     }
@@ -646,7 +683,7 @@ namespace MyOneDriveClient
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Rename:
+                case RequestType.Rename:
                 {
                     var data = request.ExtraData as RequestRenameExtraData;
                     if (data != null)
@@ -680,7 +717,7 @@ namespace MyOneDriveClient
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Move:
+                case RequestType.Move:
                 {
                     var data = request.ExtraData as RequestMoveExtraData;
                     if (data != null)
@@ -714,7 +751,7 @@ namespace MyOneDriveClient
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Create:
+                case RequestType.Create:
                 {
                     var data = request.ExtraData as RequestCreateFolderExtraData;
                     if (data != null)
@@ -743,7 +780,7 @@ namespace MyOneDriveClient
                                     //no metadata though, so add it
                                     _metadata.AddOrUpdateItemMetadata(await GetMetadataHandleAsync(
                                         folderHandle, _metadata.GetNextItemId().ToString(),
-                                        parentMetadata.Id));
+                                        parentMetadata.Id, ct));
                                 }
                                 return ret;
                             }
@@ -756,22 +793,54 @@ namespace MyOneDriveClient
                     }
                 }
                     break;
-                case FileStoreRequest.RequestType.Delete:
+                case RequestType.Delete:
                 {
-                    if (itemMetadata == null)
+                    var extraData = request.ExtraData as RequestDeleteExtraData;
+                    if (extraData != null)
                     {
-                        //item doesn't exist.  Is this an issue?
-                        FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
-                        return false;
+                        if (itemMetadata == null)
+                        {
+                            //item doesn't exist.  Is this an issue?
+                            FailRequest(request, $"Could not delete \"{request.Path}\" because it does not exist!");
+                            return false;
+                        }
+                        else
+                        {
+                            if (extraData.RemoteLastModified < itemMetadata.LastModified)
+                            {
+                                //thie means that the item was deleted, but the local has been modified since then
+                                Debug.WriteLine("Remote delete request attempted to delete more recent local file... renaming local file");
+
+                                //make sure the old one is a success
+                                InvokeStatusChanged(request, RequestStatus.Success);
+
+                                //keep trying until we succeed;
+                                while (!await RequestRenameItemImmediateAsync(request.Path,
+                                    PathUtils.InsertDateTime(PathUtils.GetItemName(request.Path),
+                                        DateTime.UtcNow), ct))
+                                {
+                                    await Utils.DelayNoThrow(TimeSpan.FromSeconds(1), ct);
+                                }
+                                
+                                
+
+                                return true;
+                            }
+                            else
+                            {
+                                var success = DeleteItem(itemMetadata.Path, request);
+                                if (success)
+                                {
+                                    _metadata.RemoveItemMetadataById(itemMetadata.Id);
+                                }
+                                return success;
+                            }
+                        }
                     }
                     else
                     {
-                        var success = DeleteItem(itemMetadata.Path, request);
-                        if (success)
-                        {
-                            _metadata.RemoveItemMetadataById(itemMetadata.Id);
-                        }
-                        return success;
+                        Debug.WriteLine("Delete item was called without appropriate extra data");
+                        return false;
                     }
                 }
                     break;
@@ -780,27 +849,52 @@ namespace MyOneDriveClient
             }
         }
 
-        private async Task<IEnumerable<ItemDelta>> GetEventDeltas()
+        #region Conflict Resolution Helper
+        //This allows the date the sync started to be used as the basis for the next sync
+        private DateTime _lastSyncDateTimeTemp;
+        /// <inheritdoc />
+        protected override Task PreQueue(CancellationToken ct)
+        {
+            _lastSyncDateTimeTemp = DateTime.UtcNow;
+            return base.PreQueue(ct);
+        }
+        /// <inheritdoc />
+        protected override Task PostQueue(CancellationToken ct)
+        {
+            _metadata.LastSyncTime = _lastSyncDateTimeTemp;
+            return base.PostQueue(ct);
+        }
+        #endregion
+
+        private async Task<IEnumerable<ItemDelta>> GetEventDeltas(CancellationToken ct)
         {
             List<ItemDelta> filteredDeltas = new List<ItemDelta>();
             while (_localDeltas.TryDequeue(out ItemDelta result))
             {
                 var itemMetadata = _metadata.GetItemMetadata(result.Handle.Path);
                 var parentMetadata = _metadata.GetParentItemMetadata(result.Handle.Path);
+
+                if (itemMetadata != null)
+                {
+                    if (itemMetadata.LastModified == result.Handle.LastModified)
+                        continue; //filter rebounds
+                }
+
                 switch (result.Type)
                 {
-                    case ItemDelta.DeltaType.Created:
+                    case DeltaType.Created:
+                        if (itemMetadata != null) continue;//filter rebounds
                         if (parentMetadata != null)
                         {
                             if (_local.ItemExists(result.Handle.Path))
                             {
                                 _metadata.AddItemMetadata(await GetMetadataHandleAsync(result.Handle,
-                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id));
+                                    _metadata.GetNextItemId().ToString(), parentMetadata.Id, ct));
 
                                 if (result.Handle.IsFolder)
                                 {
                                     //when creating a folder, scan its contents because it may have been copied over
-                                    await DeepScanForChanges(result.Handle.Path);
+                                    await DeepScanForChanges(result.Handle.Path, ct);
                                 }
                             }
                             else
@@ -812,7 +906,7 @@ namespace MyOneDriveClient
                                 continue;
                                 /*if (_localDeltas.TryPeek(out ItemDelta nextDelta))
                                 {
-                                    if (nextDelta.Type == ItemDelta.DeltaType.Renamed)
+                                    if (nextDelta.Type == DeltaType.Renamed)
                                     {
                                         //...with a rename immediately following ...
                                         if (nextDelta.OldPath == result.Handle.Path)
@@ -824,7 +918,7 @@ namespace MyOneDriveClient
                                             //... and dequeue it
                                             _localDeltas.TryDequeue(out nextDelta);
 
-                                            nextDelta.Type = ItemDelta.DeltaType.Created;
+                                            nextDelta.Type = DeltaType.Created;
                                             nextDelta.OldPath = "";
                                             filteredDeltas.Add(nextDelta);
                                             continue;
@@ -839,11 +933,11 @@ namespace MyOneDriveClient
                             continue; //we need to get ourselves together here
                         }
                         break;
-                    case ItemDelta.DeltaType.Deleted:
+                    case DeltaType.Deleted:
                         //deleted item ...
                         if (_localDeltas.TryPeek(out ItemDelta next))
                         {
-                            if (next.Type == ItemDelta.DeltaType.Created)
+                            if (next.Type == DeltaType.Created)
                             {
                                 //... with a creation immediately following ...
                                 if (next.Handle.LastModified == result.Handle.LastModified)
@@ -879,7 +973,7 @@ namespace MyOneDriveClient
                                         {
                                             Handle = nextDelta.Handle,
                                             OldPath = result.OldPath,
-                                            Type = ItemDelta.DeltaType.Moved
+                                            Type = DeltaType.Moved
                                         });
                                         continue;
                                     }
@@ -889,22 +983,11 @@ namespace MyOneDriveClient
                         //remove from metadata ONLY if there is no corresponding "create" call 
                         _metadata.RemoveItemMetadata(result.OldPath);
                         break;
-                    case ItemDelta.DeltaType.Renamed:
-                        if (itemMetadata == null)
-                        {
-                            _metadata.AddItemMetadata(await GetMetadataHandleAsync(result.Handle,
-                                _metadata.GetNextItemId().ToString(), parentMetadata.Id));
-                        }
-                        else
-                        {
-                            itemMetadata.Name = result.Handle.Name;
-                        }
+                    case DeltaType.Renamed:
                         break;
-                    case ItemDelta.DeltaType.Modified:
-                        itemMetadata.LastModified = result.Handle.LastModified;
-                        itemMetadata.Sha1 = await result.Handle.GetSha1HashAsync();
+                    case DeltaType.Modified:
                         break;
-                    case ItemDelta.DeltaType.Moved:
+                    case DeltaType.Moved:
                         break;
                 }
 
@@ -917,10 +1000,10 @@ namespace MyOneDriveClient
 
             return (IEnumerable<ItemDelta>)filteredDeltas;
         }
-        private async Task DeepScanForChanges(string path)
+        private async Task DeepScanForChanges(string path, CancellationToken ct)
         {
             //get the local items
-            var items = await _local.EnumerateItemsAsync(path);
+            var items = await _local.EnumerateItemsAsync(path, ct);
             
             //remove the first item
             items.RemoveAt(0);
@@ -962,6 +1045,7 @@ namespace MyOneDriveClient
         #endregion
 
         #region Public Properties
+        /// <inheritdoc />
         public string MetadataCache
         {
             get => _metadata.Serialize();
@@ -994,13 +1078,19 @@ namespace MyOneDriveClient
         /// <remarks>Call this method with <see cref="comprehensive"/> as true only
         ///  when there is a high likely hood that there were local changes that were 
         /// missed while the application was closed</remarks>
-        public async Task<IEnumerable<ItemDelta>> GetDeltasAsync(bool comprehensive = false)
+        public async Task<IEnumerable<IItemDelta>> GetDeltasAsync(bool comprehensive, CancellationToken ct)
         {
             if (comprehensive)
             {
-                await DeepScanForChanges("/");
+                await DeepScanForChanges("/", ct);
             }
-            return await GetEventDeltas();
+            return await GetEventDeltas(ct);
+        }
+
+        public async Task<ICollection<StaticItemHandle>> GetPathListingAsync(CancellationToken ct)
+        {
+            return (from localItem in await _local.EnumerateItemsAsync("", ct)
+                select new StaticItemHandle(localItem)).ToList();
         }
 
         /// <summary>
@@ -1012,7 +1102,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public void RequestWritableStream(string path, string sha1, DateTime lastModified, Action<FileStoreRequest> onCompleteFunc)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, new RequestWritableStreamExtraData(sha1, lastModified, onCompleteFunc)));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Write, path, new RequestWritableStreamExtraData(sha1, lastModified, onCompleteFunc)));
         }
         /// <summary>
         /// Gets a read-only stream.  To get the stream, use the <see cref="RequestStreamExtraData"/> of 
@@ -1022,16 +1112,16 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public void RequestReadOnlyStream(string path, Action<FileStoreRequest> onCompleteFunc)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path, new RequestReadOnlyStreamExtraData(onCompleteFunc)));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Read, path, new RequestReadOnlyStreamExtraData(onCompleteFunc)));
         }
         /// <summary>
             /// Deletes a local item and its children
             /// </summary>
             /// <param name="path">the path of the item to delete</param>
             /// <returns>the request id</returns>
-        public void RequestDeleteItem(string path)
+        public void RequestDelete(string path, DateTime lastModified)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Delete, path, new RequestDeleteExtraData(lastModified)));
         }
         /// <summary>
         /// Creates a local folder
@@ -1040,7 +1130,7 @@ namespace MyOneDriveClient
         /// <returns>the request id</returns>
         public void RequestFolderCreate(string path, DateTime lastModified)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Create, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Create, path,
                 new RequestCreateFolderExtraData(lastModified)));
         }
         /// <summary>
@@ -1049,9 +1139,9 @@ namespace MyOneDriveClient
         /// <param name="path">the current path of the item</param>
         /// <param name="newParentPath">the new location of the item post-move</param>
         /// <returns>the request id</returns>
-        public void RequestMoveItem(string path, string newParentPath)
+        public void RequestMove(string path, string newParentPath)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Move, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Move, path,
                 new RequestMoveExtraData(newParentPath)));
         }
         /// <summary>
@@ -1060,73 +1150,116 @@ namespace MyOneDriveClient
         /// <param name="path">the current path of the item</param>
         /// <param name="newName">the new name of the item</param>
         /// <returns>the request id</returns>
-        public void RequestRenameItem(string path, string newName)
+        public void RequestRename(string path, string newName)
         {
-            EnqueueRequest(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
+            EnqueueRequest(new FileStoreRequest(ref _requestId, RequestType.Rename, path,
                 new RequestRenameExtraData(newName)));
         }
 
 
-        public async Task<FileStoreRequest> RequestWritableStreamImmediateAsync(string path, string sha1, DateTime lastModified)
+        public async Task<FileStoreRequest> RequestWritableStreamImmediateAsync(string path, string sha1, DateTime lastModified, CancellationToken ct)
         {
             FileStoreRequest ret = null;
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Write, path, 
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Write, path, 
                 new RequestWritableStreamExtraData(sha1, lastModified,
                 (request) =>
                 {
                     ret = request;
-                })));
+                })), ct);
             return ret;
         }
-        public async Task<FileStoreRequest> RequestReadOnlyStreamImmediateAsync(string path)
+        public async Task<FileStoreRequest> RequestReadOnlyStreamImmediateAsync(string path, CancellationToken ct)
         {
             FileStoreRequest ret = null;
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Read, path,
+            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Read, path,
                 new RequestReadOnlyStreamExtraData(
                     (request) =>
                     {
                         ret = request;
-                    })));
+                    })), ct);
             return ret;
         }
-        public async Task RequestDeleteItemImmediateAsync(string path)
+        public async Task<bool> RequestDeleteItemImmediateAsync(string path, CancellationToken ct)
         {
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Delete, path, null));
+            return await ProcessRequestAsync(
+                new FileStoreRequest(ref _requestId, RequestType.Delete, path,
+                //use the "UtcNow" time, because it means the item will ALWAYS be older than the remote version
+                    new RequestDeleteExtraData(DateTime.UtcNow)), ct);
         }
-        public async Task RequestRenameItemImmediateAsync(string path, string newName)
+        public async Task<bool> RequestRenameItemImmediateAsync(string path, string newName, CancellationToken ct)
         {
-            await ProcessRequestAsync(new FileStoreRequest(ref _requestId, FileStoreRequest.RequestType.Rename, path,
-                new RequestRenameExtraData(newName)));
+            return await ProcessRequestAsync(new FileStoreRequest(ref _requestId, RequestType.Rename, path,
+                new RequestRenameExtraData(newName)), ct);
         }
 
         
-        //TODO: the two methods below are REALLY bad b/c they do no null/exception checking
-
-        public async Task SaveNonSyncFile(string path, string content)
+        public async Task SaveNonSyncFile(string path, string content, CancellationToken ct)
         {
+            ct.ThrowIfCancellationRequested();
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentException("Path for non-sync file is null or empty!", nameof(path));
+            if (content == null)
+                throw new ArgumentNullException(nameof(content), "Content for non-sync file is null!");
+
             var itemHandle = _local.GetFileHandle(path);
             using (var writableStream = itemHandle.GetWritableStream())
             {
-                using (var contentStream = content.ToStream(Encoding.UTF8))
+                if(writableStream == null)
+                    throw new Exception("Writable stream for non-sync file is null!");
+                Stream contentStream = null;
+                try
                 {
-                    await contentStream.CopyToStreamAsync(writableStream);
+                    contentStream = content.ToStream(Encoding.UTF8);
+                }
+                catch (Exception)
+                {
+                    writableStream.Dispose();
+                    throw;
+                }
+
+                using (contentStream)
+                {
+                    try
+                    {
+                        await contentStream.CopyToStreamAsync(writableStream, ct);
+                    }
+                    catch (Exception)
+                    {
+                        contentStream.Dispose();
+                        writableStream.Dispose();
+                        throw;
+                    }
                 }
             }
             _local.SetItemAttributes(path, FileAttributes.Hidden);
         }
-        public async Task<string> ReadNonSyncFile(string path)
+        public async Task<string> ReadNonSyncFile(string path, CancellationToken ct)
         {
-            return await (await _local.GetFileHandle(path).GetFileDataAsync()).ReadAllToStringAsync(Encoding.UTF8);
+            ct.ThrowIfCancellationRequested();
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentException("Path for non-sync file is null or empty!", nameof(path));
+            var fileData = await _local.GetFileHandle(path).GetFileDataAsync(ct);
+            if (fileData == null)
+                throw new ArgumentException($"File does not exist or is not accessable at \"{path}\"");
+            try
+            {
+                return await fileData.ReadAllToStringAsync(Encoding.UTF8, ct);
+            }
+            catch (Exception)
+            {
+                fileData.Dispose();
+                throw;
+            }
         }
         #endregion
 
         #region Public Events
         /// <summary>
         /// When the status of an existing request changes or a new request is started.  Note
-        /// that if the status has been changed to <see cref="FileStoreRequest.RequestStatus.Success"/>, there
+        /// that if the status has been changed to <see cref="RequestStatus.Success"/>, there
         /// is no guarantee that the request still exists.
         /// </summary>
-        public event EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;//TODO: local status' are a bit different, because there is a rename/merge option
+        //public event EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;//TODO: local status' are a bit different, because there is a rename/merge option
         #endregion
     }
 }

@@ -1,15 +1,9 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     public abstract class ItemMetadataCache
     {
@@ -42,6 +36,12 @@ namespace MyOneDriveClient
             return JsonConvert.SerializeObject(_data, Formatting.Indented);
         }
         
+        public DateTime LastSyncTime
+        {
+            get => _data.LastSyncTime;
+            set => _data.LastSyncTime = value;
+        }
+
         /// <summary>
         /// Deletes all metadata whose parents have been deleted (<see cref="ItemMetadata.Path"/> throws an exception)
         /// </summary>

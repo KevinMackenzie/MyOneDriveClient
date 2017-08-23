@@ -8,7 +8,7 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>MyOneDriveClient</RootNamespace>
     <AssemblyName>MyOneDriveClient</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <WarningLevel>4</WarningLevel>
@@ -63,11 +63,12 @@
       <HintPath>..\packages\Microsoft.Identity.Client.1.1.0-preview\lib\net45\Microsoft.Identity.Client.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.10.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Web" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
@@ -86,18 +87,19 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="AcknowledgeErrorRequestViewModel.cs" />
-    <Compile Include="AwaitUserRequestViewModel.cs" />
-    <Compile Include="CloseAppRequestViewModel.cs" />
-    <Compile Include="FileStoreRequestViewModel.cs" />
-    <Compile Include="BaseRequestsViewModel.cs" />
-    <Compile Include="FileStoreRequestViewModelBase.cs" />
-    <Compile Include="OneDrive\OneDriveRemoteFileStoreConnection.cs" />
+    <Compile Include="BlackListEditView.xaml.cs">
+      <DependentUpon>BlackListEditView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="FileTreeViewItemTemplateSelector.cs" />
+    <Compile Include="NewCloudStorageInstance.xaml.cs">
+      <DependentUpon>NewCloudStorageInstance.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="ObjectNullToBoolConverter.cs" />
     <Compile Include="Properties\Annotations.cs" />
-    <Compile Include="RemoteRequestsViewModel.cs" />
-    <Compile Include="RequestsViewModel.cs" />
-    <Compile Include="TokenCacheHelper.cs" />
-    <Compile Include="ViewModelBase.cs" />
+    <Page Include="BlackListEditView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -110,6 +112,10 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Page Include="NewCloudStorageInstance.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs">
@@ -153,10 +159,29 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\LocalCloudStorage\LocalCloudStorage.csproj">
-      <Project>{8ec13552-65ca-4c05-95b7-3ed3498611e0}</Project>
-      <Name>LocalCloudStorage</Name>
+    <Folder Include="OneDrive\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Contracts\Contracts.csproj">
+      <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
+      <Name>Contracts</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Model\Model.csproj">
+      <Project>{de83ac1d-65c0-4da4-94ae-fff0a1d00afc}</Project>
+      <Name>Model</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Utils\Utils.csproj">
+      <Project>{932F3279-F5CA-4806-9E60-7CB55E3D1E9E}</Project>
+      <Name>Utils</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\ViewModel\ViewModel.csproj">
+      <Project>{dc1cd28a-c1b2-423e-968f-c67722ad54f0}</Project>
+      <Name>ViewModel</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent>
+    </PreBuildEvent>
+  </PropertyGroup>
 </Project>

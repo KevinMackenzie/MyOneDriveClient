@@ -9,15 +9,16 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>LocalCloudStorage</RootNamespace>
     <AssemblyName>LocalCloudStorage</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NETFRAMEWORK</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -31,9 +32,24 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.10.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Composition.AttributedModel, Version=1.0.31.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Composition.AttributedModel.1.0.31\lib\portable-net45+win8+wp8+wpa81\System.Composition.AttributedModel.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Composition.Convention, Version=1.0.31.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Composition.Convention.1.0.31\lib\portable-net45+win8+wp8+wpa81\System.Composition.Convention.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Composition.Hosting, Version=1.0.31.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Composition.Hosting.1.0.31\lib\portable-net45+win8+wp8+wpa81\System.Composition.Hosting.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Composition.Runtime, Version=1.0.31.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Composition.Runtime.1.0.31\lib\portable-net45+win8+wp8+wpa81\System.Composition.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Composition.TypedParts, Version=1.0.31.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Composition.TypedParts.1.0.31\lib\portable-net45+win8+wp8+wpa81\System.Composition.TypedParts.dll</HintPath>
+    </Reference>
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -41,50 +57,44 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BufferedRemoteFileStoreInterface.cs" />
+    <Compile Include="CloudStorageInstanceControl.cs" />
     <Compile Include="Contracts\ICachedItemMetadata.cs" />
-    <Compile Include="Contracts\IFileStoreRequestIdentifiable.cs" />
-    <Compile Include="Contracts\IItemHandle.cs" />
-    <Compile Include="Contracts\ILocalFileStore.cs" />
-    <Compile Include="Contracts\ILocalFileStoreInterface.cs" />
-    <Compile Include="Contracts\ILocalItemHandle.cs" />
-    <Compile Include="Contracts\ILocalItemUpdate.cs" />
-    <Compile Include="Contracts\IRemoteFileStoreConnection.cs" />
-    <Compile Include="Contracts\IRemoteItemHandle.cs" />
-    <Compile Include="Contracts\IRemoteItemUpdate.cs" />
-    <Compile Include="DeltaPage.cs" />
     <Compile Include="DownloadedFileStore.cs" />
     <Compile Include="Encryption\EncryptedRemoteItemHandle.cs" />
     <Compile Include="Encryption\EncryptedRemoteFileStoreConnection.cs" />
     <Compile Include="Encryption\EncryptedStreamWrapper.cs" />
     <Compile Include="Encryption\EncryptionProvider.cs" />
-    <Compile Include="Events\EventDelegates.cs" />
-    <Compile Include="Events\LocalFileStoreEventArgs.cs" />
-    <Compile Include="Events\ProgressChangedEventArgs.cs" />
-    <Compile Include="Events\RemoteFileStoreDataChanged.cs" />
-    <Compile Include="Events\RemoteRequestProgressChangedEventArgs.cs" />
-    <Compile Include="Events\RequestStatusChangedEventArgs.cs" />
     <Compile Include="FileStoreBridge.cs" />
     <Compile Include="FileStoreInterface.cs" />
-    <Compile Include="FileStoreRequest.cs" />
     <Compile Include="FileStoreRequestGraveyard.cs" />
-    <Compile Include="HttpResult.cs" />
     <Compile Include="ItemDelta.cs" />
     <Compile Include="ItemMetadataCache.cs" />
     <Compile Include="LocalFileStoreInterface.cs" />
     <Compile Include="LocalItemMetadataCache.cs" />
-    <Compile Include="NotifyDisposedStream.cs" />
-    <Compile Include="PathUtils.cs" />
-    <Compile Include="ProgressableStreamWrapper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RemoteItemMetadataCache.cs" />
-    <Compile Include="RemoteItemUpdate.cs" />
-    <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="..\Composition\Composition.csproj">
+      <Project>{8a8c7074-1157-4e29-9fae-3999eb5e663b}</Project>
+      <Name>Composition</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Contracts\Contracts.csproj">
+      <Project>{71f4dded-0e8a-42bd-85dc-67036c7fc938}</Project>
+      <Name>Contracts</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Utils\Utils.csproj">
+      <Project>{932f3279-f5ca-4806-9e60-7cb55e3d1e9e}</Project>
+      <Name>Utils</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

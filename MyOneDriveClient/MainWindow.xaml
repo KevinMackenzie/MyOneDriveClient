@@ -4,11 +4,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MyOneDriveClient"
+        xmlns:viewModel="clr-namespace:LocalCloudStorage.ViewModel;assembly=ViewModel"
         mc:Ignorable="d"
         Title="MainWindow" Height="700" Width="750" 
         DataContext="{Binding}">
     <Window.Resources>
-        <DataTemplate DataType="{x:Type local:FileStoreRequestViewModel}" >
+        <DataTemplate DataType="{x:Type viewModel:FileStoreRequestViewModel}" >
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -38,7 +39,7 @@
                 </Grid>
             </Grid>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type local:AwaitUserRequestViewModel}">
+        <DataTemplate DataType="{x:Type viewModel:AwaitUserRequestViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
@@ -57,7 +58,7 @@
                 </Grid>
             </Grid>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type local:CloseAppRequestViewModel}">
+        <DataTemplate DataType="{x:Type viewModel:CloseAppRequestViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
@@ -74,7 +75,7 @@
                 </Grid>
             </Grid>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type local:AcknowledgeErrorRequestViewModel}">
+        <DataTemplate DataType="{x:Type viewModel:AcknowledgeErrorRequestViewModel}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
@@ -91,68 +92,90 @@
                 </Grid>
             </Grid>
         </DataTemplate>
+        <DataTemplate x:Key="CloudStorageInstancePreview" DataType="{x:Type viewModel:CloudStorageInstanceViewModel}">
+            <Grid Height="50">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="50"/>
+                    <ColumnDefinition Width="1*"/>
+                </Grid.ColumnDefinitions>
+                <!-- TODO get icon based on service name -->
+                <Label Grid.Column="0" Background="Aqua" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                <Label Grid.Column="1" Content="{Binding InstanceName}" HorizontalAlignment="Left" VerticalAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+
+        <local:ObjectNullToBoolConverter x:Key="myObjectToBoolConverter"/>
     </Window.Resources>
     <Grid Background="Azure">
         <Grid.RowDefinitions>
-            <RowDefinition Height="35"/>
+            <RowDefinition Height="0"/>
             <RowDefinition Height="25"/>
             <RowDefinition Height="2*"/>
             <RowDefinition Height="25"/>
             <RowDefinition Height="1*"/>
         </Grid.RowDefinitions>
-        <Grid Grid.Row="0">
+        <Grid Grid.Row="2" DataContext="{Binding LocalCloudStorage}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="80"/>
-                <ColumnDefinition Width="70"/>
-                <ColumnDefinition Width="120"/>
-                <ColumnDefinition Width="110"/>
-                <ColumnDefinition Width="130"/>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="3*"/>
             </Grid.ColumnDefinitions>
-            <Button x:Name="GetDeltasButton" Content="Get Deltas" HorizontalAlignment="Stretch" Padding="5" Margin="5" Click="GetDeltasButton_Click" FontFamily="Segoe Ui" Grid.Column="0"/>
-            <Button x:Name="SignOutButton" Content="Sign-Out" HorizontalAlignment="Stretch" Padding="5" Click="SignOutButton_Click" Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="1"/>
-            <Button x:Name="ScanForChangesButton" Content="Scan For Changes" HorizontalAlignment="Stretch" Padding="5" Click="ScanForChangesButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="2" />
-            <Button x:Name="SaveMetadataButton" Content="Save Metadata" HorizontalAlignment="Stretch" Padding="5" Click="SaveMetadataButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="3" />
-            <Button x:Name="GenMetadataButton" Content="Gen Local Metadata" HorizontalAlignment="Stretch" Padding="5" Click="GenMetadataButton_OnClick"  Margin="5" Visibility="Visible"  FontFamily="Segoe Ui" Grid.Column="4" />
+            <ListBox x:Name="InstancesListBox" Grid.Column="0" Margin="2" Padding="2" DataContext="{Binding}" ItemsSource="{Binding CloudStorageInstances}" ItemTemplate="{StaticResource CloudStorageInstancePreview}" SelectedItem="{Binding SelectedInstance}">
+                <ListBox.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Add..." Click="NewInstance_Click"/>
+                        <MenuItem Header="Remove" IsEnabled="{Binding SelectedInstance, Converter={StaticResource myObjectToBoolConverter}}" Click="RemoveInstance_Click"/>
+                        <MenuItem Header="Pause">
+                            <MenuItem Header="Indefinitely" Click="PauseForever_Click"/>
+                            <MenuItem Header="1 Hours" Click="PauseOneHour_Click"/>
+                            <MenuItem Header="2 Hours" Click="PauseTwoHours_Click"/>
+                            <MenuItem Header="4 Hours" Click="PauseFourHours_Click"/>
+                        </MenuItem>
+                        <MenuItem Header="Resume" Click="Resume_Click"/>
+                        <MenuItem Header="Sync Files..." Click="EditBlackList_Click"/>
+                        <MenuItem Header="Check Local" Click="CheckLocal_Click"/>
+                    </ContextMenu>
+                </ListBox.ContextMenu>
+            </ListBox>
+            <Grid Grid.Column="1" DataContext="{Binding SelectedInstance}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1*" />
+                    <ColumnDefinition Width="2" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="25" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Label Content="Local Requests" HorizontalAlignment="Center" Grid.Row="0" Grid.ColumnSpan="2"/>
+                    <Grid DataContext="{Binding Requests.LocalRequests}" Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                    </Grid>
+                </Grid>
+                <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Gray"/>
+                <Grid DataContext="{Binding Requests.RemoteRequests}" Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="25" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Label Content="Remote Requests" HorizontalAlignment="Center" Grid.Row="0" />
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                    </Grid>
+                </Grid>
+            </Grid>
         </Grid>
-
+        
         <Label Content="Requests" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="1" />
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1*" />
-                <ColumnDefinition Width="5" />
-                <ColumnDefinition Width="1*" />
-            </Grid.ColumnDefinitions>
-            <Grid Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="25" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <Label Content="Local Requests" HorizontalAlignment="Center" Grid.Row="0" Grid.ColumnSpan="2"/>
-                <Grid DataContext="{Binding LocalRequests}" Grid.Row="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <ListBox x:Name="LocalActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-                </Grid>
-            </Grid>
-            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Gray"/>
-            <Grid DataContext="{Binding RemoteRequests}" Grid.Column="2">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="25" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <Label Content="Remote Requests" HorizontalAlignment="Center" Grid.Row="0" />
-                <Grid Grid.Row="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <ListBox x:Name="RemoteActiveRequests" Margin="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" DataContext="{Binding ActiveRequests}" ItemsSource="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
-                </Grid>
-            </Grid>
-        </Grid>
 
         <Label Content="Debug" Margin="0,0,0,-5" FontFamily="Segoe Ui" Grid.Row="3" />
         <Button Content="Get Debug" VerticalAlignment="Center" Width="150" Click="ButtonBase_OnClick" Grid.Row="3"/>
-        <TextBox x:Name="DebugBox" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" VerticalAlignment="Stretch" Margin="5" FontFamily="Segoe Ui" Grid.Row="4" />
+        <TextBox x:Name="DebugBox" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" VerticalAlignment="Stretch" Margin="5" FontFamily="Segoe Ui" Grid.Row="4" Text="{Binding DebugLog.DebugContents, Mode=OneWay}" />
     </Grid>
 </Window>

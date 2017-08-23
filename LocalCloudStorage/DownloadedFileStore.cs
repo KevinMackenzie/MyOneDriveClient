@@ -1,16 +1,13 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
 using System.Security.Cryptography;
-using System.Collections.Concurrent;
-using MyOneDriveClient.Events;
+using System.Threading;
+using LocalCloudStorage.Events;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     public class DownloadedFileStore : ILocalFileStore, IDisposable
     {
@@ -29,24 +26,12 @@ namespace MyOneDriveClient
         #region Private Helper Methods
         private string BuildPath(string path)
         {
-            return RectifySlashes(path.First() == '/' ? $"{PathRoot}{path}" : $"{PathRoot}/{path}");
+            return PathUtils.RectifySlashes(path.First() == '/' ? $"{PathRoot}{path}" : $"{PathRoot}/{path}");
         }
         private string UnBuildPath(string path)
         {
             //remote the path root
-            return RectifySlashes(path.Substring(PathRoot.Length - 1, path.Length - PathRoot.Length + 1));
-        }
-        private static string RectifySlashes(string path)
-        {
-            //replace back slashes with forward slashes
-            path = path.Replace('\\', '/');
-
-            //collapse all multi-forward slashes into singles
-            while (path.Contains("//"))
-            {
-                path = path.Replace("//", "/");
-            }
-            return path;
+            return PathUtils.RectifySlashes(path.Substring(PathRoot.Length - 1, path.Length - PathRoot.Length + 1));
         }
         private FileSystemInfo GetItemInfo(string localPath)
         {
@@ -121,14 +106,30 @@ namespace MyOneDriveClient
                 }
             }
         }
-
-        private void EnumerateItemsRecursive(ref List<ILocalItemHandle> items, string fqp)
+        private async Task<string> GetLocalSHA1Async(string localPath, CancellationToken ct)
         {
+            using (var fs = GetLocalFileStream(localPath))
+            {
+                if (fs == null)
+                    return ""; //TODO :when will this happen?
+                var cancellableFs = new CancellableStream(fs, ct);
+                using (var cryptoProvider = new SHA1CryptoServiceProvider())
+                {
+                    return await Task.Run(
+                        () => BitConverter.ToString(cryptoProvider.ComputeHash(cancellableFs)), ct);
+                }
+            }
+        }
+
+        private void EnumerateItemsRecursive(ref List<ILocalItemHandle> items, string fqp, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
             var directories = Directory.EnumerateDirectories(fqp);
             foreach (var directory in directories)
             {
                 items.Add(new DownloadedFileHandle(this, UnBuildPath(directory)));
-                EnumerateItemsRecursive(ref items, directory);
+                EnumerateItemsRecursive(ref items, directory, ct);
             }
 
             var files = Directory.EnumerateFiles(fqp);
@@ -185,22 +186,40 @@ namespace MyOneDriveClient
         {
             return new DownloadedFileHandle(this, localPath);//ItemExists(localPath) ? new DownloadedFileHandle(this, localPath) : null;
         }
-        public void SetItemAttributes(string localPath, FileAttributes attributes)
+        public bool SetItemAttributes(string localPath, FileAttributes attributes)
         {
             var fqp = BuildPath(localPath);
-            File.SetAttributes(fqp, attributes);
+            try
+            {
+                File.SetAttributes(fqp, attributes);
+            }
+            catch (Exception e)
+            {
+                Utils.LogException(e);
+                return false;
+            }
+            return true;
         }
-        public void SetItemLastModified(string localPath, DateTime lastModified)
+        public bool SetItemLastModified(string localPath, DateTime lastModified)
         {
             string fqp = BuildPath(localPath);
-            if (File.Exists(fqp))
+            try
             {
-                File.SetLastWriteTimeUtc(fqp, lastModified);
+                if (File.Exists(fqp))
+                {
+                    File.SetLastWriteTimeUtc(fqp, lastModified);
+                }
+                else if (Directory.Exists(fqp))
+                {
+                    Directory.SetLastWriteTimeUtc(fqp, lastModified);
+                }
             }
-            else if (Directory.Exists(fqp))
+            catch (Exception e)
             {
-                Directory.SetLastWriteTimeUtc(fqp, lastModified);
+                Utils.LogException(e);
+                return false;
             }
+            return true;
         }
         public bool MoveLocalItem(string localPath, string newLocalPath)
         {
@@ -231,7 +250,7 @@ namespace MyOneDriveClient
             string fqp = BuildPath(localPath);
             return Directory.Exists(fqp) || File.Exists(fqp);
         }
-        public async Task<List<ILocalItemHandle>> EnumerateItemsAsync(string localPath)
+        public async Task<List<ILocalItemHandle>> EnumerateItemsAsync(string localPath, CancellationToken ct)
         {
             string fqp = BuildPath(localPath);
             if (!Directory.Exists(fqp))
@@ -239,7 +258,7 @@ namespace MyOneDriveClient
 
             List<ILocalItemHandle> ret = new List<ILocalItemHandle>();
             ret.Add(new DownloadedFileHandle(this, localPath));//add the root item of the request
-            await Task.Run(() => EnumerateItemsRecursive(ref ret, fqp));
+            await Task.Run(() => EnumerateItemsRecursive(ref ret, fqp, ct), ct);
             return ret;
         }
         public event EventDelegates.LocalFileStoreChangedHandler OnChanged;
@@ -360,6 +379,14 @@ namespace MyOneDriveClient
                 }
                 return _sha1Hash;
             }
+            public async Task<string> GetSha1HashAsync(CancellationToken ct)
+            {
+                if (_sha1Hash == null)
+                {
+                    _sha1Hash = IsFolder ? "" : await _fs.GetLocalSHA1Async(_path, ct);
+                }
+                return _sha1Hash;
+            }
             public DateTime LastModified
             {
                 get
@@ -395,8 +422,9 @@ namespace MyOneDriveClient
                 
             }
 
-            public async Task<Stream> GetFileDataAsync()
+            public async Task<Stream> GetFileDataAsync(CancellationToken ct)
             {
+                ct.ThrowIfCancellationRequested();
                 return _fs.GetLocalFileStream(_path);
             }
 

@@ -1,29 +1,17 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MyOneDriveClient.Events;
+using LocalCloudStorage.Events;
+using LocalCloudStorage.Threading;
 
-namespace MyOneDriveClient
+namespace LocalCloudStorage
 {
     public abstract class FileStoreInterface
     {
-        public enum UserPrompts
-        {
-            KeepOverwriteOrRename,
-            CloseApplication,
-            Acknowledge
-        }
-
-        public enum ConflictResolutions
-        {
-            KeepLocal,
-            KeepRemote,
-            KeepBoth
-        }
 
 
         #region Private Fields
@@ -50,17 +38,17 @@ namespace MyOneDriveClient
 
             //if so, move on
             _cancelledRequests.TryRemove(request.RequestId, out object alwaysNull);
-            InvokeStatusChanged(request, FileStoreRequest.RequestStatus.Cancelled);
+            InvokeStatusChanged(request, RequestStatus.Cancelled);
             return true;
         }
-        private async Task ProcessQueueInternal(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
+        /*private async Task ProcessQueueInternal(TimeSpan delay, TimeSpan errorDelay, CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
             {
                 if (ct.IsCancellationRequested)
                     break;
 
-                while (!await ProcessQueueAsync())
+                while (!await ProcessQueueAsync(ct))
                 {
                     //something failed (failed request, or limbo), so we should wait a little bit before trying again
                     await Utils.DelayNoThrow(errorDelay, ct);
@@ -68,21 +56,34 @@ namespace MyOneDriveClient
 
                 await Utils.DelayNoThrow(delay, ct);
             }
-        }
+        }*/
         #endregion
 
         #region Abstract Methods
-        protected abstract Task<bool> ProcessQueueItemAsync(FileStoreRequest request);
+        protected abstract Task<bool> ProcessQueueItemAsync(FileStoreRequest request, CancellationToken ct);
+        protected virtual async Task PreQueue(CancellationToken ct)
+        {}
+        protected virtual async Task PostQueue(CancellationToken ct)
+        {}
         #endregion
 
         #region Protected Methods
         protected void InvokeStatusChanged(FileStoreRequest request)
         {
-            OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
+            try
+            {
+                //make sure this method never throws an exception
+                OnRequestStatusChanged?.Invoke(this, new RequestStatusChangedEventArgs(request));
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine($"Status Changed event handler threw an exception of type {e.GetType()} with message \"{e.Message}\"");
+                Debug.WriteLine(e.StackTrace);
+            }
             if (request.Complete)
                 _completedRequests.Add(request);
         }
-        protected void InvokeStatusChanged(FileStoreRequest request, FileStoreRequest.RequestStatus status)
+        protected void InvokeStatusChanged(FileStoreRequest request, RequestStatus status)
         {
             if (request.Status == status)
                 return;//it didn't actually change...
@@ -92,14 +93,14 @@ namespace MyOneDriveClient
         protected void FailRequest(FileStoreRequest request, string errorMessage)
         {
             RequestAwaitUser(request, UserPrompts.Acknowledge, errorMessage);
-            /*request.Status = FileStoreRequest.RequestStatus.Failure;
+            /*request.Status = RequestStatus.Failure;
             request.ErrorMessage = errorMessage;
             _limboRequests[request.RequestId] = request;
             InvokeStatusChanged(request);*/
         }
         protected void RequestAwaitUser(FileStoreRequest request, UserPrompts prompt, string message = null)
         {
-            request.Status = FileStoreRequest.RequestStatus.WaitForUser;
+            request.Status = RequestStatus.WaitForUser;
             request.ErrorMessage = string.IsNullOrEmpty(message) ? prompt.ToString() : message;
             _limboRequests[request.RequestId] = request;
             InvokeStatusChanged(request);
@@ -110,14 +111,15 @@ namespace MyOneDriveClient
             InvokeStatusChanged(request);
             return request.RequestId;
         }
-        protected async Task<FileStoreRequest> ProcessRequestAsync(FileStoreRequest request)
+        protected async Task<bool> ProcessRequestAsync(FileStoreRequest request, CancellationToken ct)
         {
             InvokeStatusChanged(request);
-            if (await ProcessQueueItemAsync(request))
+            var success = await ProcessQueueItemAsync(request, ct);
+            if (success)
             {
                 _completedRequests.Add(request);
             }
-            return request;
+            return success;
         }
         #endregion
 
@@ -142,17 +144,17 @@ namespace MyOneDriveClient
         //    _processQueueCancellationTokenSource.Cancel();
         //    await _processQueueTask;
         //}
-        
+
 
         /// <summary>
         /// Waits for the given request status to reach a conclusive statis
-        ///  (<see cref="FileStoreRequest.RequestStatus.Cancelled"/>
-        ///  or <see cref="FileStoreRequest.RequestStatus.Success"/>
-        ///  or <see cref="FileStoreRequest.RequestStatus.Failure"/>
+        ///  (<see cref="RequestStatus.Cancelled"/>
+        ///  or <see cref="RequestStatus.Success"/>
+        ///  or <see cref="RequestStatus.Failure"/>
         /// </summary>
         /// <param name="requestId">the id of the request to wait for</param>
         /// <returns>the request with that id</returns>
-        public async Task<FileStoreRequest> AwaitRequest(int requestId)
+        public async Task<FileStoreRequest> AwaitRequest(int requestId, CancellationToken ct)
         {
             if (TryGetRequest(requestId, out FileStoreRequest request))
             {
@@ -169,6 +171,8 @@ namespace MyOneDriveClient
 
                 while (!cts.IsCancellationRequested)
                 {
+                    ct.ThrowIfCancellationRequested();
+
                     if (request.Complete)//if the event handler didn't catch it
                         break;
                     await Utils.DelayNoThrow(TimeSpan.FromMilliseconds(50), cts.Token);
@@ -227,14 +231,14 @@ namespace MyOneDriveClient
             if (!_limboRequests.TryRemove(requestId, out FileStoreRequest value)) return;
             if (!skipInvoke)
             {
-                InvokeStatusChanged(value, FileStoreRequest.RequestStatus.Cancelled);
+                InvokeStatusChanged(value, RequestStatus.Cancelled);
             }
         }
 
-        public void ResolveRequest(int requestId)
+        public void SignalConflictResolved(int requestId)
         {
             if (!_limboRequests.TryRemove(requestId, out FileStoreRequest request)) return;
-            request.Status = FileStoreRequest.RequestStatus.Pending;
+            request.Status = RequestStatus.Pending;
             request.ErrorMessage = "";
         }
 
@@ -243,10 +247,14 @@ namespace MyOneDriveClient
         ///  the user needs to be prompted
         /// </summary>
         /// <returns>whether the queue was successfully emptied</returns>
-        public async Task<bool> ProcessQueueAsync()
+        public async Task<bool> ProcessQueueAsync(PauseToken pt)
         {
+            await PreQueue(pt.CancellationToken);
             while (_requests.TryPeek(out FileStoreRequest request))
             {
+                await pt.WaitWhilePausedAsync();
+                pt.CancellationToken.ThrowIfCancellationRequested();
+
                 if (!_limboRequests.IsEmpty)
                     return false; //stop on a limbo request
 
@@ -257,7 +265,7 @@ namespace MyOneDriveClient
                     continue;
                 }
 
-                var dequeue = await ProcessQueueItemAsync(request);
+                var dequeue = await ProcessQueueItemAsync(request, pt.CancellationToken);
 
                 //should we dequeue the item?
                 if (dequeue)
@@ -270,6 +278,7 @@ namespace MyOneDriveClient
                     return false;
                 }
             }
+            await PostQueue(pt.CancellationToken);
             return true;
         }
 
@@ -285,9 +294,9 @@ namespace MyOneDriveClient
         #endregion
         /// <summary>
         /// When the status of an existing request changes or a new request is started.  Note
-        /// that if the status has been changed to <see cref="FileStoreRequest.RequestStatus.Success"/>, there
+        /// that if the status has been changed to <see cref="RequestStatus.Success"/>, there
         /// is no guarantee that the request still exists.
         /// </summary>
-        public EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;
+        public event EventDelegates.RequestStatusChangedHandler OnRequestStatusChanged;
     }
 }

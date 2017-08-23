@@ -4,22 +4,27 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
+using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using LocalCloudStorage;
+using LocalCloudStorage.ViewModel;
 using MyOneDriveClient.Annotations;
-using MyOneDriveClient.Events;
+using Button = System.Windows.Controls.Button;
+using MessageBox = System.Windows.MessageBox;
 
 namespace MyOneDriveClient
 {
@@ -28,20 +33,19 @@ namespace MyOneDriveClient
     /// </summary>
     public partial class MainWindow : Window
     {
-        //Set the API Endpoint to Graph 'me' endpoint
-        string graphAPIEndpoint = "https://graph.microsoft.com/v1.0/me";
-
-        //Set the scope for API call to user.read
-        string[] scopes = new string[] { "user.read" };
-
-        public RequestsViewModel Requests { get; }
-
+        private readonly LocalCloudStorageAppViewModel _app;
         public MainWindow()
         {
             InitializeComponent();
 
-            //TODO: where should this construction happen?
-            DataContext = Requests = new RequestsViewModel(App.LocalInterface, App.RemoteInterface);
+            _app = App.AppInstance;
+            DataContext = _app;
+
+            //load the instances  AFTER the UI is setup
+            App.LoadInstances();
+            
+            //_app.LocalCloudStorage.PropertyChanged += LocalCloudStorageOnPropertyChanged;
+            //LocalCloudStorageOnPropertyChanged(null, new PropertyChangedEventArgs(nameof(LocalCloudStorageViewModel.SelectedInstance)));
 
             /*LocalActiveRequests.ItemsSource = Requests.LocalRequests.ActiveRequests;
             LocalUserAwaitRequests.ItemsSource = Requests.LocalRequests.AwaitUserRequests;
@@ -50,168 +54,62 @@ namespace MyOneDriveClient
             RemoteActiveRequests.ItemsSource = Requests.RemoteRequests.ActiveRequests;
             RemoteUserAwaitRequests.ItemsSource = Requests.RemoteRequests.AwaitUserRequests;
             RemoteFailedRequests.ItemsSource = Requests.RemoteRequests.FailedRequests;*/
-           
-            Debug.Listeners.Add(new DebugListener(this));
-
-            Debug.WriteLine("Debug initialized");
         }
-
-        /// <summary>
-        /// Call AcquireTokenAsync - to acquire a token requiring user to sign-in
-        /// </summary>
-        /*private async void CallGraphButton_Click(object sender, RoutedEventArgs e)
+        /*private void LocalCloudStorageOnPropertyChanged(object sender, PropertyChangedEventArgs propertyChangedEventArgs)
         {
-            /*AuthenticationResult authResult = null;
-            ResultText.Text = string.Empty;
-            TokenInfoText.Text = string.Empty;
-
-            try
+            if (propertyChangedEventArgs.PropertyName == nameof(LocalCloudStorageViewModel.SelectedInstance))
             {
-                authResult = await App.PublicClientApp.AcquireTokenSilentAsync(scopes, App.PublicClientApp.Users.FirstOrDefault());
-            }
-            catch (MsalUiRequiredException ex)
-            {
-                // A MsalUiRequiredException happened on AcquireTokenSilentAsync. This indicates you need to call AcquireTokenAsync to acquire a token
-                System.Diagnostics.Debug.WriteLine($"MsalUiRequiredException: {ex.Message}");
+                var selectedInstance = _app.LocalCloudStorage.SelectedInstance;
 
-                try
+                //what was the previous selection?
+                var oldSelected = InstancesListBox.SelectedItem as CloudStorageInstanceViewModel;
+                if (oldSelected != null)
                 {
-                    authResult = await App.PublicClientApp.AcquireTokenAsync(scopes);
+                    //remote our event handlers from that
+                    oldSelected.Requests.LocalRequests.ActiveRequests.CollectionChanged -= LocalActiveRequestsOnCollectionChanged;
+                    oldSelected.Requests.RemoteRequests.ActiveRequests.CollectionChanged -= RemoteActiveRequestsOnCollectionChanged;
                 }
-                catch (MsalException msalex)
-                {
-                    ResultText.Text = $"Error Acquiring Token:{System.Environment.NewLine}{msalex}";
-                }
-            }
-            catch (Exception ex)
-            {
-                ResultText.Text = $"Error Acquiring Token Silently:{System.Environment.NewLine}{ex}";
-                return;
-            }
 
-            if (authResult != null)
-            {
-                ResultText.Text = await GetHttpContentWithToken(graphAPIEndpoint, authResult.AccessToken);
-                DisplayBasicTokenInfo(authResult);
-                this.SignOutButton.Visibility = Visibility.Visible;
+                //set the selection to the currently selected instance
+                InstancesListBox.SelectedItem = selectedInstance;
+
+                //set the active requests item sources to the currently selected item's requests
+                LocalActiveRequests.ItemsSource = selectedInstance.Requests.LocalRequests.ActiveRequests;
+                RemoteActiveRequests.ItemsSource = selectedInstance.Requests.RemoteRequests.ActiveRequests;
+
+                //then register event handlers to ensure the list boxes are up to date
+                selectedInstance.Requests.LocalRequests.ActiveRequests.CollectionChanged += LocalActiveRequestsOnCollectionChanged;
+                selectedInstance.Requests.RemoteRequests.ActiveRequests.CollectionChanged += RemoteActiveRequestsOnCollectionChanged;
             }
+        }
+        private void LocalActiveRequestsOnCollectionChanged(object sender, NotifyCollectionChangedEventArgs notifyCollectionChangedEventArgs)
+        {
+            LocalActiveRequests.Dispatcher.Invoke(() => LocalActiveRequests.Items.Refresh());
+        }
+        private void RemoteActiveRequestsOnCollectionChanged(object sender, NotifyCollectionChangedEventArgs notifyCollectionChangedEventArgs)
+        {
+            RemoteActiveRequests.Dispatcher.Invoke(() => RemoteActiveRequests.Items.Refresh());
         }*/
 
-        /// <summary>
-        /// Perform an HTTP GET request to a URL using an HTTP Authorization header
-        /// </summary>
-        /// <param name="url">The URL</param>
-        /// <param name="token">The token</param>
-        /// <returns>String containing the results of the GET operation</returns>
-        /*public async Task<string> GetHttpContentWithToken(string url, string token)
+        /// <inheritdoc />
+        protected override void OnClosed(EventArgs e)
         {
-            var httpClient = new System.Net.Http.HttpClient();
-            System.Net.Http.HttpResponseMessage response;
-            try
-            {
-                var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url);
-                //Add the token in Authorization header
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-                response = await httpClient.SendAsync(request);
-                var content = await response.Content.ReadAsStringAsync();
-                return content;
-            }
-            catch (Exception ex)
-            {
-                return ex.ToString();
-            }
-        }*/
-
-        /// <summary>
-        /// Sign out the current user
-        /// </summary>
-        private void SignOutButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                App.OneDriveConnection.LogUserOut();
-                this.SignOutButton.Visibility = Visibility.Collapsed;
-            }
-            catch (MsalException ex)
-            {
-            }
+            _app?.Dispose();
+            base.OnClosed(e);
         }
 
-        DeltaPage _deltaPage = null;
-        private async void GetDeltasButton_Click(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.PromptUserLoginAsync();
-            await App.FileStore.ApplyRemoteChangesAsync();
-        }
-
-        private async void ScanForChangesButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.PromptUserLoginAsync();
-            await App.FileStore.ApplyLocalChangesAsync();
-        }
 
         private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
         {
             DequeueDebug();
         }
-
-        private ConcurrentQueue<string> debugQueue = new ConcurrentQueue<string>();
-
+        
         private void DequeueDebug()
         {
-            while (debugQueue.TryDequeue(out string result))
-            {
-                DebugBox.Text += result;
-                DebugBox.ScrollToEnd();
-            }
+            DebugBox.Text = _app.DebugLog.DebugContents;
+            DebugBox.ScrollToEnd();
         }
-
-        private class DebugListener : TraceListener
-        {
-            private MainWindow _window;
-            public DebugListener(MainWindow window)
-            {
-                _window = window;
-            }
-
-            /// <inheritdoc />
-            public override void Write(string message)
-            {
-                _window.debugQueue.Enqueue(message);
-                //_window.DebugBox.Text += message;
-                //_window.DebugBox.ScrollToEnd();
-            }
-
-            /// <inheritdoc />
-            public override void WriteLine(string message)
-            {
-                _window.debugQueue.Enqueue($"{message}{Environment.NewLine}");
-                //_window.DebugBox.Text += $"{message}{Environment.NewLine}";
-                //_window.DebugBox.ScrollToEnd();
-            }
-        }
-
-        private async void StartRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            await App.OneDriveConnection.PromptUserLoginAsync();
-            //App.RemoteInterface.StartRequestProcessing();
-        }
-        private async void StopRemoteQueueButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            //await App.RemoteInterface.StopRequestProcessingAsync();
-        }
-        private void StartLocalQueueButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            //App.LocalInterface.StartRequestProcessing();
-        }
-        private async void StopLocalQueueButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            //await App.LocalInterface.StopRequestProcessingAsync();
-        }
-        private async void SaveMetadataButton_OnClick(object sender, RoutedEventArgs e)
-        {
-            await App.FileStore.SaveMetadataAsync();
-        }
+        
 
         private async void KeepLocal_OnClick(object sender, RoutedEventArgs e)
         {
@@ -221,12 +119,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, ConflictResolutions.KeepLocal);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepLocal);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, ConflictResolutions.KeepLocal);
                 }
                 else
                 {
@@ -246,12 +144,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, ConflictResolutions.KeepRemote);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepRemote);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, ConflictResolutions.KeepRemote);
                 }
                 else
                 {
@@ -271,12 +169,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    await App.FileStore.ResolveLocalConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveLocalConflictAsync(request.InnerRequest.RequestId, ConflictResolutions.KeepBoth);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    await App.FileStore.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, FileStoreInterface.ConflictResolutions.KeepBoth);
+                    await _app.LocalCloudStorage.SelectedInstance.ResolveRemoteConflictAsync(request.InnerRequest.RequestId, ConflictResolutions.KeepBoth);
                 }
                 else
                 {
@@ -321,12 +219,12 @@ namespace MyOneDriveClient
                 if (LocalActiveRequests.Items.Contains(request))
                 {
                     //local request
-                    App.LocalInterface.CancelRequest(request.InnerRequest.RequestId);
+                    _app.LocalCloudStorage.SelectedInstance.CancelLocalRequest(request.InnerRequest.RequestId);
                 }
                 else if (RemoteActiveRequests.Items.Contains(request))
                 {
                     //remote request
-                    App.RemoteInterface.CancelRequest(request.InnerRequest.RequestId);
+                    _app.LocalCloudStorage.SelectedInstance.CancelRemoteRequest(request.InnerRequest.RequestId);
                 }
                 else
                 {
@@ -340,7 +238,87 @@ namespace MyOneDriveClient
         }
         private async void GenMetadataButton_OnClick(object sender, RoutedEventArgs e)
         {
-            await App.FileStore.GenerateLocalMetadataAsync();
+            //await App.FileStore.GenerateLocalMetadataAsync();
         }
+
+        private async Task ShowBlackListEditor(CloudStorageInstanceViewModel instance)
+        {
+            var blackList = await instance.GetBlackListViewModelAsync(App.AppInstance.LocalCloudStorage.AppClosingCancellationToken);
+            var popup = new BlackListEditView(blackList);
+            var result = popup.ShowDialog() ?? false;
+            if (result)
+            {
+                //only update the blacklist if successful
+                instance.UpdateBlackList(blackList.GetBlackList());
+                await _app.SaveInstances();
+            }
+        }
+
+        #region Context Menu Event Handlers
+        private async void NewInstance_Click(object sender, RoutedEventArgs e)
+        {
+            var popup = new NewCloudStorageInstance(_app.RemoteConnectionFactories);
+            var result = popup.ShowDialog() ?? false;
+            if (result)
+            {
+                //add the instance to the LocalCloudStorage instance
+                var instance = _app.LocalCloudStorage.AddCloudStorageInstance(popup.Data);
+
+                //open the blacklist editor
+                await ShowBlackListEditor(instance);
+
+                //then start the instance syncing
+                instance.StartSync();
+
+                //and save the instances
+                await App.AppInstance.SaveInstances();
+            }
+        }
+        private async void RemoveInstance_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedInstance = _app.LocalCloudStorage.SelectedInstance;
+            if (selectedInstance == null) return;
+
+            if (MessageBox.Show("Are you sure you want to remove this instance", "Remove Instance?",
+                    MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+            {
+                _app.LocalCloudStorage.RemoveCloudStorageInstance(selectedInstance.InstanceName);
+                _app.LocalCloudStorage.SelectedInstance = _app.LocalCloudStorage.CloudStorageInstances.FirstOrDefault();
+                await _app.SaveInstances();
+            }
+        }
+        private void PauseOneHour_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.PauseSync(TimeSpan.FromHours(1));
+        }
+        private void PauseTwoHours_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.PauseSync(TimeSpan.FromHours(2));
+        }
+        private void PauseFourHours_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.PauseSync(TimeSpan.FromHours(4));
+        }
+        private void PauseForever_Click(object sender, RoutedEventArgs e)
+        {
+            //this is basically forever
+            _app.LocalCloudStorage.SelectedInstance?.PauseSync(TimeSpan.FromDays(50));
+        }
+        private void Resume_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.ResumeSync();
+        }
+        private async void EditBlackList_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedInstance = _app.LocalCloudStorage.SelectedInstance;
+            if (selectedInstance == null)
+                return;
+            await ShowBlackListEditor(selectedInstance);
+        }
+        private void CheckLocal_Click(object sender, RoutedEventArgs e)
+        {
+            _app.LocalCloudStorage.SelectedInstance?.ForceLocalChanges();
+        }
+        #endregion
     }
 }
