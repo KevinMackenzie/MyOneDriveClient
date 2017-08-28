@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -72,6 +73,38 @@ namespace LocalCloudStorage
             return this;
         }
 
+        public async Task<HttpResponseMessage> SendAsync(bool retryOnTimeout, CancellationToken ct)
+        {
+            //add the headers now
+            if (_contentHeaders != null)
+            {
+                if (_request.Content == null)
+                {
+                    _request.Content = new StringContent("");
+                }
+                foreach (var header in _contentHeaders)
+                {
+                    _request.Content.Headers.Add(header.Key, header.Value);
+                }
+            }
+
+            Debug.WriteLine(_request.ToString());
+            HttpResponseMessage ret = null;
+            while (ret == null)
+            {
+                try
+                {
+                    ret = await _httpClient.SendAsync(_request, _completionOption, ct);
+                    Debug.WriteLine(ret.ToString());
+                }
+                catch (Exception e)
+                {
+                    await Utils.DelayNoThrow(TimeSpan.FromSeconds(10), ct);
+                }
+            }
+            return ret;
+        }
+
         public async Task<HttpResponseMessage> SendAsync(CancellationToken ct)
         {
             //add the headers now
@@ -86,24 +119,29 @@ namespace LocalCloudStorage
                     _request.Content.Headers.Add(header.Key, header.Value);
                 }
             }
-            return await _httpClient.SendAsync(_request, _completionOption, ct);
+
+            Debug.WriteLine(_request.ToString());
+            var ret = await _httpClient.SendAsync(_request, _completionOption, ct);
+            Debug.WriteLine(ret.ToString());
+            return ret;
         }
     }
 
-    public class HttpClientHelper
+    public class HttpClientHelper : IDisposable
     {
         #region Private Fields
-        private HttpClient _httpClient = new HttpClient();
+        private static HttpClient _httpClient = new HttpClient();
+        private static int _refCounter;
         private readonly Atomic<AuthenticationHeaderValue> _authenticationHeader = new Atomic<AuthenticationHeaderValue>(null);
         #endregion
 
         public HttpClientHelper()
         {
-            
+            Interlocked.Increment(ref _refCounter);
         }
 
         #region Public Properties
-        public TimeSpan Timeout
+        public static TimeSpan Timeout
         {
             get => _httpClient.Timeout;
             set => _httpClient.Timeout = value;
@@ -144,5 +182,14 @@ namespace LocalCloudStorage
             return response.StatusCode == HttpStatusCode.NoContent;
         }
         #endregion
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            if (Interlocked.Decrement(ref _refCounter) == 0)
+            {
+                _httpClient?.Dispose();
+            }
+        }
     }
 }

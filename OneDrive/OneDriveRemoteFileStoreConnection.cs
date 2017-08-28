@@ -25,7 +25,14 @@ namespace LocalCloudStorage.OneDrive
         private static string ClientId = "f9dc0bbd-fc1b-4cf4-ac6c-e2a41a05d583";//"0b8b0665-bc13-4fdc-bd72-e0227b9fc011";
         private static string _onedriveEndpoint = "https://graph.microsoft.com/v1.0/me/drive";
 
-        private HttpClientHelper _httpClient = new HttpClientHelper() {Timeout = TimeSpan.FromSeconds(5)};
+
+        private static int _4MB = 4 * 1024 * 1024;
+        private static long _5MB = 320 * 1024 * 16;
+        private static long _minFragLen = 320 * 1024;
+
+        private long FragLength { get; }
+
+        private HttpClientHelper _httpClient = new HttpClientHelper();
         private AuthenticationResult _authResult = null;
 
         private PublicClientApplication _clientApp;
@@ -37,6 +44,8 @@ namespace LocalCloudStorage.OneDrive
         private TokenCacheHelper _tch;
         public OneDriveRemoteFileStoreConnection(TokenCacheHelper tch)
         {
+            HttpClientHelper.Timeout = TimeSpan.FromSeconds(30);
+            FragLength = _minFragLen;
             _tch = tch;
             _clientApp = new PublicClientApplication(ClientId, "https://login.microsoftonline.com/common", tch.GetUserCache());
             try
@@ -150,8 +159,6 @@ namespace LocalCloudStorage.OneDrive
             }
             return await GetItemHandleByUrlAsync(url, ct);
         }
-        private static int _4MB = 4 * 1024 * 1024;
-        private static long _5MB = 320 * 1024 * 16;
         public async Task<HttpResult<IRemoteItemHandle>> UploadFileAsync(string remotePath, Stream data, CancellationToken ct)
         {
             return await UploadFileByUrlAsync($"{_onedriveEndpoint}/root:{remotePath}", data, ct);
@@ -314,19 +321,19 @@ namespace LocalCloudStorage.OneDrive
                 HttpResponseMessage response = null;
 
                 //get the chunks
-                List<Tuple<long, long>> chunks;
+                var chunks = ParseLargeUploadChunks(uploadSessionRequestObject, FragLength, length);
                 do
                 {
 
-                    HttpResult<List<Tuple<long, long>>> chunksResult;
+                    //HttpResult<List<Tuple<long, long>>> chunksResult;
                     //get the chunks
-                    do
+                    /*do
                     {
                         chunksResult = await RetrieveLargeUploadChunksAsync(uploadUrl, _5MB, length, ct);
                         //TODO: should we delay on failure?
                     } while (chunksResult.Value == null);//keep trying to get thre results until we're successful
 
-                    chunks = chunksResult.Value;
+                    chunks = chunksResult.Value;*/
 
                     //upload each fragment
                     var chunkStream = new ChunkedReadStreamWrapper(data);
@@ -349,7 +356,7 @@ namespace LocalCloudStorage.OneDrive
                             response = await _httpClient.StartRequest(uploadUrl, HttpMethod.Put)
                                 .SetContent(chunkStream)
                                 .SetContentHeaders(headers)
-                                .SendAsync(ct);
+                                .SendAsync(true, ct);
 
                         } while (!response.IsSuccessStatusCode); // keep retrying until success
                     }
@@ -358,7 +365,7 @@ namespace LocalCloudStorage.OneDrive
                     responseJObject = await HttpClientHelper.ReadResponseAsJObjectAsync(response);
 
                     //try to get chunks from the response to see if we need to retry anything
-                    chunks = ParseLargeUploadChunks(responseJObject, _5MB, length);
+                    chunks = ParseLargeUploadChunks(responseJObject, FragLength, length);
                 }
                 while (chunks.Count > 0);//keep going until no chunks left
 
