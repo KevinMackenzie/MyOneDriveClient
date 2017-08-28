@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,7 +7,7 @@ using LocalCloudStorage.Events;
 
 namespace LocalCloudStorage
 {
-    public interface IRemoteFileStoreInterface : IFileStoreInterface
+    public interface IRemoteFileStoreInterface : IFileStoreInterface, IDisposable
     {
         Task<IEnumerable<IItemDelta>> RequestDeltasAsync(CancellationToken ct);
 

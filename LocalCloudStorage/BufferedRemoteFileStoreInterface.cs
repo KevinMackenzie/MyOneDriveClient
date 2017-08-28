@@ -714,5 +714,10 @@ namespace LocalCloudStorage
         /*
          * TODO: support remote change events
          */
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            _remote?.Dispose();
+        }
     }
 }
