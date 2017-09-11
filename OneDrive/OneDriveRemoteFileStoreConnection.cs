@@ -317,7 +317,6 @@ namespace LocalCloudStorage.OneDrive
                 };
 
                 JObject responseJObject;
-                string responseString = "";
                 //the response that will be returned
                 HttpResponseMessage response = null;
 
@@ -357,16 +356,15 @@ namespace LocalCloudStorage.OneDrive
                             response = await _httpClient.StartRequest(uploadUrl, HttpMethod.Put)
                                 .SetContent(chunkStream)
                                 .SetContentHeaders(headers)
+                                //we MUST read this response before attempting the next request, or it will stop responding
+                                .SetCompletionOption(HttpCompletionOption.ResponseContentRead)
                                 .SendAsync(ct, true);
-
-                            //we MUST read this response before attempting the next request, or it will stop responding
-                            responseString = await HttpClientHelper.ReadResponseAsStringAsync(response);
 
                         } while (!response.IsSuccessStatusCode); // keep retrying until success
                     }
 
                     //parse the response to see if there are more chunks or the final metadata
-                    responseJObject = HttpClientHelper.ReadResponseAsJObject(responseString);
+                    responseJObject = await HttpClientHelper.ReadResponseAsJObjectAsync(response);
 
                     //try to get chunks from the response to see if we need to retry anything
                     chunks = ParseLargeUploadChunks(responseJObject, FragLength, length);
