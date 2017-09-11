@@ -710,5 +710,10 @@ namespace LocalCloudStorage.OneDrive
             #endregion
         }
 
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            _httpClient?.Dispose();
+        }
     }
 }

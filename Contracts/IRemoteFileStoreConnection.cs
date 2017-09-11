@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using LocalCloudStorage.Threading;
@@ -9,7 +10,7 @@ namespace LocalCloudStorage
     /// A remote file server with read/write access.  Implementations
     ///  should only throw <see cref="TaskCanceledException"/>s
     /// </summary>
-    public interface IRemoteFileStoreConnection
+    public interface IRemoteFileStoreConnection : IDisposable
     {
         /// <summary>
         /// Called before anything else to prepare the file store with any data saved to the disk

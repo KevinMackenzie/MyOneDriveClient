@@ -188,6 +188,7 @@ namespace LocalCloudStorage
         public void Dispose()
         {
             _instancePts?.Dispose();
+            _remoteInterface?.Dispose();
 
             _instancePts = null;
             _syncLoopTask = null;
