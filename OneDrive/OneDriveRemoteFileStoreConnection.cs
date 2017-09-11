@@ -357,7 +357,7 @@ namespace LocalCloudStorage.OneDrive
                             response = await _httpClient.StartRequest(uploadUrl, HttpMethod.Put)
                                 .SetContent(chunkStream)
                                 .SetContentHeaders(headers)
-                                .SendAsync(ct);
+                                .SendAsync(ct, true);
 
                             //we MUST read this response before attempting the next request, or it will stop responding
                             responseString = await HttpClientHelper.ReadResponseAsStringAsync(response);

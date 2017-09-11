@@ -73,7 +73,7 @@ namespace LocalCloudStorage
             return this;
         }
 
-        public async Task<HttpResponseMessage> SendAsync(bool retryOnTimeout, CancellationToken ct)
+        public async Task<HttpResponseMessage> SendAsync(CancellationToken ct, bool retryOnTimeout = false)
         {
             //add the headers now
             if (_contentHeaders != null)
@@ -87,42 +87,26 @@ namespace LocalCloudStorage
                     _request.Content.Headers.Add(header.Key, header.Value);
                 }
             }
-
-            Debug.WriteLine(_request.ToString());
+            
             HttpResponseMessage ret = null;
             while (ret == null)
             {
                 try
                 {
                     ret = await _httpClient.SendAsync(_request, _completionOption, ct);
-                    Debug.WriteLine(ret.ToString());
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
-                    await Utils.DelayNoThrow(TimeSpan.FromSeconds(10), ct);
+                    if (retryOnTimeout)
+                    {
+                        await Utils.DelayNoThrow(TimeSpan.FromSeconds(10), ct);
+                    }
+                    else
+                    {
+                        throw;
+                    }
                 }
             }
-            return ret;
-        }
-
-        public async Task<HttpResponseMessage> SendAsync(CancellationToken ct)
-        {
-            //add the headers now
-            if (_contentHeaders != null)
-            {
-                if (_request.Content == null)
-                {
-                    _request.Content = new StringContent("");
-                }
-                foreach (var header in _contentHeaders)
-                {
-                    _request.Content.Headers.Add(header.Key, header.Value);
-                }
-            }
-
-            Debug.WriteLine(_request.ToString());
-            var ret = await _httpClient.SendAsync(_request, _completionOption, ct);
-            Debug.WriteLine(ret.ToString());
             return ret;
         }
     }
@@ -170,10 +154,13 @@ namespace LocalCloudStorage
         }
         public static async Task<JObject> ReadResponseAsJObjectAsync(HttpResponseMessage message)
         {
-            var text = await ReadResponseAsStringAsync(message);
-            if (string.IsNullOrEmpty(text))
+            return ReadResponseAsJObject(await ReadResponseAsStringAsync(message));
+        }
+        public static JObject ReadResponseAsJObject(string responseText)
+        {
+            if (string.IsNullOrEmpty(responseText))
                 return null;
-            return (JObject)JsonConvert.DeserializeObject(text);
+            return (JObject)JsonConvert.DeserializeObject(responseText);
         }
         public async Task<bool> HasNetworkConnection()
         {
