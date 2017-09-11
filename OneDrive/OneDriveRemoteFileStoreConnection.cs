@@ -45,7 +45,7 @@ namespace LocalCloudStorage.OneDrive
         public OneDriveRemoteFileStoreConnection(TokenCacheHelper tch)
         {
             HttpClientHelper.Timeout = TimeSpan.FromSeconds(30);
-            FragLength = _minFragLen;
+            FragLength = _5MB;
             _tch = tch;
             _clientApp = new PublicClientApplication(ClientId, "https://login.microsoftonline.com/common", tch.GetUserCache());
             try
@@ -317,6 +317,7 @@ namespace LocalCloudStorage.OneDrive
                 };
 
                 JObject responseJObject;
+                string responseString = "";
                 //the response that will be returned
                 HttpResponseMessage response = null;
 
@@ -356,13 +357,16 @@ namespace LocalCloudStorage.OneDrive
                             response = await _httpClient.StartRequest(uploadUrl, HttpMethod.Put)
                                 .SetContent(chunkStream)
                                 .SetContentHeaders(headers)
-                                .SendAsync(true, ct);
+                                .SendAsync(ct);
+
+                            //we MUST read this response before attempting the next request, or it will stop responding
+                            responseString = await HttpClientHelper.ReadResponseAsStringAsync(response);
 
                         } while (!response.IsSuccessStatusCode); // keep retrying until success
                     }
 
                     //parse the response to see if there are more chunks or the final metadata
-                    responseJObject = await HttpClientHelper.ReadResponseAsJObjectAsync(response);
+                    responseJObject = HttpClientHelper.ReadResponseAsJObject(responseString);
 
                     //try to get chunks from the response to see if we need to retry anything
                     chunks = ParseLargeUploadChunks(responseJObject, FragLength, length);
