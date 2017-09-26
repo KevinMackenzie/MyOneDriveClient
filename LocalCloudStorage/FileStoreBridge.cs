@@ -481,8 +481,11 @@ namespace LocalCloudStorage
                         {
                             case RequestType.Write:
                                 //rename the local file
+                                var newName = PathUtils.InsertDateTime(PathUtils.GetItemName(request.Path), DateTime.UtcNow);
                                 await _local.RequestRenameItemImmediateAsync(request.Path,
-                                    PathUtils.InsertDateTime(PathUtils.GetItemName(request.Path), DateTime.UtcNow), ct);
+                                    newName, ct);
+                                //upload the local file
+                                await UploadImmediateAsync(newName, ct);
                                 break;
                             case RequestType.Rename:
                                 //rename the existing destination file
