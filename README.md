@@ -1,52 +1,9 @@
----
-services: active-directory
-platforms: dotnet
-author: jmprieur
----
+# Welcome to This Project!  (We still need a name!)
+## Purpose
+The OneDrive client that is built into windows isn't very good and since it's built into windows, it isn't easy to fix it if its not working!  This application solves that problem by being stand-alone and open source, but that's just the beginning.  This will also support mutiple different providers of cloud storage.  While OneDrive is the only one right now for testing, the Plugin system allows any provider to have support.  Another feature will be to allow encryption of data when uploading it to ease the users wary of the security and privacy of storing their data on some company's server.
 
-
-# WPF application signing in users with Microsoft and calling the Microsoft Graph
-
-| [Getting Started](https://docs.microsoft.com/azure/active-directory/develop/guidedsetups/active-directory-mobileanddesktopapp-windowsdesktop-intro)| [Library](https://github.com/AzureAD/microsoft-authentication-library-for-dotnet) | [Docs](https://aka.ms/aadv2) | [Support](README.md#community-help-and-support) 
-| --- | --- | --- | --- |
-
-This simple sample demonstrates how to use the [Microsoft Authentication Library (MSAL) for .NET](https://github.com/AzureAD/microsoft-authentication-library-for-dotnet) to get an access token and call the Microsoft Graph (using OAuth 2.0 against the Azure AD v2.0 endpoint).
-
-## Steps to Run
-
-You can get full explaination about this sample, and build it from scratch by going to [Windows desktop .NET guided walkthrough](https://docs.microsoft.com/azure/active-directory/develop/guidedsetups/active-directory-mobileanddesktopapp-windowsdesktop-intro).
-
-If you just want to quickly run it, use the following instructions:
-
-1. Register an Azure AD v2.0 (converged) app. 
-    - Navigate to the [App Registration Portal](https://identity.microsoft.com). 
-    - Go to the the `My Apps` page, click `Add an App`, and name your app.  
-    - Set a platform by clicking `Add Platform`, select `Native`.
-    - Copy to the clipboard your Application Id
-
-2. Clone the code.
-  ```
-  git clone https://github.com/Azure-Samples/active-directory-dotnet-desktop-msgraph-v2.git
-  ```
-
-3. In the `App.xaml.cs` file, set your application/client id copied from the App Registration Portal.
-
-    ``private static string ClientId = "[Application Id pasted from the application registration portal]"``
-
-4. Run the application from Visual Studio (Debug | Start without Debugging)
-
-## Community Help and Support
-
-We use [Stack Overflow](http://stackoverflow.com/questions/tagged/msal) with the community to provide support. We highly recommend you ask your questions on Stack Overflow first and browse existing issues to see if someone has asked your question before. Make sure that your questions or comments are tagged with [msal.dotnet].
-
-If you find and bug in the sample please raise the issue on [GitHub Issues](../../issues).
-
-If you find a bug in msal.Net, please raise the issue on [MSAL.NET GitHub Issues](https://github.com/AzureAD/microsoft-authentication-library-for-dotnet/issues).
-
-To provide a recommendation, visit our [User Voice page](https://feedback.azure.com/forums/169401-azure-active-directory).
+## Where we (I) am at now / Future plans
+After working on this for a few months, I am developing a new structure for the application to hopefully be more robust and modular.  Much of the current code will be reused, but the way it is all connected will probably change.  I may submit a proposal for the Spring 2017 semester for this to become an RCOS (Rensselaer Center for Open Source) Project so I can get an initial base of contributors.
 
 ## Contributing
-
-If you'd like to contribute to this sample, see [CONTRIBUTING.MD](/CONTRIBUTING.md).
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+At this time, I am the only contributer on this project and since it is undergoing major changes, pull requests will probably not be accepted.  Suggestions on structure (in the wiki) can be made as issues and I'd love to hear them.
