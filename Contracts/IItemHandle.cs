@@ -11,10 +11,14 @@ namespace LocalCloudStorage
         string Path { get; }
         string Name { get; }
         long Size { get; }
+        string Id { get; }
+        string ParentId { get; }
+
         Task<string> GetSha1HashAsync(CancellationToken ct);
         Task<string> GetSha1HashAsync();
+
         DateTime LastModified { get; }
-        //DateTime Created { get; } (less important)
+
         /// <summary>
         /// Gets a stream to this item's data, null if failed or <see cref="IsFolder"/> is true
         /// </summary>

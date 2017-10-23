@@ -10,7 +10,7 @@ namespace LocalCloudStorage
     /// A remote file server with read/write access.  Implementations
     ///  should only throw <see cref="TaskCanceledException"/>s
     /// </summary>
-    public interface IRemoteFileStoreConnection : IDisposable
+    public interface IConnection : IDisposable
     {
         /// <summary>
         /// Called before anything else to prepare the file store with any data saved to the disk

@@ -14,7 +14,7 @@ namespace OneDrive
     public class OneDriveRemoteFileStoreConnectionFactory : IRemoteFileStoreConnectionFactory
     {
         /// <inheritdoc />
-        public IRemoteFileStoreConnection Construct(string cacheLocation)
+        public IConnection Construct(string cacheLocation)
         {
             return new OneDriveRemoteFileStoreConnection(new TokenCacheHelper(cacheLocation));
         }

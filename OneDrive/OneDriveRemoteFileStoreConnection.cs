@@ -17,7 +17,7 @@ using Utils;
 
 namespace LocalCloudStorage.OneDrive
 {
-    internal class OneDriveRemoteFileStoreConnection : IRemoteFileStoreConnection
+    internal class OneDriveRemoteFileStoreConnection : IConnection
     {
         private static string[] _scopes = new string[] { "files.readwrite" };
         //Below is the clientId of your app registration. 

@@ -79,12 +79,12 @@ namespace LocalCloudStorage
         #endregion
 
         #region Private Fields
-        private IRemoteFileStoreConnection _remote;
+        private IConnection _remote;
         private RemoteItemMetadataCache _metadata = new RemoteItemMetadataCache();
         private int _requestId;//TODO: should this be volatile
         #endregion
 
-        public BufferedRemoteFileStoreInterface(IRemoteFileStoreConnection remote)
+        public BufferedRemoteFileStoreInterface(IConnection remote)
         {
             _remote = remote;
         }
