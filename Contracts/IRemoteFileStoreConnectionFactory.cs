@@ -23,11 +23,11 @@
         /// Whether this kind of <see cref="IConnection"/> needs its own
         ///  special kind of <see cref="IRemoteFileStoreInterface"/>
         /// </summary>
-        bool OverridesFileStoreInterface { get; }
+        //bool OverridesFileStoreInterface { get; }
         /// <summary>
         /// The special kind of interface that is needed to run this <see cref="IConnection"/>
         /// </summary>
         /// <returns>a new instance of a specialized <see cref="IRemoteFileStoreInterface"/> or null if not applicable</returns>
-        IRemoteFileStoreInterface ConstructInterface();
+        //IRemoteFileStoreInterface ConstructInterface();
     }
 }

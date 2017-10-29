@@ -7,6 +7,6 @@ namespace LocalCloudStorage
     public interface IRemoteItemHandle : IItemHandle
     {
         string Sha1 { get; }
-        Task<HttpResult<Stream>> TryGetFileDataAsync(CancellationToken ct);
+        Task<IHttpResult<Stream>> TryGetFileDataAsync(CancellationToken ct);
     }
 }

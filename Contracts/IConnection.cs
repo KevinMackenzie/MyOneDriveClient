@@ -41,7 +41,7 @@ namespace LocalCloudStorage
         /// </summary>
         /// <param name="remotePath">the remote path of the item</param>
         /// <returns>the item metadata at the remote path.  Null if it doesn't exist</returns>
-        Task<HttpResult<string>> GetItemMetadataAsync(string remotePath, CancellationToken ct);
+        Task<IHttpResult<string>> GetItemMetadataAsync(string remotePath, CancellationToken ct);
         /// <summary>
         /// Retrieves an item handle from the remote with the given remote path
         /// </summary>
@@ -50,36 +50,36 @@ namespace LocalCloudStorage
         /// <remarks>
         /// This should seldom be used
         /// </remarks>
-        Task<HttpResult<IRemoteItemHandle>> GetItemHandleAsync(string remotePath, CancellationToken ct);
+        Task<IHttpResult<IRemoteItemHandle>> GetItemHandleAsync(string remotePath, CancellationToken ct);
         /// <summary>
         /// Uploads a given file with a remote file path
         /// </summary>
         /// <param name="remotePath">the remote path of the uploaded item</param>
         /// <param name="data">the data contents of the file</param>
         /// <returns>the item handle of the created item</returns>
-        Task<HttpResult<IRemoteItemHandle>> UploadFileAsync(string remotePath, Stream data, CancellationToken ct);
+        Task<IHttpResult<IRemoteItemHandle>> UploadFileAsync(string remotePath, Stream data, CancellationToken ct);
         /// <summary>
         /// Creates a folder with the given remote path
         /// </summary>
         /// <param name="remotePath">the remote path of the folder</param>
         /// <returns>the id of the created folder.  if the folder already exists, returns id of existing folder</returns>
-        Task<HttpResult<IRemoteItemHandle>> CreateFolderAsync(string remotePath, CancellationToken ct);
-        Task<HttpResult<bool>> DeleteItemAsync(string remotePath, CancellationToken ct);
-        //Task<HttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json);
-        Task<HttpResult<IRemoteItemHandle>> RenameItemAsync(string remotePath, string newName, CancellationToken ct);
+        Task<IHttpResult<IRemoteItemHandle>> CreateFolderAsync(string remotePath, CancellationToken ct);
+        Task<IHttpResult<bool>> DeleteItemAsync(string remotePath, CancellationToken ct);
+        //Task<IHttpResult<IRemoteItemHandle>> UpdateItemAsync(string remotePath, string json);
+        Task<IHttpResult<IRemoteItemHandle>> RenameItemAsync(string remotePath, string newName, CancellationToken ct);
 
         /// <summary>
         /// Gets item metadata with a given id
         /// </summary>
         /// <param name="id">the id of the item</param>
         /// <returns>the metadata of the item.  Null if the item doesn't exist</returns>
-        Task<HttpResult<string>> GetItemMetadataByIdAsync(string id, CancellationToken ct);
+        Task<IHttpResult<string>> GetItemMetadataByIdAsync(string id, CancellationToken ct);
         /// <summary>
         /// Retrieves an item handle from the remote with the given ID
         /// </summary>
         /// <param name="id"></param>
         /// <returns>the remote item handle with the given id</returns>
-        Task<HttpResult<IRemoteItemHandle>> GetItemHandleByIdAsync(string id, CancellationToken ct);
+        Task<IHttpResult<IRemoteItemHandle>> GetItemHandleByIdAsync(string id, CancellationToken ct);
         /// <summary>
         /// Uploads a given file with a given parent id
         /// </summary>
@@ -90,7 +90,7 @@ namespace LocalCloudStorage
         /// <remarks>
         /// This does not check to see if the file already exists.  There should be an option to keep both or overwrite
         /// </remarks>
-        Task<HttpResult<IRemoteItemHandle>> UploadFileByIdAsync(string parentId, string fileName, Stream data, CancellationToken ct);
+        Task<IHttpResult<IRemoteItemHandle>> UploadFileByIdAsync(string parentId, string fileName, Stream data, CancellationToken ct);
         /// <summary>
         /// Create a remote folder as a child of the given parent id and name
         /// </summary>
@@ -100,11 +100,11 @@ namespace LocalCloudStorage
         /// <remarks>
         /// This will return the id of the existing folder if one already exists with the given name and parent id
         /// </remarks>
-        Task<HttpResult<IRemoteItemHandle>> CreateFolderByIdAsync(string parentId, string name, CancellationToken ct);
-        Task<HttpResult<bool>> DeleteItemByIdAsync(string id, CancellationToken ct);
-        //Task<HttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json);
-        Task<HttpResult<IRemoteItemHandle>> RenameItemByIdAsync(string id, string newName, CancellationToken ct);
-        Task<HttpResult<IRemoteItemHandle>> MoveItemByIdAsync(string id, string newParentId, CancellationToken ct);
+        Task<IHttpResult<IRemoteItemHandle>> CreateFolderByIdAsync(string parentId, string name, CancellationToken ct);
+        Task<IHttpResult<bool>> DeleteItemByIdAsync(string id, CancellationToken ct);
+        //Task<IHttpResult<IRemoteItemHandle>> UpdateItemByIdAsync(string id, string json);
+        Task<IHttpResult<IRemoteItemHandle>> RenameItemByIdAsync(string id, string newName, CancellationToken ct);
+        Task<IHttpResult<IRemoteItemHandle>> MoveItemByIdAsync(string id, string newParentId, CancellationToken ct);
 
         /// <summary>
         /// When important settings change that need to be cached to the disk to be used on startup

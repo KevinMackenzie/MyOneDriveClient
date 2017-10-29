@@ -8,7 +8,7 @@
         bool Deleted { get; }
 
         /// <summary>
-        /// A handle to the updated item.  Null if <see cref="Deleted" is true/>
+        /// A handle to the updated item.  Null if <see cref="Deleted" /> is true/>
         /// </summary>
         IRemoteItemHandle ItemHandle { get; }
     }
