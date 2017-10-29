@@ -61,7 +61,10 @@ namespace LocalCloudStorage.ItemMetadata
             }
             else
             {
-                delta.Type = DeltaType.Created;
+                // Handle this in the same way as a created update,
+                //  but retain the delta type so when the event
+                //  gets sent, the receiver still does the right
+                //  thing with the data
                 return UpdateCreated(delta, null);
             }
         }
@@ -76,7 +79,10 @@ namespace LocalCloudStorage.ItemMetadata
             }
             else
             {
-                delta.Type = DeltaType.Created;
+                // Handle this in the same way as a created update,
+                //  but retain the delta type so when the event
+                //  gets sent, the receiver still does the right
+                //  thing with the data
                 return UpdateCreated(delta, null);
             }
         }
@@ -97,7 +103,10 @@ namespace LocalCloudStorage.ItemMetadata
             }
             else
             {
-                delta.Type = DeltaType.Created;
+                // Handle this in the same way as a created update,
+                //  but retain the delta type so when the event
+                //  gets sent, the receiver still does the right
+                //  thing with the data
                 return UpdateCreated(delta, null);
             }
         }
@@ -144,9 +153,10 @@ namespace LocalCloudStorage.ItemMetadata
             }
         }
 
-        public bool TryGetItem(string filePath, IReadItemMetadata itemMetadata)
+        public bool TryGetItem(string filePath, out IReadItemMetadata itemMetadata)
         {
-            throw new NotImplementedException();
+            itemMetadata = GetFirstWithPath(filePath);
+            return itemMetadata != null;
         }
 
         #region Events
